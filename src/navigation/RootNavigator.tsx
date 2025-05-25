@@ -3,6 +3,7 @@ import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { HomeScreen } from '../screens/HomeScreen';
 import { DemoScreen } from '../screens/DemoScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
 import { ChatScreen } from '../chat';
 import { PaywallScreen } from '../paywall/PaywallScreen';
 import { useTheme } from '../components/ThemeProvider';
@@ -49,6 +50,11 @@ export const RootNavigator = () => {
             name="Paywall"
             component={PaywallScreen}
             options={{ title: 'Premium Access' }}
+          />
+          <Stack.Screen
+            name="Settings"
+            component={SettingsScreen}
+            options={{ title: 'Settings' }}
           />
         </Stack.Navigator>
       </AuthGate>

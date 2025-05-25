@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { Alert, Linking, Platform } from 'react-native';
+import { Alert, Linking, Platform, AppState } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
+import * as SecureStore from 'expo-secure-store';
+import NetInfo from '@react-native-community/netinfo';
 import { supabase } from '../lib/supabase';
 
 // THIS IS CRUCIAL - Call this before any auth session
@@ -11,8 +13,12 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signIn: () => Promise<void>;
+  isOnline: boolean;
   signInWithApple: () => Promise<void>;
+  signInWithEmail: (email: string) => Promise<void>;
+  signInWithEmailPassword: (email: string, password: string) => Promise<void>;
+  signUpWithEmailPassword: (email: string, password: string) => Promise<void>;
+  checkEmailStatus: (email: string) => Promise<'verified' | 'unverified' | 'not_found'>;
   signOut: () => Promise<void>;
 }
 
@@ -34,15 +40,75 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isOnline, setIsOnline] = useState(true);
+
+  // SecureStore keys
+  const SESSION_KEY = 'user_session';
+  const REFRESH_TOKEN_KEY = 'refresh_token';
+
+  // Helper functions for SecureStore
+  const storeSession = async (session: Session) => {
+    try {
+      await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session));
+      console.log('💾 Session stored in SecureStore');
+    } catch (error) {
+      console.error('❌ Error storing session:', error);
+    }
+  };
+
+  const clearStoredSession = async () => {
+    try {
+      await SecureStore.deleteItemAsync(SESSION_KEY);
+      await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+      console.log('🗑️ Session cleared from SecureStore');
+    } catch (error) {
+      console.error('❌ Error clearing session:', error);
+    }
+  };
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Initialize network listener
+    const unsubscribeNetInfo = NetInfo.addEventListener((state: any) => {
+      setIsOnline(!!state.isConnected);
+    });
+
+    // Try to restore session from SecureStore first
+    const restoreSession = async () => {
+      try {
+        const storedSession = await SecureStore.getItemAsync(SESSION_KEY);
+        if (storedSession) {
+          const parsedSession = JSON.parse(storedSession);
+          console.log('🔄 Restoring session from SecureStore...');
+          
+          // Validate and refresh the stored session
+          const { data, error } = await supabase.auth.setSession({
+            access_token: parsedSession.access_token,
+            refresh_token: parsedSession.refresh_token,
+          });
+          
+          if (error) {
+            console.log('⚠️ Stored session invalid, clearing...');
+            await clearStoredSession();
+          } else {
+            console.log('✅ Session restored successfully');
+            setSession(data.session);
+            setUser(data.session?.user ?? null);
+          }
+        }
+      } catch (error) {
+        console.log('⚠️ Error restoring session:', error);
+        await clearStoredSession();
+      }
+      
+      // Fall back to Supabase session check
+      const { data: { session } } = await supabase.auth.getSession();
       console.log('🔐 Initial session:', session ? '✅ Found' : '❌ None');
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
-    });
+    };
+
+    restoreSession();
 
     // Listen for auth changes
     const {
@@ -52,6 +118,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+      
+      // Store or clear session in SecureStore
+      if (session) {
+        await storeSession(session);
+      } else {
+        await clearStoredSession();
+      }
     });
 
     // Handle deep linking when app returns from OAuth
@@ -102,8 +175,183 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => {
       subscription.unsubscribe();
       linkingSubscription?.remove();
+      unsubscribeNetInfo();
     };
   }, []);
+
+  const checkEmailStatus = async (email: string): Promise<'verified' | 'unverified' | 'not_found'> => {
+    try {
+      console.log('🔍 Checking email status for:', email);
+      
+      // Try to send a sign-in OTP (this won't create a user)
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: false,
+        },
+      });
+      
+      if (error) {
+        if (error.message.includes('not found') || 
+            error.message.includes('Invalid email') ||
+            error.message.includes('User not found')) {
+          console.log('❓ Email not found in system');
+          return 'not_found';
+        }
+        
+        if (error.message.includes('email not confirmed') ||
+            error.message.includes('signup') ||
+            error.message.includes('verification')) {
+          console.log('⚠️ Email exists but is unverified');
+          return 'unverified';
+        }
+        
+        // For other errors, assume unverified to be safe
+        console.log('⚠️ Error checking email, assuming unverified:', error.message);
+        return 'unverified';
+      }
+      
+      console.log('✅ Email is verified and ready for sign-in');
+      return 'verified';
+    } catch (error: any) {
+      console.error('💥 Error checking email status:', error);
+      return 'not_found';
+    }
+  };
+
+  const signInWithEmail = async (email: string) => {
+    try {
+      setLoading(true);
+      console.log('📧 Starting Email Sign In for:', email);
+      
+      // Check email status first
+      const emailStatus = await checkEmailStatus(email);
+      
+      if (emailStatus === 'verified') {
+        // For verified users, send OTP for immediate sign-in
+        console.log('👤 Verified user - sending OTP for immediate sign-in');
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            shouldCreateUser: false,
+          },
+        });
+        
+        if (error) {
+          console.error('❌ Error sending OTP to verified user:', error);
+          throw error;
+        }
+        
+        console.log('✅ OTP sent to verified user');
+        return;
+      }
+      
+      if (emailStatus === 'unverified') {
+        // User exists but needs verification - resend magic link
+        console.log('⚠️ Unverified user - resending verification link');
+        const { error } = await supabase.auth.resend({
+          type: 'signup',
+          email,
+        });
+        
+        if (error) {
+          console.error('❌ Error resending verification:', error);
+          // Fallback to regular OTP
+          const { error: otpError } = await supabase.auth.signInWithOtp({
+            email,
+            options: {
+              shouldCreateUser: false,
+            },
+          });
+          
+          if (otpError) {
+            throw otpError;
+          }
+        }
+        
+        console.log('✅ Verification link resent');
+        return;
+      }
+      
+      // New user - send magic link for signup
+      console.log('👋 New user - sending magic link for signup');
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: true,
+        },
+      });
+      
+      if (error) {
+        console.error('❌ Error sending signup magic link:', error);
+        throw error;
+      }
+      
+      console.log('✅ Magic link sent for new user signup');
+    } catch (error: any) {
+      console.error('💥 Email sign in error:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signInWithEmailPassword = async (email: string, password: string) => {
+    try {
+      setLoading(true);
+      console.log('🔐 Starting Email/Password Sign In for:', email);
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      
+      if (error) {
+        console.error('❌ Email/Password sign in error:', error);
+        throw error;
+      }
+      
+      if (data.session) {
+        console.log('✅ Email/Password sign in successful');
+        await storeSession(data.session);
+      }
+    } catch (error: any) {
+      console.error('💥 Email/Password sign in error:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signUpWithEmailPassword = async (email: string, password: string) => {
+    try {
+      setLoading(true);
+      console.log('📝 Starting Email/Password Sign Up for:', email);
+      
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+      
+      if (error) {
+        console.error('❌ Email/Password sign up error:', error);
+        throw error;
+      }
+      
+      if (data.session) {
+        console.log('✅ Email/Password sign up successful with immediate session');
+        await storeSession(data.session);
+      } else if (data.user && !data.user.email_confirmed_at) {
+        console.log('📧 Email confirmation required');
+        // You might want to show a message to the user about checking their email
+      }
+    } catch (error: any) {
+      console.error('💥 Email/Password sign up error:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const signInWithApple = async () => {
     try {
@@ -233,17 +481,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const value = useMemo(
-    () => ({
-      user,
-      session,
-      loading,
-      signIn,
-      signInWithApple,
-      signOut,
-    }),
-    [user, session, loading]
-  );
+  const value = useMemo(() => ({
+    user,
+    session,
+    loading,
+    isOnline,
+    signInWithApple,
+    signInWithEmail,
+    signInWithEmailPassword,
+    signUpWithEmailPassword,
+    checkEmailStatus,
+    signOut,
+  }), [user, session, loading, isOnline]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
