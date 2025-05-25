@@ -1,0 +1,28 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`ModelPicker ModelPickerSnapshot 1`] = `
+<View>
+  <Text
+    accessibilityRole="text"
+    allowFontScaling={true}
+    maxFontSizeMultiplier={3}
+    style={
+      [
+        {
+          "includeFontPadding": false,
+        },
+        {
+          "color": "#212529",
+          "fontFamily": "System",
+          "fontSize": 24,
+          "fontWeight": "400",
+          "lineHeight": 32,
+          "textAlign": "left",
+        },
+      ]
+    }
+  >
+    Model Picker Test
+  </Text>
+</View>
+`;
