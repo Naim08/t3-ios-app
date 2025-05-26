@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "pocket-t3",
+    "name": "Pocket T3",
     "slug": "pocket-t3",
     "scheme": "pocket-t3",
     "version": "1.0.0",
@@ -8,6 +8,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "privacy": "unlisted",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -19,7 +20,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "org.name.pockett3",
-      "infoPlist": {
+      "buildNumber": "3",
+      "requireFullScreen": false,
+      "userInterfaceStyle": "automatic",        "infoPlist": {
+        "CFBundleDisplayName": "GPT Claude T3 Gemini Chat Bot",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false,
           "NSExceptionDomains": {
@@ -27,9 +31,16 @@
               "NSExceptionAllowsInsecureHTTPLoads": true,
               "NSExceptionMinimumTLSVersion": "1.0",
               "NSIncludesSubdomains": true
+            },
+            "sandbox.itunes.apple.com": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSExceptionMinimumTLSVersion": "1.0",
+              "NSIncludesSubdomains": true
             }
           }
-        }
+        },
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": ["itms-apps"]
       }
     },
     "android": {
