@@ -13,7 +13,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.smartbot.superchat"
@@ -36,10 +38,14 @@
           "project": "react-native",
           "organization": "originx"
         }
-      ]
+      ],
+      "react-native-iap"
     ],
     "extra": {
-      "sentry": {}
+      "sentry": {},
+      "eas": {
+        "projectId": "8122915b-9492-4b90-b95c-5adf997dac6d"
+      }
     }
   }
 }

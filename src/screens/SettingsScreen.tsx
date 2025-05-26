@@ -11,7 +11,13 @@ import { useTheme } from '../components/ThemeProvider';
 import { Typography, Surface } from '../ui/atoms';
 import { useAuth } from '../providers/AuthProvider';
 
-export const SettingsScreen = () => {
+interface SettingsScreenProps {
+  navigation: {
+    navigate: (screen: string) => void;
+  };
+}
+
+export const SettingsScreen = ({ navigation }: SettingsScreenProps) => {
   const { theme } = useTheme();
   const { user, signOut, loading } = useAuth();
 
@@ -64,6 +70,19 @@ export const SettingsScreen = () => {
             <Text style={styles.signOutText}>Sign Out</Text>
           </TouchableOpacity>
         </Surface>
+
+        {__DEV__ && (
+          <View style={styles.debugSection}>
+            <Surface elevation={1} style={styles.section}>
+              <TouchableOpacity
+                style={styles.debugButton}
+                onPress={() => navigation.navigate('IAPDebug')}
+              >
+                <Text style={styles.debugText}>🔍 IAP Debug Tool</Text>
+              </TouchableOpacity>
+            </Surface>
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -95,6 +114,18 @@ const styles = StyleSheet.create({
   },
   signOutText: {
     color: '#FF3B30',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  debugSection: {
+    marginTop: 16,
+  },
+  debugButton: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  debugText: {
+    color: '#007AFF',
     fontSize: 16,
     fontWeight: '500',
   },

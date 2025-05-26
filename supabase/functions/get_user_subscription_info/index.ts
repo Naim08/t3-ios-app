@@ -1,40 +1,33 @@
 /* eslint-disable no-undef */
 
-import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
 Deno.serve(async (req: Request) => {
-  // Handle preflight requests
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', {
-      headers: corsHeaders
-    });
+    return new Response('ok', { headers: corsHeaders });
   }
+
   try {
     // Get user from auth header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return new Response(JSON.stringify({
-        error: 'Missing authorization header'
-      }), {
-        status: 401,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
-      });
+      return new Response(
+        JSON.stringify({ error: 'Missing authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    // Create Supabase client using service role key for server-side operations
+    // Verify token with auth API
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
-    // Use fetch to manually call the auth API to verify the token
     const token = authHeader.replace('Bearer ', '');
+    
     const authResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -43,21 +36,16 @@ Deno.serve(async (req: Request) => {
     });
 
     if (!authResponse.ok) {
-      return new Response(JSON.stringify({
-        error: 'Invalid or expired token'
-      }), {
-        status: 401,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
-      });
+      return new Response(
+        JSON.stringify({ error: 'Invalid or expired token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const { id: userId } = await authResponse.json();
 
-    // Call the database function using REST API
-    const dbResponse = await fetch(`${supabaseUrl}/rest/v1/rpc/get_user_credits`, {
+    // Call the database function
+    const dbResponse = await fetch(`${supabaseUrl}/rest/v1/rpc/get_user_subscription_info`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${supabaseServiceKey}`,
@@ -70,7 +58,7 @@ Deno.serve(async (req: Request) => {
     if (!dbResponse.ok) {
       console.error('Database error:', await dbResponse.text());
       return new Response(JSON.stringify({
-        error: 'Failed to fetch credits'
+        error: 'Failed to fetch subscription info'
       }), {
         status: 500,
         headers: {

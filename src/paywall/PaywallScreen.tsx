@@ -8,9 +8,11 @@ import {
   Linking,
   Alert,
 } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import { useTheme } from '../components/ThemeProvider';
 import { Typography, PrimaryButton, Surface } from '../ui/atoms';
 import { useEntitlements } from '../hooks/useEntitlements';
+import { usePurchase } from '../purchases';
 import { useTranslation } from 'react-i18next';
 
 export interface PaywallScreenProps {
@@ -23,7 +25,7 @@ export const PaywallScreen: React.FC<PaywallScreenProps> = ({ navigation }) => {
   const { theme } = useTheme();
   const { t } = useTranslation();
   const { isSubscriber, hasCustomKey } = useEntitlements();
-  const [isLoading, setIsLoading] = useState(false);
+  const { purchaseSubscription, purchaseTokens, restorePurchases, isLoading, error, subscriptionProduct, tokenProducts } = usePurchase();
   const [isOffline, setIsOffline] = useState(false);
 
   // Redirect if already entitled
@@ -33,46 +35,60 @@ export const PaywallScreen: React.FC<PaywallScreenProps> = ({ navigation }) => {
     }
   }, [isSubscriber, hasCustomKey, navigation]);
 
-  // Mock network check
+  // Network connectivity check
   useEffect(() => {
-    // In real app, check actual network connectivity
-    setIsOffline(false);
+    const checkNetworkStatus = async () => {
+      const netInfo = await NetInfo.fetch();
+      setIsOffline(!netInfo.isConnected);
+    };
+
+    checkNetworkStatus();
+
+    const unsubscribe = NetInfo.addEventListener(state => {
+      setIsOffline(!state.isConnected);
+    });
+
+    return unsubscribe;
   }, []);
 
-  const requestPurchase = async () => {
-    if (isOffline) {
-      Alert.alert(
-        t('paywall.offlineTitle'),
-        t('paywall.offlineMessage'),
-        [{ text: t('common.ok') }]
-      );
-      return;
+  const getTokenAmountFromId = (productId: string): string => {
+    switch (productId) {
+      case '25K_tokens': return '25,000 tokens';
+      case '100K_tokens': return '100,000 tokens';
+      case 'tokens_250k': return '250,000 tokens';
+      case '500K_tokens': return '500,000 tokens';
+      default: return 'Tokens';
     }
+  };
 
-    setIsLoading(true);
-    
+  const requestTokenPurchase = async (productId: string) => {
     try {
-      // Mock purchase flow - replace with actual StoreKit integration
-      await new Promise(resolve => global.setTimeout(resolve, 2000));
-      
+      await purchaseTokens(productId);
+    } catch (error) {
+      console.error('Token purchase error:', error);
+      // Error handling is done in PurchaseProvider with toast messages
+    }
+  };
+
+  const requestPurchase = async () => {
+    try {
+      await purchaseSubscription();
+    } catch (error) {
+      console.error('Purchase error:', error);
+      // Error handling is done in PurchaseProvider with toast messages
+    }
+  };
+
+  const handleRestorePurchases = async () => {
+    try {
+      await restorePurchases();
+    } catch (error) {
+      console.error('Restore purchases error:', error);
       Alert.alert(
-        t('paywall.purchaseSuccessTitle'),
-        t('paywall.purchaseSuccessMessage'),
-        [
-          {
-            text: t('common.ok'),
-            onPress: () => navigation.goBack(),
-          },
-        ]
-      );
-    } catch {
-      Alert.alert(
-        t('paywall.purchaseErrorTitle'),
-        t('paywall.purchaseErrorMessage'),
+        'Restore Failed',
+        'Failed to restore purchases. Please try again.',
         [{ text: t('common.ok') }]
       );
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -130,13 +146,13 @@ export const PaywallScreen: React.FC<PaywallScreenProps> = ({ navigation }) => {
               weight="bold"
               style={{...styles.priceTitle, color: theme.colors.brand['600'] }}
             >
-              {t('paywall.price')}
+              {subscriptionProduct?.localizedPrice || '$7.99'} / month
             </Typography>
             <Typography
               variant="bodySm"
               style={{...styles.priceDescription, color: theme.colors.textSecondary }}
             >
-              {t('paywall.priceDescription')}
+              150,000 tokens • Unlock GPT-4o & Claude Sonnet
             </Typography>
           </Surface>
 
@@ -147,15 +163,58 @@ export const PaywallScreen: React.FC<PaywallScreenProps> = ({ navigation }) => {
             >
               {t('paywall.alternative')}
             </Typography>
+            
+            {/* Token Packages Section */}
+            {tokenProducts.length > 0 && (
+              <View style={styles.tokenPackagesSection}>
+                <Typography
+                  variant="h4"                        weight="semibold"
+                  style={{...styles.tokenPackagesTitle, color: theme.colors.textPrimary }}
+                >
+                  Or buy tokens individually:
+                </Typography>
+                <View style={styles.tokenPackagesGrid}>
+                  {tokenProducts.map((tokenProduct) => (
+                    <Surface 
+                      key={tokenProduct.productId} 
+                      style={{...styles.tokenPackageSurface, backgroundColor: theme.colors.surface}}
+                    >
+                      <Typography
+                        variant="bodyMd"
+                        weight="semibold"
+                        style={{...styles.tokenPackageAmount, color: theme.colors.textPrimary }}
+                      >
+                        {getTokenAmountFromId(tokenProduct.productId)}
+                      </Typography>
+                      <Typography
+                        variant="bodySm"
+                        style={{...styles.tokenPackagePrice, color: theme.colors.textSecondary }}
+                      >
+                        {tokenProduct.localizedPrice}
+                      </Typography>
+                      <PrimaryButton
+                        title="Buy"
+                        onPress={() => requestTokenPurchase(tokenProduct.productId)}
+                        loading={isLoading}
+                        disabled={isOffline}
+                        variant="outline"
+                        size="small"
+                        style={styles.tokenPackageButton}
+                      />
+                    </Surface>
+                  ))}
+                </View>
+              </View>
+            )}
           </View>
         </View>
 
         <View style={styles.buttonsSection}>
           <PrimaryButton
-            title={t('paywall.subscribe')}
+            title={isLoading ? 'Processing...' : t('paywall.subscribe')}
             onPress={requestPurchase}
             loading={isLoading}
-            disabled={isOffline}
+            disabled={isOffline || !subscriptionProduct}
             variant="primary"
             size="large"
             style={styles.subscribeButton}
@@ -172,6 +231,18 @@ export const PaywallScreen: React.FC<PaywallScreenProps> = ({ navigation }) => {
             accessibilityLabel={t('paywall.enterKeyAccessibility')}
             accessibilityHint={t('paywall.enterKeyHint')}
           />
+
+          <Typography
+            variant="bodySm"
+            onPress={handleRestorePurchases}
+            style={{
+              ...styles.restoreLink,
+              color: theme.colors.brand['600']
+            }}
+            accessibilityRole="button"
+          >
+            Restore Purchases
+          </Typography>
         </View>
 
         <View style={styles.footer}>
@@ -274,6 +345,14 @@ const styles = StyleSheet.create({
   keyButton: {
     minHeight: 48,
   },
+  restoreLink: {
+    textAlign: 'center',
+    textDecorationLine: 'underline',
+    marginTop: 16,
+    minHeight: 44,
+    textAlignVertical: 'center',
+    paddingVertical: 8,
+  },
   footer: {
     alignItems: 'center',
     paddingTop: 16,
@@ -287,5 +366,38 @@ const styles = StyleSheet.create({
     minHeight: 44,
     textAlignVertical: 'center',
     paddingVertical: 8,
+  },
+  tokenPackagesSection: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  tokenPackagesTitle: {
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  tokenPackagesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  tokenPackageSurface: {
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    minWidth: 140,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+  },
+  tokenPackageAmount: {
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  tokenPackagePrice: {
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  tokenPackageButton: {
+    minWidth: 80,
   },
 });

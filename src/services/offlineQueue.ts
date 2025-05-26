@@ -15,9 +15,9 @@ class OfflineQueue {
   private isProcessing = false;
   private readonly QUEUE_KEY = 'credits_offline_queue';
   private readonly MAX_RETRIES = 3;
+  private networkUnsubscribe?: () => void;
 
   private constructor() {
-    this.loadQueue();
     this.setupNetworkListener();
   }
 
@@ -26,6 +26,14 @@ class OfflineQueue {
       OfflineQueue.instance = new OfflineQueue();
     }
     return OfflineQueue.instance;
+  }
+
+  // For testing - reset the singleton
+  static resetInstance(): void {
+    if (OfflineQueue.instance?.networkUnsubscribe) {
+      OfflineQueue.instance.networkUnsubscribe();
+    }
+    OfflineQueue.instance = undefined as any;
   }
 
   private async loadQueue(): Promise<void> {
@@ -47,28 +55,39 @@ class OfflineQueue {
   }
 
   private setupNetworkListener(): void {
-    NetInfo.addEventListener(state => {
-      if (state.isConnected && !this.isProcessing) {
-        this.processQueue();
-      }
-    });
+    try {
+      this.networkUnsubscribe = NetInfo.addEventListener(state => {
+        if (state.isConnected && !this.isProcessing) {
+          this.processQueue();
+        }
+      });
+    } catch (error) {
+      console.error('Failed to setup network listener:', error);
+    }
   }
 
   async queueSpend(amount: number): Promise<void> {
-    const spend: QueuedSpend = {
-      id: `${Date.now()}_${Math.random()}`,
-      amount,
-      timestamp: Date.now(),
-      retries: 0,
-    };
+    try {
+      // Load existing queue first
+      await this.loadQueue();
 
-    this.queue.push(spend);
-    await this.saveQueue();
+      const spend: QueuedSpend = {
+        id: `${Date.now()}_${Math.random()}`,
+        amount,
+        timestamp: Date.now(),
+        retries: 0,
+      };
 
-    // Try to process immediately if online
-    const netState = await NetInfo.fetch();
-    if (netState.isConnected) {
-      this.processQueue();
+      this.queue.push(spend);
+      await this.saveQueue();
+
+      // Try to process immediately if online
+      const netState = await NetInfo.fetch();
+      if (netState.isConnected) {
+        this.processQueue();
+      }
+    } catch (error) {
+      console.error('Failed to queue spend:', error);
     }
   }
 
@@ -109,20 +128,33 @@ class OfflineQueue {
           await this.saveQueue();
         }
       }
+    } catch (error) {
+      console.error('Error processing queue:', error);
     } finally {
       this.isProcessing = false;
     }
   }
 
   async getQueuedAmount(): Promise<number> {
-    return this.queue.reduce((total, spend) => total + spend.amount, 0);
+    try {
+      await this.loadQueue();
+      return this.queue.reduce((total, spend) => total + spend.amount, 0);
+    } catch (error) {
+      console.error('Failed to get queued amount:', error);
+      return 0;
+    }
   }
 
   async clearQueue(): Promise<void> {
-    this.queue = [];
-    await this.saveQueue();
+    try {
+      this.queue = [];
+      await this.saveQueue();
+    } catch (error) {
+      console.error('Failed to clear queue:', error);
+    }
   }
 }
 
 export const offlineQueue = OfflineQueue.getInstance();
+export { OfflineQueue };
 export default offlineQueue;

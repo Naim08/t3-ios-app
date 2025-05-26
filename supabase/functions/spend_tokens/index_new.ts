@@ -1,3 +1,5 @@
+/* eslint-disable no-undef */
+
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://cdn.skypack.dev/@supabase/supabase-js";
 

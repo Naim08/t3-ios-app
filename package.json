@@ -4,6 +4,7 @@
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
+    "debug": "DEBUG=* expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
@@ -11,7 +12,6 @@
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "test": "jest",
     "test:edge-functions": "supabase functions serve --env-file supabase/.env.local",
-    "test:integration": "jest --testPathPattern=__tests__ --testTimeout=10000",
     "format": "prettier --write \"**/*.{ts,tsx,js,json}\""
   },
   "dependencies": {
@@ -32,10 +32,11 @@
     "eventemitter3": "^5.0.1",
     "events": "^3.3.0",
     "events-polyfill": "^2.1.2",
-    "expo": "~53.0.0",
+    "expo": "^53.0.9",
     "expo-auth-session": "^6.1.5",
     "expo-constants": "~17.1.6",
     "expo-crypto": "^14.1.4",
+    "expo-dev-client": "~5.1.8",
     "expo-haptics": "^14.1.4",
     "expo-secure-store": "^14.2.3",
     "expo-status-bar": "~2.2.3",
@@ -51,6 +52,7 @@
     "react-native-fs": "^2.20.0",
     "react-native-gesture-handler": "^2.25.0",
     "react-native-get-random-values": "^1.11.0",
+    "react-native-iap": "^12.16.2",
     "react-native-markdown-display": "^7.0.2",
     "react-native-network-info": "^5.2.1",
     "react-native-reanimated": "^3.17.5",
@@ -87,25 +89,12 @@
   },
   "jest": {
     "preset": "jest-expo",
-    "setupFilesAfterEnv": ["<rootDir>/jest-setup.js"],
-    "transformIgnorePatterns": [
-      "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|@supabase/.*)"
-    ],
-    "testEnvironment": "jsdom",
-    "collectCoverageFrom": [
-      "src/**/*.{ts,tsx}",
-      "!src/**/*.d.ts",
-      "!src/**/__tests__/**",
-      "!src/**/*.test.{ts,tsx}",
-      "!src/**/*.stories.{ts,tsx}"
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.js"
     ],
     "testMatch": [
-      "<rootDir>/src/**/__tests__/**/*.{ts,tsx}",
       "<rootDir>/src/**/*.test.{ts,tsx}"
-    ],
-    "moduleNameMapper": {
-      "^@/(.*)$": "<rootDir>/src/$1"
-    }
+    ]
   },
   "private": true
 }

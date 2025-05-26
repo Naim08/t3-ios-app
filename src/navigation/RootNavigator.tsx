@@ -7,6 +7,7 @@ import { SettingsScreen } from '../screens/SettingsScreen';
 import { ChatScreen } from '../chat';
 import { PaywallScreen } from '../paywall/PaywallScreen';
 import { CreditsPurchaseScreen } from '../credits/CreditsPurchaseScreen';
+import { IAPDebugScreen } from '../debug/IAPDebugScreen';
 import { useTheme } from '../components/ThemeProvider';
 import { AuthGate } from '../auth/AuthGate';
 
@@ -61,6 +62,11 @@ export const RootNavigator = () => {
             name="Settings"
             component={SettingsScreen}
             options={{ title: 'Settings' }}
+          />
+          <Stack.Screen
+            name="IAPDebug"
+            component={IAPDebugScreen}
+            options={{ title: 'IAP Debug' }}
           />
         </Stack.Navigator>
       </AuthGate>
