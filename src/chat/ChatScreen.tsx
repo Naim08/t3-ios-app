@@ -16,7 +16,10 @@ import { MessageBubble } from './MessageBubble';
 import { EmptyState } from './EmptyState';
 import { Message, mockMessages } from './types';
 import { SimpleModelPicker } from '../models/SimpleModelPicker';
+import { CreditsDisplay } from '../credits/CreditsDisplay';
 import { useEntitlements } from '../hooks/useEntitlements';
+import { useCredits, spendTokens } from '../hooks/useCredits';
+import { offlineQueue } from '../services/offlineQueue';
 import { useTranslation } from 'react-i18next';
 
 interface ChatScreenProps {
@@ -28,15 +31,33 @@ interface ChatScreenProps {
 export const ChatScreen: React.FC<ChatScreenProps> = ({ navigation }) => {
   const { theme } = useTheme();
   const { t } = useTranslation();
-  const { remainingTokens } = useEntitlements();
+  const { isSubscriber, hasCustomKey } = useEntitlements();
+  const { remaining: remainingTokens, refetch: refetchCredits } = useCredits();
   const [messages, setMessages] = useState<Message[]>(mockMessages);
   const [inputText, setInputText] = useState('');
   const [isModelPickerVisible, setIsModelPickerVisible] = useState(false);
   const [currentModel, setCurrentModel] = useState('gpt-3.5');
   const flatListRef = useRef<FlatList>(null);
 
-  const handleSend = useCallback(() => {
+  const handleSend = useCallback(async () => {
     if (inputText.trim().length === 0) return;
+
+    // Check if user has enough tokens for free models
+    const isModelPremium = currentModel !== 'gpt-3.5' && currentModel !== 'gemini-pro';
+    const hasAccess = isModelPremium ? (isSubscriber || hasCustomKey) : true;
+    
+    if (!hasAccess) {
+      // Should not happen as UI should prevent this, but failsafe
+      navigation.navigate('Paywall');
+      return;
+    }
+
+    // For free models, check token balance
+    if (!isModelPremium && remainingTokens <= 0) {
+      // Show paywall or error
+      navigation.navigate('Paywall');
+      return;
+    }
 
     const newMessage: Message = {
       id: `m${Date.now()}`,
@@ -53,8 +74,23 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ navigation }) => {
       flatListRef.current?.scrollToEnd({ animated: true });
     }, 100);
 
+    // Estimate token cost (rough estimation: ~4 chars per token)
+    const estimatedTokens = Math.ceil(newMessage.text.length / 4);
+    
+    // For free models, spend tokens
+    if (!isModelPremium) {
+      try {
+        await offlineQueue.queueSpend(estimatedTokens);
+        // Refresh credits to update UI
+        await refetchCredits();
+      } catch (error) {
+        console.error('Failed to spend tokens:', error);
+        // Continue with the conversation even if token spending fails
+      }
+    }
+
     // Simulate AI response (optional - for demo purposes)
-    global.setTimeout(() => {
+    global.setTimeout(async () => {
       const aiResponse: Message = {
         id: `m${Date.now() + 1}`,
         role: 'assistant',
@@ -63,11 +99,22 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ navigation }) => {
       };
       setMessages(prev => [...prev, aiResponse]);
       
+      // Spend tokens for AI response as well (typically more costly)
+      const responseTokens = Math.ceil(aiResponse.text.length / 4);
+      if (!isModelPremium) {
+        try {
+          await offlineQueue.queueSpend(responseTokens);
+          await refetchCredits();
+        } catch (error) {
+          console.error('Failed to spend tokens for AI response:', error);
+        }
+      }
+      
       global.setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }, 1500);
-  }, [inputText, currentModel]);
+  }, [inputText, currentModel, isSubscriber, hasCustomKey, remainingTokens, navigation, refetchCredits]);
 
   const renderMessage: ListRenderItem<Message> = ({ item }) => (
     <MessageBubble message={item} />
@@ -99,14 +146,19 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ navigation }) => {
       >
         {/* Header */}
         <Surface elevation={1} style={styles.header}>
-          <Typography
-            variant="h4"
-            weight="semibold"
-            align="center"
-            style={styles.headerTitle}
-          >
-            AI Assistant
-          </Typography>
+          <View style={styles.headerContent}>
+            <Typography
+              variant="h4"
+              weight="semibold"
+              style={styles.headerTitle}
+            >
+              AI Assistant
+            </Typography>
+            <CreditsDisplay 
+              compact 
+              onPress={() => navigation.navigate('CreditsPurchase')} 
+            />
+          </View>
           <TouchableOpacity 
             onPress={() => {
               console.log('Opening model picker...');
@@ -228,7 +280,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 0,
   },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
   headerTitle: {
+    flex: 1,
     marginBottom: 4,
   },
   modelSelector: {

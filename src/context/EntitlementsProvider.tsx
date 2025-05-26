@@ -1,12 +1,15 @@
-import React, { createContext, useContext, useState, useMemo } from 'react';
+import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
+import { useCredits } from '../hooks/useCredits';
 
 export interface EntitlementsContextType {
   isSubscriber: boolean;
   hasCustomKey: boolean;
   remainingTokens: number;
+  creditsLoading: boolean;
+  creditsError: string | null;
   setSubscriber: (value: boolean) => void;
   setCustomKey: (value: boolean) => void;
-  setRemainingTokens: (value: number) => void;
+  refreshCredits: () => Promise<void>;
 }
 
 const EntitlementsContext = createContext<EntitlementsContextType | undefined>(undefined);
@@ -14,18 +17,22 @@ const EntitlementsContext = createContext<EntitlementsContextType | undefined>(u
 export const EntitlementsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isSubscriber, setSubscriber] = useState(false);
   const [hasCustomKey, setCustomKey] = useState(false);
-  const [remainingTokens, setRemainingTokens] = useState(25000); // Mock: 25K tokens remaining
+  
+  // Use real credits from the hook
+  const { remaining, loading: creditsLoading, error: creditsError, refetch } = useCredits();
 
   const contextValue = useMemo(
     () => ({
       isSubscriber,
       hasCustomKey,
-      remainingTokens,
+      remainingTokens: remaining,
+      creditsLoading,
+      creditsError,
       setSubscriber,
       setCustomKey,
-      setRemainingTokens,
+      refreshCredits: refetch,
     }),
-    [isSubscriber, hasCustomKey, remainingTokens]
+    [isSubscriber, hasCustomKey, remaining, creditsLoading, creditsError, refetch]
   );
 
   return (

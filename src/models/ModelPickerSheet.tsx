@@ -98,29 +98,43 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
     (model: ModelOption) => {
       const isUnlocked = isModelUnlocked(model);
       const showWarning = !model.isPremium && remainingTokens === 0;
+      const isDisabled = showWarning;
 
       return (
         <TouchableOpacity
           key={model.id}
-          onPress={() => handleModelPress(model)}
-          style={styles.modelCard}
-          activeOpacity={0.7}
+          onPress={() => !isDisabled && handleModelPress(model)}
+          style={[
+            styles.modelCard,
+            isDisabled && styles.disabledCard
+          ]}
+          activeOpacity={isDisabled ? 1 : 0.7}
           accessibilityRole="button"
           accessibilityLabel={`${model.name}: ${model.description}`}
           accessibilityHint={
-            isUnlocked
+            isDisabled
+              ? 'Not enough tokens to use this model'
+              : isUnlocked
               ? t('models.selectModelHint')
               : t('models.unlockRequiredHint')
           }
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Surface style={styles.cardSurface}>
+          <Surface style={{
+            ...styles.cardSurface,
+            ...(isDisabled && { opacity: 0.6 }),
+            ...(showWarning && { borderColor: theme.colors.danger['600'] })
+          }}>
             <View style={styles.cardContent}>
               <View style={styles.cardHeader}>
                 <Typography
                   variant="bodyMd"
                   weight="semibold"
-                  style={{ color: theme.colors.textPrimary }}
+                  style={{ 
+                    color: isDisabled 
+                      ? theme.colors.textSecondary 
+                      : theme.colors.textPrimary 
+                  }}
                 >
                   {model.name}
                 </Typography>
@@ -142,9 +156,21 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
               >
                 {model.description}
               </Typography>
+              {showWarning && (
+                <Typography
+                  variant="caption"
+                  style={{ 
+                    color: theme.colors.danger['600'],
+                    marginTop: 4,
+                    fontStyle: 'italic'
+                  }}
+                >
+                  {t('models.insufficientTokens')}
+                </Typography>
+              )}
             </View>
 
-            {!isUnlocked && (
+            {!isUnlocked && !isDisabled && (
               <PremiumBadge onUnlockPress={() => onNavigateToPaywall()} />
             )}
           </Surface>
@@ -194,10 +220,16 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
             variant="caption"
             style={{
               ...styles.remainingTokens,
-              color: theme.colors.textSecondary
+              color: remainingTokens === 0 
+                ? theme.colors.danger['600'] 
+                : theme.colors.textSecondary,
+              fontWeight: remainingTokens === 0 ? 'bold' : 'normal'
             }}
           >
-            {t('models.remainingTokens', { count: remainingTokens })}
+            {remainingTokens === 0 
+              ? `🔴 ${t('models.remainingTokens', { count: remainingTokens })}`
+              : t('models.remainingTokens', { count: remainingTokens })
+            }
           </Typography>
         </View>
 
@@ -226,6 +258,9 @@ const styles = StyleSheet.create({
   },
   modelCard: {
     minHeight: 44, // Accessibility
+  },
+  disabledCard: {
+    opacity: 0.6,
   },
   cardSurface: {
     padding: 16,

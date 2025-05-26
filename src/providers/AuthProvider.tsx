@@ -223,71 +223,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setLoading(true);
       console.log('📧 Starting Email Sign In for:', email);
+      console.log('🌐 Supabase URL:', process.env.EXPO_PUBLIC_SUPABASE_URL);
+      console.log('🔑 Has Anon Key:', !!process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY);
       
-      // Check email status first
-      const emailStatus = await checkEmailStatus(email);
-      
-      if (emailStatus === 'verified') {
-        // For verified users, send OTP for immediate sign-in
-        console.log('👤 Verified user - sending OTP for immediate sign-in');
-        const { error } = await supabase.auth.signInWithOtp({
-          email,
-          options: {
-            shouldCreateUser: false,
-          },
-        });
-        
-        if (error) {
-          console.error('❌ Error sending OTP to verified user:', error);
-          throw error;
-        }
-        
-        console.log('✅ OTP sent to verified user');
-        return;
-      }
-      
-      if (emailStatus === 'unverified') {
-        // User exists but needs verification - resend magic link
-        console.log('⚠️ Unverified user - resending verification link');
-        const { error } = await supabase.auth.resend({
-          type: 'signup',
-          email,
-        });
-        
-        if (error) {
-          console.error('❌ Error resending verification:', error);
-          // Fallback to regular OTP
-          const { error: otpError } = await supabase.auth.signInWithOtp({
-            email,
-            options: {
-              shouldCreateUser: false,
-            },
-          });
-          
-          if (otpError) {
-            throw otpError;
-          }
-        }
-        
-        console.log('✅ Verification link resent');
-        return;
-      }
-      
-      // New user - send magic link for signup
-      console.log('👋 New user - sending magic link for signup');
-      const { error } = await supabase.auth.signInWithOtp({
+      // Since we've enabled email confirmations and updated config, use signInWithOtp directly
+      // This will create a user if they don't exist AND send them a magic link
+      console.log('📧 Sending magic link (signup/signin)...');
+      const { data, error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          shouldCreateUser: true,
+          shouldCreateUser: true, // Allow user creation
+          data: {
+            // Any additional user metadata can go here
+          },
         },
       });
       
+      console.log('📧 Magic Link Response - Data:', data, 'Error:', error);
+      
       if (error) {
-        console.error('❌ Error sending signup magic link:', error);
-        throw error;
+        console.error('❌ Error sending magic link:', error);
+        
+        // Check specific error types
+        if (error.message.includes('rate limit')) {
+          throw new Error('Too many requests. Please wait a moment before trying again.');
+        } else if (error.message.includes('invalid email')) {
+          throw new Error('Please enter a valid email address.');
+        } else if (error.message.includes('Signups not allowed')) {
+          throw new Error('Email signup is currently disabled. Please try again later or contact support.');
+        } else {
+          throw error;
+        }
       }
       
-      console.log('✅ Magic link sent for new user signup');
+      console.log('✅ Magic link sent successfully!');
+      console.log('📬 Check your email for the sign-in link');
     } catch (error: any) {
       console.error('💥 Email sign in error:', error);
       throw error;

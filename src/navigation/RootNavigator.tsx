@@ -6,6 +6,7 @@ import { DemoScreen } from '../screens/DemoScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { ChatScreen } from '../chat';
 import { PaywallScreen } from '../paywall/PaywallScreen';
+import { CreditsPurchaseScreen } from '../credits/CreditsPurchaseScreen';
 import { useTheme } from '../components/ThemeProvider';
 import { AuthGate } from '../auth/AuthGate';
 
@@ -50,6 +51,11 @@ export const RootNavigator = () => {
             name="Paywall"
             component={PaywallScreen}
             options={{ title: 'Premium Access' }}
+          />
+          <Stack.Screen
+            name="CreditsPurchase"
+            component={CreditsPurchaseScreen}
+            options={{ title: 'Purchase Credits' }}
           />
           <Stack.Screen
             name="Settings"

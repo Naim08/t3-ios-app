@@ -5,17 +5,30 @@ export interface UseEntitlementsReturn {
   isSubscriber: boolean;
   hasCustomKey: boolean;
   remainingTokens: number;
+  creditsLoading: boolean;
+  creditsError: string | null;
+  refreshCredits: () => Promise<void>;
 }
 
 export const useEntitlements = (): UseEntitlementsReturn => {
-  const { isSubscriber, hasCustomKey, remainingTokens } = useEntitlementsContext();
+  const { 
+    isSubscriber, 
+    hasCustomKey, 
+    remainingTokens, 
+    creditsLoading, 
+    creditsError, 
+    refreshCredits 
+  } = useEntitlementsContext();
 
   return useMemo(
     () => ({
       isSubscriber,
       hasCustomKey,
       remainingTokens,
+      creditsLoading,
+      creditsError,
+      refreshCredits,
     }),
-    [isSubscriber, hasCustomKey, remainingTokens]
+    [isSubscriber, hasCustomKey, remainingTokens, creditsLoading, creditsError, refreshCredits]
   );
 };
