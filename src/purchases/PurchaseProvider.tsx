@@ -1,10 +1,21 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+
+import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode, useRef } from 'react';
 import { AppState, AppStateStatus, Platform } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { useAuth } from '../providers/AuthProvider';
 import { useCredits } from '../hooks/useCredits';
 import { supabase } from '../lib/supabase';
 import { OfflinePurchaseQueue } from './offlineQueue';
+import { 
+  PRODUCT_IDS as IAP_PRODUCT_IDS, 
+  ALL_PRODUCT_IDS, 
+  TOKEN_PRODUCTS, 
+  SUBSCRIPTION_PRODUCTS,
+  APPLE_CONFIG,
+  isSubscriptionProduct,
+  isTokenProduct,
+  getTokenAmountForProduct
+} from './iapConfig';
 import RNIap, {
   Product,
   ProductPurchase,
@@ -41,10 +52,10 @@ export interface PurchaseContextType {
   subscriptionStatus: SubscriptionStatus;
   isLoading: boolean;
   error: string | null;
-  subscriptionProduct: Product | null; // Monthly Pass subscription
-  tokenProducts: Product[]; // All token packages (25K, 100K, 250K, 500K)
-  purchaseSubscription: () => Promise<void>; // Purchase monthly subscription
-  purchaseTokens: (productId: string) => Promise<void>; // Purchase token package by ID
+  subscriptionProduct: Product | null;
+  tokenProducts: Product[];
+  purchaseSubscription: () => Promise<void>;
+  purchaseTokens: (productId: string) => Promise<void>;
   restorePurchases: () => Promise<void>;
   checkSubscriptionStatus: () => Promise<void>;
 }
@@ -56,21 +67,11 @@ interface PurchaseProviderProps {
 }
 
 // Product IDs - must match exactly with App Store Connect
-const SUBSCRIPTION_ID = 'premium_pass_monthly'; // Apple ID: 6746395067
-
-// Token Package IDs
-const TOKEN_25K_ID = '25K_tokens';      // Apple ID: 6746413005
-const TOKEN_100K_ID = '100K_tokens';    // Apple ID: 6746396078  
-const TOKEN_250K_ID = 'tokens_250k';    // Apple ID: 6746395610
-const TOKEN_500K_ID = '500K_tokens';    // Apple ID: 6746412948
-
-const PRODUCT_IDS = [
-  SUBSCRIPTION_ID,
-  TOKEN_25K_ID,
-  TOKEN_100K_ID, 
-  TOKEN_250K_ID,
-  TOKEN_500K_ID
-];
+const SUBSCRIPTION_ID = IAP_PRODUCT_IDS.SUBSCRIPTION;
+const TOKEN_25K_ID = IAP_PRODUCT_IDS.TOKEN_25K;
+const TOKEN_100K_ID = IAP_PRODUCT_IDS.TOKEN_100K;
+const TOKEN_250K_ID = IAP_PRODUCT_IDS.TOKEN_250K;
+const TOKEN_500K_ID = IAP_PRODUCT_IDS.TOKEN_500K;
 
 export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) => {
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus>({
@@ -83,21 +84,48 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
   const [subscriptionProduct, setSubscriptionProduct] = useState<Product | null>(null);
   const [tokenProducts, setTokenProducts] = useState<Product[]>([]);
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
-  const [isInitializing, setIsInitializing] = useState<boolean>(false);
   
   const { user } = useAuth();
   const { refetch: refetchCredits } = useCredits();
   const offlineQueue = OfflinePurchaseQueue.getInstance();
+  
+  // Use refs to track listeners and prevent memory leaks
+  const purchaseUpdateSubscription = useRef<any>(null);
+  const purchaseErrorSubscription = useRef<any>(null);
+  const initializationRef = useRef<boolean>(false);
 
-  // Purchase listener references for cleanup
-  const [purchaseUpdateSubscription, setPurchaseUpdateSubscription] = useState<any>(null);
-  const [purchaseErrorSubscription, setPurchaseErrorSubscription] = useState<any>(null);
+  // CRITICAL FIX #1: Proper listener cleanup and re-setup
+  const setupPurchaseListeners = useCallback(() => {
+    // Clean up existing listeners first
+    if (purchaseUpdateSubscription.current) {
+      purchaseUpdateSubscription.current.remove();
+      purchaseUpdateSubscription.current = null;
+    }
+    if (purchaseErrorSubscription.current) {
+      purchaseErrorSubscription.current.remove();
+      purchaseErrorSubscription.current = null;
+    }
 
-  // Handle purchase updates from listeners
-  const handlePurchaseUpdate = async (purchase: ProductPurchase) => {
+    // Set up new listeners
+    purchaseUpdateSubscription.current = purchaseUpdatedListener(handlePurchaseUpdate);
+    purchaseErrorSubscription.current = purchaseErrorListener(handlePurchaseError);
+    
+    console.log('✅ Purchase listeners set up');
+  }, []);
+
+  // CRITICAL FIX #2: Immediate transaction finishing
+  const handlePurchaseUpdate = useCallback(async (purchase: ProductPurchase) => {
+    console.log('✅ Processing purchase update:', purchase.productId);
+    
     try {
-      console.log('✅ Processing purchase update:', purchase.productId);
-      
+      // FINISH TRANSACTION IMMEDIATELY to prevent stuck purchases
+      const isConsumable = isTokenProduct(purchase.productId);
+      await finishTransaction({
+        purchase,
+        isConsumable,
+      });
+      console.log('✅ Transaction finished immediately');
+
       if (!user) {
         console.error('❌ No user available for purchase processing');
         return;
@@ -125,15 +153,13 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user]);
 
-  // Handle purchase errors from listeners  
-  const handlePurchaseError = (error: RNIapPurchaseError) => {
+  const handlePurchaseError = useCallback((error: RNIapPurchaseError) => {
     console.error('❌ Purchase error from listener:', error);
     
     if (error.code === 'E_USER_CANCELLED') {
       console.log('ℹ️ User cancelled purchase');
-      // Don't show error for user cancellation
     } else {
       showPurchaseError(new PurchaseError({
         code: error.code,
@@ -143,235 +169,97 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
     }
     
     setIsLoading(false);
-  };
+  }, []);
 
-  // Initialize react-native-iap only once
-  useEffect(() => {
-    let isMounted = true;
+  // CRITICAL FIX #3: Separate product fetching with proper error handling
+  const fetchProducts = useCallback(async (): Promise<{ subscriptionProduct: Product | null; tokenProducts: Product[] }> => {
+    let subscriptionProduct: Product | null = null;
+    let tokenProducts: Product[] = [];
+
+    try {
+      // Fetch subscriptions separately
+      console.log('📦 Fetching subscription products...');
+      const subscriptions = await getSubscriptions({ skus: SUBSCRIPTION_PRODUCTS });
+      
+      if (subscriptions && subscriptions.length > 0) {
+        subscriptionProduct = subscriptions[0] as unknown as Product;
+        console.log('✅ Found subscription:', subscriptionProduct.productId);
+      }
+    } catch (error) {
+      console.error('❌ Failed to fetch subscriptions:', error);
+    }
+
+    try {
+      // Fetch consumable products separately
+      console.log('📦 Fetching token products...');
+      const products = await getProducts({ 
+        skus: TOKEN_PRODUCTS
+      });
+      
+      if (products && products.length > 0) {
+        tokenProducts = products;
+        console.log('✅ Found token products:', products.length);
+      }
+    } catch (error) {
+      console.error('❌ Failed to fetch products:', error);
+    }
+
+    return { subscriptionProduct, tokenProducts };
+  }, []);
+
+  // CRITICAL FIX #4: Single initialization with proper state management
+  const initializePurchases = useCallback(async () => {
+    if (initializationRef.current || !user) return;
     
-    const initializePurchases = async () => {
-      // Prevent multiple initializations
-      if (isInitializing || isInitialized) {
-        console.log('🔄 Skipping initialization - already in progress or completed');
-        return;
+    try {
+      initializationRef.current = true;
+      setIsLoading(true);
+      console.log('🚀 Starting IAP initialization...');
+      
+      await initConnection();
+      console.log('✅ Connected to store');
+
+      // Platform-specific cleanup
+      if (Platform.OS === 'android') {
+        await flushFailedPurchasesCachedAsPendingAndroid();
+      }
+      if (Platform.OS === 'ios') {
+        clearProductsIOS();
       }
 
-      try {
-        setIsInitializing(true);
-        setIsLoading(true);
-        console.log('🚀 Starting IAP initialization...');
-        
-        // Initialize connection to store
-        const result = await initConnection();
-        if (!isMounted) return;
-        
-        console.log('✅ Connected to store:', result);
+      // Set up listeners
+      setupPurchaseListeners();
 
-        // Clear any cached pending purchases on Android
-        if (Platform.OS === 'android') {
-          try {
-            await flushFailedPurchasesCachedAsPendingAndroid();
-            console.log('✅ Cleared cached pending purchases on Android');
-          } catch (flushError) {
-            console.warn('⚠️ Could not clear cached pending purchases:', flushError);
-          }
-        }
+      // Fetch products
+      const { subscriptionProduct, tokenProducts } = await fetchProducts();
+      
+      setSubscriptionProduct(subscriptionProduct);
+      setTokenProducts(tokenProducts);
+      setIsInitialized(true);
+      setError(null);
+      
+      console.log('✅ IAP initialization complete');
+    } catch (error: any) {
+      console.error('❌ Failed to initialize purchases:', error);
+      setError('Failed to initialize purchases');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user, setupPurchaseListeners, fetchProducts]);
 
-        // Clear cached products on iOS for fresh product fetch (recommended by docs)
-        if (Platform.OS === 'ios') {
-          try {
-            clearProductsIOS();
-            console.log('✅ Cleared cached products on iOS');
-          } catch (clearError) {
-            console.warn('⚠️ Could not clear cached products on iOS:', clearError);
-          }
-        }
-
-        // Set up purchase listeners
-        if (!purchaseUpdateSubscription) {
-          const updateSubscription = purchaseUpdatedListener((purchase: ProductPurchase) => {
-            console.log('📦 Purchase updated:', purchase);
-            handlePurchaseUpdate(purchase);
-          });
-          setPurchaseUpdateSubscription(updateSubscription);
-          console.log('✅ Purchase update listener set up');
-        }
-
-        if (!purchaseErrorSubscription) {
-          const errorSubscription = purchaseErrorListener((error: RNIapPurchaseError) => {
-            console.log('❌ Purchase error:', error);
-            handlePurchaseError(error);
-          });
-          setPurchaseErrorSubscription(errorSubscription);
-          console.log('✅ Purchase error listener set up');
-        }
-
-        // Get available products
-        console.log('🔍 Starting product retrieval...');
-        console.log('  - App Bundle ID (for IAP):', 'com.smartbot.superchat');
-        console.log('  - Apple Service ID (for Auth):', 'com.smartbot.superchat1');
-        console.log('  - Platform:', Platform.OS);
-        console.log('  - Requested Product IDs:', PRODUCT_IDS);
-        console.log('  - Environment:', __DEV__ ? 'Development/Sandbox' : 'Production');
-        
-        // Parse products and categorize them
-        let subscriptionProduct: Product | null = null;
-        let tokenProducts: Product[] = [];
-        
-        // Try regular products first (for token packages)
-        try {
-          console.log('📦 Trying getProducts() for regular products...');
-          const products = await getProducts({ skus: PRODUCT_IDS });
-          console.log('  - getProducts() result:', products?.length || 0, 'products');
-          
-          if (products && products.length > 0) {
-            console.log('  - Regular product details:');
-            products.forEach((prod, index) => {
-              console.log(`    [${index}] ID: ${prod.productId}`);
-              console.log(`    [${index}] Title: ${prod.title}`);
-              console.log(`    [${index}] Price: ${prod.localizedPrice}`);
-              console.log(`    [${index}] Type: product`);
-              
-              // Categorize token products
-              if ([TOKEN_25K_ID, TOKEN_100K_ID, TOKEN_250K_ID, TOKEN_500K_ID].includes(prod.productId)) {
-                tokenProducts.push(prod);
-              }
-            });
-          }
-        } catch (productError) {
-          console.error('❌ getProducts() failed:', productError);
-        }
-        
-        // Try subscriptions for the subscription product
-        try {
-          console.log('📦 Trying getSubscriptions() for subscription products...');
-          const subscriptions = await getSubscriptions({ skus: PRODUCT_IDS });
-          console.log('  - getSubscriptions() result:', subscriptions?.length || 0, 'subscriptions');
-          
-          if (subscriptions && subscriptions.length > 0) {
-            console.log('  - Subscription product details:');
-            subscriptions.forEach((sub, index) => {
-              console.log(`    [${index}] ID: ${sub.productId}`);
-              console.log(`    [${index}] Title: ${sub.title}`);
-              console.log(`    [${index}] Price: ${(sub as any).localizedPrice || (sub as any).price || 'N/A'}`);
-              console.log(`    [${index}] Type: subscription`);
-              
-              // Categorize subscription
-              if (sub.productId === SUBSCRIPTION_ID) {
-                subscriptionProduct = sub as unknown as Product;
-              }
-            });
-          }
-        } catch (subscriptionError) {
-          console.error('❌ getSubscriptions() failed:', subscriptionError);
-        }
-        
-        if (!isMounted) return;
-        
-        console.log('📊 Final product search results:');
-        console.log('  - Subscription product found:', !!subscriptionProduct);
-        console.log('  - Token products found:', tokenProducts.length);
-        
-        if (subscriptionProduct) {
-          console.log('  - Subscription product details:');
-          console.log(`    ID: ${subscriptionProduct.productId}`);
-          console.log(`    Title: ${subscriptionProduct.title}`);
-          console.log(`    Description: ${subscriptionProduct.description}`);
-          console.log(`    Price: ${subscriptionProduct.localizedPrice}`);
-          console.log(`    Currency: ${subscriptionProduct.currency}`);
-        }
-        
-        if (tokenProducts.length > 0) {
-          console.log('  - Token products details:');
-          tokenProducts.forEach((prod, index) => {
-            console.log(`    [${index}] ID: ${prod.productId}`);
-            console.log(`    [${index}] Title: ${prod.title}`);
-            console.log(`    [${index}] Price: ${prod.localizedPrice}`);
-          });
-        }
-        
-        setSubscriptionProduct(subscriptionProduct);
-        setTokenProducts(tokenProducts);
-        
-        if (subscriptionProduct || tokenProducts.length > 0) {
-          setError(null); // Clear any previous errors
-          console.log('✅ Products loaded successfully');
-        } else {
-          console.error('❌ No products found!');
-          console.error('  - This usually means:');
-          console.error('    1. Products not approved in App Store Connect');
-          console.error('    2. Bundle ID mismatch between app and App Store Connect');
-          console.error('    3. Products not available in current region/sandbox');
-          console.error('    4. Incorrect product ID configuration');
-          console.error(`    5. Product IDs not created in App Store Connect:`);
-          console.error(`       - Subscription: "${SUBSCRIPTION_ID}"`);
-          console.error(`       - Tokens: ${[TOKEN_25K_ID, TOKEN_100K_ID, TOKEN_250K_ID, TOKEN_500K_ID].join(', ')}`);
-          console.error('    6. App not properly signed with correct provisioning profile');
-          setError('Products not available - Check App Store Connect configuration');
-        }
-
-        setIsInitialized(true);
-        console.log('✅ IAP initialization complete');
-      } catch (error: any) {
-        console.error('❌ Failed to initialize purchases:', error);
-        if (isMounted) {
-          setError('Failed to initialize purchases');
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-          setIsInitializing(false);
-        }
-      }
-    };
-
-    // Only initialize if we have a user and haven't initialized yet
-    if (user && !isInitialized && !isInitializing) {
+  // CRITICAL FIX #5: Effect cleanup and proper dependency management
+  useEffect(() => {
+    if (user && !isInitialized) {
       initializePurchases();
     }
+  }, [user, isInitialized, initializePurchases]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [user, isInitialized, isInitializing, purchaseUpdateSubscription, purchaseErrorSubscription]);
-
-  // Check subscription status only when properly initialized
-  useEffect(() => {
-    if (user && isInitialized && !isInitializing) {
-      console.log('🔍 Checking subscription status...');
-      checkSubscriptionStatus();
-    }
-  }, [user, isInitialized, isInitializing]);
-
-  // Set up network listener for offline queue processing - only once
-  useEffect(() => {
-    if (isInitialized) {
-      const unsubscribe = offlineQueue.startNetworkListener();
-      return unsubscribe;
-    }
-  }, [isInitialized, offlineQueue]);
-
-  // Process pending purchases when app becomes active - only once
-  useEffect(() => {
-    if (isInitialized) {
-      const handleAppStateChange = (nextAppState: AppStateStatus) => {
-        if (nextAppState === 'active') {
-          console.log('📱 App became active, processing pending purchases...');
-          offlineQueue.processPendingPurchases();
-        }
-      };
-
-      const subscription = AppState.addEventListener('change', handleAppStateChange);
-      return () => subscription?.remove();
-    }
-  }, [isInitialized, offlineQueue]);
-
-  const validateReceipt = async (purchase: ProductPurchase, userId: string): Promise<boolean> => {
+  // CRITICAL FIX #6: Fixed validateReceipt with proper error handling
+  const validateReceipt = useCallback(async (purchase: ProductPurchase, userId: string): Promise<boolean> => {
     try {
       const netInfo = await NetInfo.fetch();
       
       if (!netInfo.isConnected) {
-        // Add to offline queue if no internet
         await offlineQueue.addPendingPurchase({
           receiptData: purchase.transactionReceipt || '',
           userId,
@@ -380,7 +268,7 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
         });
         
         showRestoreInfo('Purchase saved offline. It will be processed when internet is available.');
-        return true; // Assume success for offline case
+        return true;
       }
 
       const { data, error } = await supabase.functions.invoke('validate_receipt', {
@@ -403,38 +291,23 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
       if (data.success) {
         console.log('Receipt validated successfully:', data);
         
-        // Update subscription status
-        setSubscriptionStatus(prev => ({
-          ...prev,
-          isActive: true,
-          productId: purchase.productId,
-        }));
+        if (purchase.productId === SUBSCRIPTION_ID) {
+          setSubscriptionStatus(prev => ({
+            ...prev,
+            isActive: true,
+            productId: purchase.productId,
+          }));
+        }
         
-        // Refresh credits to show new token balance
         await refetchCredits();
         
         if (data.tokensAdded) {
           showPurchaseSuccess(`${data.tokensAdded.toLocaleString()} tokens added to your account!`);
         }
 
-        // Finish the transaction (tokens are consumable, subscriptions are not)
-        const isConsumable = [TOKEN_25K_ID, TOKEN_100K_ID, TOKEN_250K_ID, TOKEN_500K_ID].includes(purchase.productId);
-        await finishTransaction({
-          purchase,
-          isConsumable,
-        });
-
         return true;
       } else if (data.alreadyProcessed) {
         console.log('Receipt already processed');
-        
-        // Still finish the transaction (tokens are consumable)
-        const isConsumable = [TOKEN_25K_ID, TOKEN_100K_ID, TOKEN_250K_ID, TOKEN_500K_ID].includes(purchase.productId);
-        await finishTransaction({
-          purchase,
-          isConsumable,
-        });
-        
         return true;
       } else {
         throw new PurchaseError({
@@ -454,8 +327,9 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
       }
       return false;
     }
-  };
+  }, [refetchCredits, offlineQueue]);
 
+  // CRITICAL FIX #7: Simplified purchase methods with proper error handling
   const purchaseSubscription = useCallback(async () => {
     if (!subscriptionProduct || !user) {
       const errorMsg = !user ? 'Please sign in to purchase' : 'Subscription product not available';
@@ -472,36 +346,22 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
 
       console.log('🛒 Requesting subscription for product:', subscriptionProduct.productId);
       
-      // Use requestSubscription for subscription products
-      // Don't await or rely on the promise - listeners will handle the result
-      await requestSubscription({
+      // The purchase will be handled by listeners
+      requestSubscription({
         sku: subscriptionProduct.productId,
       });
       
-      console.log('📨 Subscription request sent - waiting for listener response');
-      
     } catch (error) {
       console.error('❌ Error requesting subscription:', error);
+      setIsLoading(false);
       
-      if (error instanceof RNIapPurchaseError) {
-        if (error.code === 'E_USER_CANCELLED') {
-          console.log('ℹ️ User cancelled subscription request');
-          // Don't show error for user cancellation
-        } else {
-          showPurchaseError(new PurchaseError({
-            code: error.code,
-            message: error.message,
-            userFriendlyMessage: 'Failed to start purchase. Please try again.',
-          }));
-        }
-      } else {
+      if (error instanceof RNIapPurchaseError && error.code !== 'E_USER_CANCELLED') {
         showPurchaseError(new PurchaseError({
-          message: 'Subscription request failed',
+          code: error.code,
+          message: error.message,
           userFriendlyMessage: 'Failed to start purchase. Please try again.',
         }));
       }
-      
-      setIsLoading(false);
     }
   }, [subscriptionProduct, user]);
 
@@ -523,43 +383,24 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
 
       console.log('🛒 Requesting token purchase for product:', tokenProduct.productId);
 
-      // Use requestPurchase for one-time token purchases (with platform-specific params)
-      let purchaseParams: any = {
-        sku: tokenProduct.productId,
-      };
-      
-      // Android requires skus array format
+      // The purchase will be handled by listeners
       if (Platform.OS === 'android') {
-        purchaseParams = {
-          skus: [tokenProduct.productId],
-        };
+        requestPurchase({ skus: [tokenProduct.productId] });
+      } else {
+        requestPurchase({ sku: tokenProduct.productId });
       }
-      
-      await requestPurchase(purchaseParams);
 
-      console.log('📨 Token purchase request sent - waiting for listener response');
     } catch (error) {
       console.error('❌ Error requesting token purchase:', error);
+      setIsLoading(false);
       
-      if (error instanceof RNIapPurchaseError) {
-        if (error.code === 'E_USER_CANCELLED') {
-          console.log('ℹ️ User cancelled token purchase');
-          // Don't show error for user cancellation
-        } else {
-          showPurchaseError(new PurchaseError({
-            code: error.code,
-            message: error.message,
-            userFriendlyMessage: 'Failed to start purchase. Please try again.',
-          }));
-        }
-      } else {
+      if (error instanceof RNIapPurchaseError && error.code !== 'E_USER_CANCELLED') {
         showPurchaseError(new PurchaseError({
-          message: 'Token purchase request failed',
+          code: error.code,
+          message: error.message,
           userFriendlyMessage: 'Failed to start purchase. Please try again.',
         }));
       }
-      
-      setIsLoading(false);
     }
   }, [tokenProducts, user]);
 
@@ -580,12 +421,9 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
       
       const availablePurchases = await getAvailablePurchases();
       
-      console.log('Found existing purchases:', availablePurchases);
-      
       if (availablePurchases && availablePurchases.length > 0) {
         let restoredCount = 0;
         
-        // Process each existing purchase
         for (const purchase of availablePurchases) {
           if (purchase.productId === SUBSCRIPTION_ID) {
             try {
@@ -605,31 +443,22 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
           showRestoreInfo('No new purchases found to restore.');
         }
       } else {
-        console.log('No purchases to restore');
         showRestoreInfo('No previous purchases found to restore.');
       }
       
     } catch (error) {
       console.error('Error restoring purchases:', error);
-      
-      if (error instanceof RNIapPurchaseError) {
-        showPurchaseError(new PurchaseError({
-          message: error.message,
-          userFriendlyMessage: 'Failed to restore purchases. Please try again.',
-        }));
-      } else {
-        showPurchaseError(new PurchaseError({
-          message: 'Restore failed',
-          userFriendlyMessage: 'Failed to restore purchases. Please try again.',
-        }));
-      }
+      showPurchaseError(new PurchaseError({
+        message: 'Restore failed',
+        userFriendlyMessage: 'Failed to restore purchases. Please try again.',
+      }));
     } finally {
       setIsLoading(false);
     }
   }, [user, validateReceipt]);
 
   const checkSubscriptionStatus = useCallback(async () => {
-    if (!user || isInitializing) {
+    if (!user) {
       setSubscriptionStatus({
         isActive: false,
         expirationDate: null,
@@ -639,9 +468,6 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
     }
 
     try {
-      console.log('🔍 Checking subscription status for user:', user.id);
-      
-      // Check with your backend for subscription status
       const { data, error } = await supabase.functions.invoke('get_user_subscription_info', {
         body: { user_id: user.id }
       });
@@ -657,36 +483,33 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
         productId: data?.isActive ? SUBSCRIPTION_ID : null,
       };
 
-      console.log('✅ Subscription status updated:', newStatus);
       setSubscriptionStatus(newStatus);
     } catch (error) {
       console.error('❌ Error checking subscription status:', error);
     }
-  }, [user, isInitializing]);
+  }, [user]);
 
-  // Cleanup IAP connection and listeners on unmount
+  // Check subscription status when initialized
+  useEffect(() => {
+    if (user && isInitialized) {
+      checkSubscriptionStatus();
+    }
+  }, [user, isInitialized, checkSubscriptionStatus]);
+
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
+      if (purchaseUpdateSubscription.current) {
+        purchaseUpdateSubscription.current.remove();
+      }
+      if (purchaseErrorSubscription.current) {
+        purchaseErrorSubscription.current.remove();
+      }
       if (isInitialized) {
-        console.log('🧹 Cleaning up IAP connection and listeners...');
-        
-        // Remove purchase listeners
-        if (purchaseUpdateSubscription) {
-          purchaseUpdateSubscription.remove();
-          console.log('✅ Purchase update listener removed');
-        }
-        if (purchaseErrorSubscription) {
-          purchaseErrorSubscription.remove();
-          console.log('✅ Purchase error listener removed');
-        }
-        
-        // End IAP connection
-        endConnection().catch(error => {
-          console.warn('⚠️ Error ending IAP connection:', error);
-        });
+        endConnection().catch(console.warn);
       }
     };
-  }, [isInitialized, purchaseUpdateSubscription, purchaseErrorSubscription]);
+  }, [isInitialized]);
 
   const contextValue: PurchaseContextType = {
     subscriptionStatus,

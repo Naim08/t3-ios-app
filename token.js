@@ -3,7 +3,7 @@ const fs = require('fs');
 
 // Your Apple Developer credentials
 const TEAM_ID = 'UJ2X7H6A7E'; // 10-character Team ID
-const CLIENT_ID = 'com.smartbot.superchat1'; // Your Services ID (e.g., com.yourapp.service)
+const CLIENT_ID = 'com.smartbot.superchat1'; // Your Apple Sign In Service ID (different from bundle ID)
 const KEY_ID = 'LU7X8GK282'; // 10-character Key ID from the .p8 file
 const P8_FILE_PATH = './AuthKey_LU7X8GK282.p8'; // Path to your .p8 file
 

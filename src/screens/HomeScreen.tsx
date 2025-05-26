@@ -57,6 +57,37 @@ export const HomeScreen = ({ navigation }: any) => {
           />
           
           <PrimaryButton
+            title="💳 Premium Access"
+            onPress={() => navigation.navigate('Paywall')}
+            variant="secondary"
+            size="large"
+            style={styles.chatButton}
+          />
+          
+          <PrimaryButton
+            title="🪙 Purchase Credits"
+            onPress={() => navigation.navigate('CreditsPurchase')}
+            variant="secondary"
+            size="large"
+            style={styles.chatButton}
+          />
+          
+          <PrimaryButton
+            title="⚙️ Settings"
+            onPress={() => navigation.navigate('Settings')}
+            variant="outline"
+            style={styles.chatButton}
+          />
+
+       
+          <PrimaryButton
+            title="IAP Debug Tool"
+            onPress={() => navigation.navigate('IAPDebug')}
+            variant="ghost"
+            style={styles.chatButton}
+          />
+
+          <PrimaryButton
             title={t('toggleTheme')}
             onPress={toggleTheme}
             variant="outline"
@@ -123,5 +154,14 @@ const styles = StyleSheet.create({
   },
   debugTitle: {
     marginBottom: 12,
+  },
+  paywallButton: {
+    marginBottom: 8,
+  },
+  creditsButton: {
+    marginBottom: 8,
+  },
+  settingsButton: {
+    marginBottom: 8,
   },
 });

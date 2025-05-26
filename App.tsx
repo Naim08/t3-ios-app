@@ -24,6 +24,7 @@ export default Sentry.wrap(function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
         <AuthProvider>
+          
           <PurchaseProvider>
             <EntitlementsProvider>
               <StatusBar style="auto" />

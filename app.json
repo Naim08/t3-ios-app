@@ -18,14 +18,26 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.smartbot.superchat"
+      "bundleIdentifier": "org.name.pockett3",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSExceptionDomains": {
+            "buy.itunes.apple.com": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSExceptionMinimumTLSVersion": "1.0",
+              "NSIncludesSubdomains": true
+            }
+          }
+        }
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
-      "package": "com.smartbot.superchat"
+      "package": "org.name.pockett3"
     },
     "web": {
       "favicon": "./assets/favicon.png"
