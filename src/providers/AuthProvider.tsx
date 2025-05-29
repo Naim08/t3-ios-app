@@ -136,6 +136,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Only update session state for legitimate auth events
       // Ignore transient session states that might occur during failed auth attempts
       if (event === 'SIGNED_IN' && session) {
+        // Additional validation to prevent spurious SIGNED_IN events
+        if (!session.access_token || !session.user) {
+          console.log('⚠️ Ignoring SIGNED_IN event - invalid session data');
+          return;
+        }
+        
         console.log('✅ Legitimate sign-in detected, updating session state');
         setSession(session);
         setUser(session?.user ?? null);
@@ -350,7 +356,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       if (error) {
         console.error('❌ Email/Password sign in error:', error);
-        console.log('🔍 About to throw error in AuthProvider');
+        console.log('🔍 Error details:', {
+          message: error.message,
+          status: error.status,
+          code: error.code,
+        });
         // Make sure no session state gets updated on error
         setLoading(false);
         throw error;
@@ -363,11 +373,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     } catch (error: any) {
       console.error('💥 Email/Password sign in error:', error);
-      console.log('🔍 In catch block of AuthProvider, about to throw error');
+      console.log('🔍 Throwing error back to modal:', error.message);
+      // Ensure we're in a clean state after error
       setLoading(false);
+      setSession(null);
+      setUser(null);
       throw error;
+    } finally {
+      // Always set loading to false after attempt completes
+      setLoading(false);
     }
-    // Don't set loading to false here in finally block - let the auth state change handle it
   };
 
   const signUpWithEmailPassword = async (email: string, password: string) => {
@@ -507,9 +522,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(false);
     }
   };
-
-  // Alias for backward compatibility
-  const signIn = signInWithApple;
 
   const signOut = async () => {
     try {
