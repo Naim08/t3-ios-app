@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Pocket T3</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f8f9fa;
+            color: #212529;
+        }
+        .email-container {
+            max-width: 600px;
+            margin: 40px auto;
+            background-color: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #3970FF 0%, #16C79B 100%);
+            padding: 48px 32px;
+            text-align: center;
+        }
+        .logo {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        .app-name {
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: 700;
+            margin: 0;
+            letter-spacing: -0.5px;
+        }
+        .tagline {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 16px;
+            margin-top: 8px;
+        }
+        .content {
+            padding: 48px 32px;
+        }
+        .greeting {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #212529;
+        }
+        .message {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #6c757d;
+            margin-bottom: 32px;
+        }
+        .button-container {
+            text-align: center;
+            margin: 40px 0;
+        }
+        .confirm-button {
+            display: inline-block;
+            background: #3970FF;
+            color: #ffffff;
+            text-decoration: none;
+            padding: 16px 48px;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(57, 112, 255, 0.3);
+            transition: all 0.3s ease;
+        }
+        .confirm-button:hover {
+            background: #2154E6;
+            box-shadow: 0 6px 16px rgba(57, 112, 255, 0.4);
+        }
+        .features {
+            background-color: #f8f9fa;
+            padding: 32px;
+            border-radius: 12px;
+            margin: 32px 0;
+        }
+        .features-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #212529;
+        }
+        .feature-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .feature-icon {
+            font-size: 20px;
+            margin-right: 12px;
+        }
+        .feature-text {
+            color: #6c757d;
+            font-size: 15px;
+        }
+        .link-note {
+            font-size: 14px;
+            color: #6c757d;
+            text-align: center;
+            margin-top: 24px;
+            line-height: 1.5;
+        }
+        .link-url {
+            color: #3970FF;
+            word-break: break-all;
+            font-size: 13px;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 32px;
+            text-align: center;
+            border-top: 1px solid #e9ecef;
+        }
+        .footer-text {
+            color: #6c757d;
+            font-size: 14px;
+            margin: 0;
+        }
+        .social-links {
+            margin-top: 16px;
+        }
+        .social-link {
+            color: #6c757d;
+            text-decoration: none;
+            margin: 0 8px;
+            font-size: 14px;
+        }
+        @media (max-width: 600px) {
+            .email-container {
+                margin: 0;
+                border-radius: 0;
+            }
+            .content, .header, .footer {
+                padding: 24px 20px;
+            }
+            .confirm-button {
+                padding: 14px 32px;
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <div class="logo">🤖</div>
+            <h1 class="app-name">Pocket T3</h1>
+            <p class="tagline">Chat with GPT-4, Claude, and Gemini Pro</p>
+        </div>
+        
+        <div class="content">
+            <h2 class="greeting">Welcome aboard! 🎉</h2>
+            
+            <p class="message">
+                Thanks for signing up for Pocket T3! You're just one click away from accessing the most advanced AI models in one place. Please confirm your email address to get started.
+            </p>
+            
+            <div class="button-container">
+                <a href="{{ .ConfirmationURL }}" class="confirm-button">Confirm Email Address</a>
+            </div>
+            
+            <div class="features">
+                <h3 class="features-title">What you'll get access to:</h3>
+                <div class="feature-item">
+                    <span class="feature-icon">💬</span>
+                    <span class="feature-text">Chat with GPT-3.5 and Gemini Pro for free</span>
+                </div>
+                <div class="feature-item">
+                    <span class="feature-icon">⚡</span>
+                    <span class="feature-text">Fast, streaming responses</span>
+                </div>
+                <div class="feature-item">
+                    <span class="feature-icon">🔒</span>
+                    <span class="feature-text">Secure and private conversations</span>
+                </div>
+                <div class="feature-item">
+                    <span class="feature-icon">✨</span>
+                    <span class="feature-text">Premium access to GPT-4 and Claude Sonnet</span>
+                </div>
+            </div>
+            
+            <div class="link-note">
+                If the button doesn't work, copy and paste this link into your browser:<br>
+                <span class="link-url">{{ .ConfirmationURL }}</span>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p class="footer-text">
+                © 2025 Pocket T3. All rights reserved.<br>
+                Built with ❤️ for AI enthusiasts
+            </p>
+            <div class="social-links">
+                <a href="#" class="social-link">Privacy Policy</a>
+                <a href="#" class="social-link">Terms of Service</a>
+                <a href="#" class="social-link">Support</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

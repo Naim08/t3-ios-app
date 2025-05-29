@@ -13,10 +13,27 @@ import {
   Platform,
   StyleSheet,
   AppState,
+  Animated,
+  Dimensions,
+  ScrollView,
 } from 'react-native';
+// Conditional imports for gradients
+let LinearGradient, BlurView;
+try {
+  const gradientLib = require('expo-linear-gradient');
+  LinearGradient = gradientLib.LinearGradient;
+  const blurLib = require('expo-blur');
+  BlurView = blurLib.BlurView;
+} catch (error) {
+  console.warn('Gradient/Blur libraries not available, using fallback components');
+  LinearGradient = ({ children, style, ...props }) => React.createElement(View, { style, ...props }, children);
+  BlurView = ({ children, style, ...props }) => React.createElement(View, { style, ...props }, children);
+}
 import { useAuth } from '../providers/AuthProvider';
 import { useTheme } from '../components/ThemeProvider';
 import { supabase } from '../lib/supabase';
+
+const { height } = Dimensions.get('window');
 
 interface EmailOTPModalProps {
   visible: boolean;
@@ -309,9 +326,44 @@ export const EmailOTPModal: React.FC<EmailOTPModalProps> = ({ visible, onClose }
     not_found: { bg: theme.colors.danger["500"], text: theme.colors.textPrimary },
   };
 
+  // Animation for modal entrance
+  const slideAnim = useRef(new Animated.Value(height)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 65,
+          friction: 10,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: height,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible]);
+
   return (
     <Modal
-      animationType="slide"
+      animationType="none"
       transparent={true}
       visible={visible}
       onRequestClose={handleClose}
@@ -320,158 +372,252 @@ export const EmailOTPModal: React.FC<EmailOTPModalProps> = ({ visible, onClose }
         style={styles.overlay}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
-          <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-            <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-              {isWaitingForLink ? 'Check Your Email' : 'Sign in or Sign up'}
-            </Text>
-            <TouchableOpacity onPress={handleClose} style={styles.closeButton} testID="close-button">
-              <Text style={[styles.closeText, { color: theme.colors.textSecondary }]}>✕</Text>
-            </TouchableOpacity>
-          </View>
+        <Animated.View 
+          style={[
+            styles.backdrop,
+            { opacity: fadeAnim }
+          ]}
+        >
+          <TouchableOpacity 
+            style={styles.backdropTouch} 
+            onPress={handleClose}
+            activeOpacity={1}
+          />
+        </Animated.View>
+        
+        <Animated.View 
+          style={[
+            styles.container,
+            { 
+              backgroundColor: theme.colors.surface,
+              transform: [{ translateY: slideAnim }]
+            }
+          ]}
+        >
+          <ScrollView 
+            bounces={false}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
+            {/* Modern Header with Gradient */}
+            <LinearGradient
+              colors={[
+                theme.colors.brand['500'] + '15',
+                theme.colors.surface,
+              ]}
+              style={styles.headerGradient}
+            >
+              <View style={styles.dragIndicator} />
+              <View style={styles.header}>
+                <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+                  {isWaitingForLink ? '📨 Check Your Email' : '🔐 Welcome to Pocket T3'}
+                </Text>
+                <TouchableOpacity onPress={handleClose} style={styles.closeButton} testID="close-button">
+                  <BlurView intensity={20} style={styles.closeButtonBlur}>
+                    <Text style={[styles.closeText, { color: theme.colors.textSecondary }]}>✕</Text>
+                  </BlurView>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
 
-          {isWaitingForLink ? (
-            // UI for waiting for magic link
-            <View style={styles.waitingContainer}>
-              <ActivityIndicator size="large" color={theme.colors.brand["500"]} />
-              <Text style={[styles.waitingTitle, { color: theme.colors.textPrimary, marginTop: 20 }]}>
-                Magic link sent!
-              </Text>
-              <Text style={[styles.waitingText, { color: theme.colors.textSecondary }]}>
-                We sent a magic link to {email}. Click the link in the email to sign in.
-              </Text>
-              {emailStatus === 'verified' && (
-                <Text style={[styles.crossDeviceHint, { color: theme.colors.textSecondary }]}>
-                  If you've verified this email on another device, you might be signed in automatically soon.
+            {isWaitingForLink ? (
+              // Modern UI for waiting for magic link
+              <View style={styles.waitingContainer}>
+                <View style={[styles.emailIconWrapper, { backgroundColor: theme.colors.brand['500'] + '20' }]}>
+                  <Text style={styles.emailSentIcon}>📨</Text>
+                </View>
+                <Text style={[styles.waitingTitle, { color: theme.colors.textPrimary }]}>
+                  Magic link sent!
                 </Text>
-              )}
-              <TouchableOpacity 
-                style={[styles.resendButton, (resendTimer > 0 || isLoading) && styles.buttonDisabled]} 
-                onPress={handleResendLink} 
-                disabled={resendTimer > 0 || isLoading}
-              >
-                <Text style={[styles.resendText, { color: theme.colors.brand["500"]}, resendTimer > 0 && styles.disabledText]}>
-                  {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend magic link'}
+                <Text style={[styles.waitingText, { color: theme.colors.textSecondary }]}>
+                  We sent a magic link to
                 </Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            // UI for email/password input
-            <>
-              <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
-                Enter your email and password to continue, or use a magic link.
-              </Text>
-              
-              {/* Email Status Indicator */}
-              {emailStatus && email.length > 2 && !isCheckingEmail && (
-                <View style={[
-                  styles.statusContainer,
-                  {
-                    backgroundColor: statusColors[emailStatus]?.bg || theme.colors.gray["200"],
-                    opacity: 0.8
-                  }
-                ]}>
-                  <Text style={[styles.statusText, { color: statusColors[emailStatus]?.text || theme.colors.textPrimary}]}>
-                    {emailStatus === 'verified' ? '✓ Email Verified' : 
-                     emailStatus === 'unverified' ? '! Email Unverified' : 
-                     '? New Email'}
+                <View style={[styles.emailBadge, { backgroundColor: theme.colors.brand['500'] + '10' }]}>
+                  <Text style={[styles.emailBadgeText, { color: theme.colors.brand['500'] }]}>
+                    {email}
                   </Text>
                 </View>
-              )}
-              {isCheckingEmail && <ActivityIndicator style={{ marginBottom: 10 }}/>}
+                <Text style={[styles.waitingText, { color: theme.colors.textSecondary }]}>
+                  Click the link in the email to sign in.
+                </Text>
+                {emailStatus === 'verified' && (
+                  <View style={[styles.hintContainer, { backgroundColor: theme.colors.accent['500'] + '10' }]}>
+                    <Text style={[styles.crossDeviceHint, { color: theme.colors.accent['700'] }]}>
+                      🔄 This email was verified before. You may be signed in automatically.
+                    </Text>
+                  </View>
+                )}
+                <TouchableOpacity 
+                  style={[
+                    styles.resendButton,
+                    { 
+                      backgroundColor: (resendTimer > 0 || isLoading) 
+                        ? theme.colors.gray['200'] 
+                        : theme.colors.brand['500'] + '10',
+                      borderColor: theme.colors.brand['500'],
+                    },
+                    (resendTimer > 0 || isLoading) && styles.buttonDisabled
+                  ]} 
+                  onPress={handleResendLink} 
+                  disabled={resendTimer > 0 || isLoading}
+                >
+                  <Text style={[
+                    styles.resendText, 
+                    { color: theme.colors.brand["500"]},
+                    (resendTimer > 0 || isLoading) && { color: theme.colors.textSecondary }
+                  ]}>
+                    {resendTimer > 0 ? `⏱ Resend in ${resendTimer}s` : '🔁 Resend magic link'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              // Modern UI for email/password input
+              <>
+                <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
+                  Sign in to access GPT-4, Claude, and Gemini Pro
+                </Text>
+                
+                {/* Modern Email Status Indicator */}
+                {emailStatus && email.length > 2 && !isCheckingEmail && (
+                  <Animated.View style={[
+                    styles.statusContainer,
+                    {
+                      backgroundColor: statusColors[emailStatus]?.bg || theme.colors.gray["200"],
+                    }
+                  ]}>
+                    <Text style={[styles.statusText, { color: '#FFFFFF' }]}>
+                      {emailStatus === 'verified' ? '✓ Verified Email' : 
+                       emailStatus === 'unverified' ? '⚠️ Unverified Email' : 
+                       '✨ New Email'}
+                    </Text>
+                  </Animated.View>
+                )}
+                {isCheckingEmail && (
+                  <View style={styles.checkingContainer}>
+                    <ActivityIndicator size="small" color={theme.colors.brand['500']} />
+                    <Text style={[styles.checkingText, { color: theme.colors.textSecondary }]}>Checking email...</Text>
+                  </View>
+                )}
 
-              <TextInput
-                style={[
-                  styles.input,
-                  { 
-                    borderColor: theme.colors.border, 
-                    color: theme.colors.textPrimary,
-                    backgroundColor: inputBackgroundColor
-                  }
-                ]}
-                placeholder="Enter your email"
-                placeholderTextColor={theme.colors.textSecondary}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                testID="email-input"
-              />
-              <TextInput
-                style={[
-                  styles.input,
-                  { 
-                    borderColor: theme.colors.border, 
-                    color: theme.colors.textPrimary,
-                    backgroundColor: inputBackgroundColor
-                  }
-                ]}
-                placeholder="Enter your password"
-                placeholderTextColor={theme.colors.textSecondary}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                testID="password-input"
-              />
+                <View style={styles.inputContainer}>
+                  <View style={[styles.inputWrapper, { borderColor: email ? theme.colors.brand['500'] : theme.colors.border }]}>
+                    <Text style={styles.inputIcon}>📧</Text>
+                    <TextInput
+                      style={[
+                        styles.input,
+                        { 
+                          color: theme.colors.textPrimary,
+                        }
+                      ]}
+                      placeholder="Enter your email"
+                      placeholderTextColor={theme.colors.textSecondary}
+                      value={email}
+                      onChangeText={setEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      testID="email-input"
+                    />
+                  </View>
+                  
+                  <View style={[styles.inputWrapper, { borderColor: password ? theme.colors.brand['500'] : theme.colors.border }]}>
+                    <Text style={styles.inputIcon}>🔒</Text>
+                    <TextInput
+                      style={[
+                        styles.input,
+                        { 
+                          color: theme.colors.textPrimary,
+                        }
+                      ]}
+                      placeholder="Enter your password"
+                      placeholderTextColor={theme.colors.textSecondary}
+                      value={password}
+                      onChangeText={setPassword}
+                      secureTextEntry
+                      testID="password-input"
+                    />
+                  </View>
+                </View>
               {email.length > 0 && !isValidEmail && (
                 <Text style={[styles.errorText, {color: theme.colors.danger["500"] }]}>Please enter a valid email address</Text>
               )}
 
-              <TouchableOpacity
-                style={[
-                  styles.button,
-                  { backgroundColor: theme.colors.brand["500"] },
-                  (!isValidEmail || !password || isLoading) && styles.buttonDisabled,
-                ]}
-                onPress={handleSignIn}
-                disabled={!isValidEmail || !password || isLoading}
-                testID="signin-button"
-              >
-                {isLoading && !isWaitingForLink ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.buttonText}>Sign In</Text>
-                )}
-              </TouchableOpacity>
+                <View style={styles.buttonGroup}>
+                  <TouchableOpacity
+                    style={[
+                      styles.modernButton,
+                      styles.primaryButton,
+                      { backgroundColor: theme.colors.brand["500"] },
+                      (!isValidEmail || !password || isLoading) && styles.buttonDisabled,
+                    ]}
+                    onPress={handleSignIn}
+                    disabled={!isValidEmail || !password || isLoading}
+                    testID="signin-button"
+                    activeOpacity={0.8}
+                  >
+                    {isLoading && !isWaitingForLink ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <Text style={[styles.buttonText, { color: '#FFFFFF' }]}>Sign In</Text>
+                    )}
+                  </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[
-                  styles.button,
-                  styles.secondaryButton,
-                  { borderColor: theme.colors.brand["500"] },
-                  (!isValidEmail || !password || isLoading) && styles.buttonDisabled,
-                ]}
-                onPress={handleSignUp}
-                disabled={!isValidEmail || !password || isLoading}
-                testID="signup-button"
-              >
-                {isLoading && !isWaitingForLink ? (
-                  <ActivityIndicator color={theme.colors.brand["500"]} />
-                ) : (
-                  <Text style={[styles.buttonText, { color: theme.colors.brand["500"] }]}>Sign Up</Text>
-                )}
-              </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.modernButton,
+                      styles.secondaryButton,
+                      { 
+                        borderColor: theme.colors.brand["500"],
+                        backgroundColor: theme.colors.brand['500'] + '10',
+                      },
+                      (!isValidEmail || !password || isLoading) && styles.buttonDisabled,
+                    ]}
+                    onPress={handleSignUp}
+                    disabled={!isValidEmail || !password || isLoading}
+                    testID="signup-button"
+                    activeOpacity={0.8}
+                  >
+                    {isLoading && !isWaitingForLink ? (
+                      <ActivityIndicator color={theme.colors.brand["500"]} />
+                    ) : (
+                      <Text style={[styles.buttonText, { color: theme.colors.brand["500"] }]}>Create Account</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
 
-              <TouchableOpacity
-                style={[
-                  styles.button,
-                  styles.subtleButton,
-                  { marginTop: 10 }, 
-                  (!isValidEmail || (isLoading && !isWaitingForLink)) && styles.buttonDisabled,
-                ]}
-                onPress={handleMagicLinkSignIn}
-                disabled={!isValidEmail || (isLoading && !isWaitingForLink)}
-                testID="send-magic-link-button"
-              >
-                {(isLoading && isWaitingForLink) ? (
-                  <ActivityIndicator color={theme.colors.brand["500"]} />
-                ) : (
-                  <Text style={[styles.buttonText, { color: theme.colors.brand["500"] }]}>Or Use Magic Link</Text>
-                )}
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
+                <View style={styles.dividerContainer}>
+                  <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                  <Text style={[styles.dividerText, { color: theme.colors.textSecondary }]}>OR</Text>
+                  <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.modernButton,
+                    styles.magicLinkButton,
+                    { 
+                      backgroundColor: theme.colors.accent['500'] + '15',
+                      borderColor: theme.colors.accent['500'],
+                    },
+                    (!isValidEmail || (isLoading && !isWaitingForLink)) && styles.buttonDisabled,
+                  ]}
+                  onPress={handleMagicLinkSignIn}
+                  disabled={!isValidEmail || (isLoading && !isWaitingForLink)}
+                  testID="send-magic-link-button"
+                  activeOpacity={0.8}
+                >
+                  {(isLoading && isWaitingForLink) ? (
+                    <ActivityIndicator color={theme.colors.accent["500"]} />
+                  ) : (
+                    <>
+                      <Text style={styles.magicIcon}>✨</Text>
+                      <Text style={[styles.buttonText, { color: theme.colors.accent["700"] }]}>Send Magic Link</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
+          </ScrollView>
+        </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -480,139 +626,265 @@ export const EmailOTPModal: React.FC<EmailOTPModalProps> = ({ visible, onClose }
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  backdropTouch: {
+    flex: 1,
+  },
   container: {
-    // backgroundColor is set dynamically by theme
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: Platform.OS === 'ios' ? 30 : 20, // Extra padding for home indicator on iOS
-    minHeight: 300, // Ensure modal has a decent height
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: height * 0.9,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.15,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 20,
+      },
+    }),
+  },
+  scrollContent: {
+    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+  },
+  headerGradient: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  dragIndicator: {
+    width: 40,
+    height: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 16,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingBottom: 15,
-    // borderBottomColor is set dynamically
-    borderBottomWidth: 1,
-    marginBottom: 20,
   },
   title: {
-    fontSize: 20, // Slightly smaller title
-    fontWeight: 'bold',
-    // color is set dynamically
+    fontSize: 24,
+    fontWeight: '700',
+    flex: 1,
     textAlign: 'center',
-    flex: 1, // Allow title to take space and center
-    marginLeft: 30, // Offset for close button to truly center title
+    letterSpacing: 0.3,
   },
   closeButton: {
-    padding: 5, // Make it easier to tap
-    position: 'absolute', // Position it correctly
+    position: 'absolute',
     right: 0,
-    top: -5, // Adjust based on title padding
+    top: -8,
   },
-  closeText: {
-    fontSize: 24, // Larger X for easier tap
-    fontWeight: 'normal',
-    // color is set dynamically
-  },
-  description: {
-    fontSize: 15,
-    // color is set dynamically
-    textAlign: 'center',
-    marginBottom: 20,
-    lineHeight: 22,
-  },
-  input: {
-    height: 50,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    fontSize: 16,
-    marginBottom: 12,
-    // borderColor, color, backgroundColor are set dynamically
-  },
-  button: {
-    height: 50,
-    borderRadius: 8,
+  closeButtonBlur: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  closeText: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  description: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 24,
+    paddingHorizontal: 20,
+  },
+  inputContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
+    gap: 16,
+  },
+  inputWrapper: {
     flexDirection: 'row',
-    // backgroundColor is set dynamically
+    alignItems: 'center',
+    borderWidth: 2,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    height: 56,
+    backgroundColor: 'rgba(0, 0, 0, 0.02)',
+  },
+  inputIcon: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
+    height: '100%',
+    fontSize: 16,
+  },
+  buttonGroup: {
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  modernButton: {
+    height: 56,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
+  primaryButton: {
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  secondaryButton: {
+    borderWidth: 2,
+  },
+  magicLinkButton: {
+    borderWidth: 2,
   },
   buttonDisabled: {
     opacity: 0.5,
   },
   buttonText: {
-    // color for primary button is white, for others set dynamically
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  magicIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginVertical: 20,
+  },
+  divider: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    paddingHorizontal: 16,
+    fontSize: 14,
+    fontWeight: '500',
   },
   errorText: {
-    // color is set dynamically
     marginBottom: 10,
     textAlign: 'center',
-    fontSize: 13,
+    fontSize: 14,
+    paddingHorizontal: 20,
   },
   waitingContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 20,
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  emailIconWrapper: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  emailSentIcon: {
+    fontSize: 40,
   },
   waitingTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 10,
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 16,
   },
   waitingText: {
-    fontSize: 15,
+    fontSize: 16,
     textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 15,
+    lineHeight: 24,
+    marginBottom: 8,
+  },
+  emailBadge: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginVertical: 8,
+  },
+  emailBadgeText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  hintContainer: {
+    marginTop: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginHorizontal: 20,
   },
   resendButton: {
-    marginTop: 15,
-    paddingVertical: 10,
+    marginTop: 24,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    borderWidth: 2,
   },
   resendText: {
-    fontSize: 15,
-    fontWeight: '500',
-    // color is set dynamically
-  },
-  disabledText: {
-    opacity: 0.6,
+    fontSize: 16,
+    fontWeight: '600',
   },
   statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    marginBottom: 15,
-    alignSelf: 'flex-start', // Align to the start of the input fields
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginBottom: 20,
+    alignSelf: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   statusText: {
-    marginLeft: 8,
-    fontSize: 13,
-    fontWeight: '500',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  checkingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    gap: 8,
+  },
+  checkingText: {
+    fontSize: 14,
   },
   crossDeviceHint: {
-    fontSize: 13,
+    fontSize: 14,
     textAlign: 'center',
-    marginTop: 10,
-    fontStyle: 'italic',
+    lineHeight: 20,
+    fontWeight: '500',
   },
-  secondaryButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 1.5, // Slightly thicker border for secondary
-    // borderColor is set dynamically
-  },
-  subtleButton: {
-    backgroundColor: 'transparent',
-    paddingVertical: 10, // Add some padding for tap area
-  }
 });

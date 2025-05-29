@@ -1,7 +1,19 @@
 
-import React from 'react';
-import { View, StyleSheet, ViewStyle } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, StyleSheet, ViewStyle, Animated, Platform } from 'react-native';
 import Markdown from 'react-native-markdown-display';
+// Conditional imports for gradients
+let LinearGradient, BlurView;
+try {
+  const gradientLib = require('expo-linear-gradient');
+  LinearGradient = gradientLib.LinearGradient;
+  const blurLib = require('expo-blur');
+  BlurView = blurLib.BlurView;
+} catch (error) {
+  console.warn('Gradient/Blur libraries not available, using fallback components');
+  LinearGradient = ({ children, style, ...props }) => React.createElement(View, { style, ...props }, children);
+  BlurView = ({ children, style, ...props }) => React.createElement(View, { style, ...props }, children);
+}
 import { useTheme } from '../components/ThemeProvider';
 import { Surface, Typography } from '../ui/atoms';
 import { Message } from './types';
@@ -16,42 +28,64 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   style,
 }) => {
   const { theme } = useTheme();
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
   
   const isUser = message.role === 'user';
+  const isStreaming = message.isStreaming;
   const timestamp = new Date(message.createdAt).toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit',
   });
+  
+  // Animation on mount
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 65,
+        friction: 10,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   const getBubbleStyle = (): ViewStyle => {
     const baseStyle: ViewStyle = {
-      marginBottom: theme.spacing.sm,
-      maxWidth: '90%', // More generous space for content
-      minWidth: 120, // Larger minimum width for code blocks
+      marginBottom: 16,
+      maxWidth: '85%',
+      minWidth: 80,
     };
 
     return isUser
       ? {
           ...baseStyle,
           alignSelf: 'flex-end',
-          marginLeft: '10%', // Percentage-based margin for responsiveness
+          marginLeft: '15%',
         }
       : {
           ...baseStyle,
           alignSelf: 'flex-start',
-          marginRight: '10%', // Percentage-based margin for responsiveness
+          marginRight: '15%',
         };
   };
 
   const getSurfaceStyle = (): ViewStyle => {
     return isUser
       ? {
-          backgroundColor: theme.colors.brand['500'],
+          backgroundColor: 'transparent',
           borderBottomRightRadius: 4,
         }
       : {
           backgroundColor: theme.colors.surface,
           borderBottomLeftRadius: 4,
+          borderWidth: 1,
+          borderColor: theme.colors.border,
         };
   };
 
@@ -123,93 +157,190 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   });
 
   return (
-    <View style={[styles.container, getBubbleStyle(), style]}>
+    <Animated.View 
+      style={[
+        styles.container, 
+        getBubbleStyle(), 
+        style,
+        {
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }],
+        },
+      ]}
+    >
       <View style={styles.messageRow}>
         {!isUser && (
           <View style={styles.avatarContainer}>
-            <Surface
-              elevation={1}
-              style={{
-                ...styles.avatar,
-                backgroundColor: theme.colors.accent['500']
-              }}
+            <LinearGradient
+              colors={[
+                theme.colors.accent['400'],
+                theme.colors.accent['600'],
+              ]}
+              style={styles.avatar}
             >
               <Typography
                 variant="bodySm"
-                weight="semibold"
+                weight="bold"
                 color="#FFFFFF"
                 align="center"
               >
                 AI
               </Typography>
-            </Surface>
+            </LinearGradient>
           </View>
         )}
         
-        <Surface
-          elevation={isUser ? 2 : 1}
-          style={{
-            ...styles.bubble,
-            ...getSurfaceStyle()
-          }}
-        >
-          <View style={styles.markdownContainer}>
-            <Markdown style={getMarkdownStyles()}>
-              {message.text}
-            </Markdown>
-          </View>
-          
-          <Typography
-            variant="caption"
-            color={isUser ? 'rgba(255,255,255,0.7)' : theme.colors.textSecondary}
-            align={isUser ? 'right' : 'left'}
-            style={styles.timestamp}
+        {isUser ? (
+          <LinearGradient
+            colors={[
+              theme.colors.brand['400'],
+              theme.colors.brand['600'],
+            ]}
+            style={[
+              styles.bubble,
+              styles.userBubble,
+              isStreaming && styles.streamingBubble,
+            ]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
           >
-            {timestamp}
-          </Typography>
-        </Surface>
+            <View style={styles.markdownContainer}>
+              <Markdown style={getMarkdownStyles()}>
+                {message.text}
+              </Markdown>
+            </View>
+            
+            {!isStreaming && (
+              <Typography
+                variant="caption"
+                color="rgba(255,255,255,0.8)"
+                align="right"
+                style={styles.timestamp}
+              >
+                {timestamp}
+              </Typography>
+            )}
+          </LinearGradient>
+        ) : (
+          <Surface
+            elevation={1}
+            style={[
+              styles.bubble,
+              styles.aiBubble,
+              getSurfaceStyle(),
+              isStreaming && styles.streamingBubble,
+            ]}
+          >
+            {isStreaming && message.text === '' && (
+              <View style={styles.typingIndicator}>
+                <View style={[styles.typingDot, { backgroundColor: theme.colors.brand['400'] }]} />
+                <View style={[styles.typingDot, { backgroundColor: theme.colors.brand['500'], marginLeft: 4 }]} />
+                <View style={[styles.typingDot, { backgroundColor: theme.colors.brand['600'], marginLeft: 4 }]} />
+              </View>
+            )}
+            <View style={styles.markdownContainer}>
+              <Markdown style={getMarkdownStyles()}>
+                {message.text || ' '}
+              </Markdown>
+            </View>
+            
+            {!isStreaming && (
+              <Typography
+                variant="caption"
+                color={theme.colors.textSecondary}
+                align="left"
+                style={styles.timestamp}
+              >
+                {timestamp}
+              </Typography>
+            )}
+          </Surface>
+        )}
       </View>
-    </View>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 16,
-    flexShrink: 1, // Allow container to shrink
-    maxWidth: '100%', // Ensure container doesn't exceed screen width
+    paddingHorizontal: 12,
+    flexShrink: 1,
+    maxWidth: '100%',
   },
   messageRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    flexShrink: 1, // Allow row to shrink
-    maxWidth: '100%', // Ensure row doesn't exceed container
+    flexShrink: 1,
+    maxWidth: '100%',
   },
   avatarContainer: {
-    marginRight: 8,
+    marginRight: 10,
     marginBottom: 4,
   },
   avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   bubble: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 20,
+    flexShrink: 1,
+    maxWidth: '100%',
+    overflow: 'hidden' as const,
+  },
+  userBubble: {
+    borderTopRightRadius: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  aiBubble: {
+    borderTopLeftRadius: 4,
+  },
+  streamingBubble: {
+    minHeight: 40,
+  },
+  typingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 8,
-    borderRadius: 16,
-    flexShrink: 1, // Allow bubble to shrink to fit content
-    maxWidth: '100%', // Ensure bubble doesn't exceed container
-    overflow: 'hidden' as const, // Prevent content from overflowing bubble
+  },
+  typingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    opacity: 0.6,
   },
   markdownContainer: {
-    flexShrink: 1, // Allow container to shrink
-    maxWidth: '100%', // Ensure container doesn't exceed parent
-    overflow: 'hidden' as const, // Prevent overflow
+    flexShrink: 1,
+    maxWidth: '100%',
+    overflow: 'hidden' as const,
   },
   timestamp: {
-    marginTop: 4,
+    marginTop: 6,
+    fontSize: 11,
   },
 });
