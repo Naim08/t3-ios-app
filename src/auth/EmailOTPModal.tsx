@@ -1,6 +1,6 @@
 /* eslint-disable no-undef */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Modal,
   View,
@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
+  AppState,
 } from 'react-native';
 import { useAuth } from '../providers/AuthProvider';
 import { useTheme } from '../components/ThemeProvider';
@@ -37,6 +38,12 @@ export const EmailOTPModal: React.FC<EmailOTPModalProps> = ({ visible, onClose }
   const [emailStatus, setEmailStatus] = useState<'verified' | 'unverified' | 'not_found' | null>(null);
   const [resendTimer, setResendTimer] = useState(0); // Used for magic link flow
   
+  // Ref-based tracking to avoid React closure issues
+  const authStatusRef = useRef<'idle' | 'authenticating' | 'waiting_for_link'>('idle');
+  const visibleRef = useRef(visible);
+  const authFailureTimeRef = useRef<number>(0);
+  const authTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
   const { 
     signInWithEmail, // This is for magic link
     signInWithEmailPassword, 
@@ -50,15 +57,101 @@ export const EmailOTPModal: React.FC<EmailOTPModalProps> = ({ visible, onClose }
   const isValidEmail = validateEmail(email);
   const isDarkMode = colorScheme === 'dark';
 
-  // Effect for session changes (e.g., after successful sign-in/sign-up)
+  // Update visible ref when prop changes
   useEffect(() => {
-    if (session && visible) {
-      console.log('✅ Session detected, closing modal due to session change');
-      setIsLoading(false); // Ensure loading is stopped
-      setIsWaitingForLink(false); // Reset waiting state
-      onClose();
+    visibleRef.current = visible;
+  }, [visible]);
+
+  // Sophisticated auth state change listener with blackout period
+  useEffect(() => {
+    console.log('[EmailOTPModal] Setting up auth state listener');
+    
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[EmailOTPModal] Auth event:', event, 'Session:', !!session, 'Modal visible:', visibleRef.current, 'Auth status:', authStatusRef.current);
+      
+      // Only handle SIGNED_IN events when modal is visible and we're in the right state
+      if (event === 'SIGNED_IN' && visibleRef.current && session) {
+        const now = Date.now();
+        const timeSinceFailure = now - authFailureTimeRef.current;
+        
+        console.log('[EmailOTPModal] SIGNED_IN event detected. Time since last failure:', timeSinceFailure);
+        
+        // Implement blackout period: ignore SIGNED_IN events within 2 seconds of auth failure
+        if (timeSinceFailure < 2000 && authFailureTimeRef.current > 0) {
+          console.log('[EmailOTPModal] Ignoring SIGNED_IN event - within blackout period');
+          return;
+        }
+        
+        console.log('[EmailOTPModal] Valid SIGNED_IN event - closing modal');
+        
+        // Clear auth timeout if set
+        if (authTimeoutRef.current) {
+          clearTimeout(authTimeoutRef.current);
+          authTimeoutRef.current = null;
+        }
+        
+        // Reset auth status and close modal
+        authStatusRef.current = 'idle';
+        onClose();
+      }
+    });
+
+    return () => {
+      console.log('[EmailOTPModal] Cleaning up auth state listener');
+      subscription.unsubscribe();
+    };
+  }, [onClose]);
+
+  // AppState monitoring for magic link authentication
+  useEffect(() => {
+    if (!isWaitingForLink) return;
+    
+    console.log('[EmailOTPModal] Setting up AppState listener for magic link');
+    
+    const handleAppStateChange = (nextAppState: string) => {
+      console.log('[EmailOTPModal] AppState changed to:', nextAppState, 'Waiting for link:', isWaitingForLink);
+      
+      if (nextAppState === 'active' && isWaitingForLink) {
+        // Check if user is now authenticated after returning to app
+        console.log('[EmailOTPModal] App became active while waiting for magic link - checking session');
+        
+        setTimeout(() => {
+          if (session && visibleRef.current) {
+            console.log('[EmailOTPModal] Session found after app activation - closing modal');
+            onClose();
+          }
+        }, 1000); // Small delay to allow session to update
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, [isWaitingForLink, session, onClose]);
+
+  // Authentication timeout mechanism (30 seconds)
+  useEffect(() => {
+    if (authStatusRef.current === 'authenticating') {
+      console.log('[EmailOTPModal] Starting auth timeout (30s)');
+      
+      authTimeoutRef.current = setTimeout(() => {
+        console.log('[EmailOTPModal] Auth timeout reached');
+        authStatusRef.current = 'idle';
+        setIsLoading(false);
+        Alert.alert('Timeout', 'Authentication timed out. Please try again.');
+      }, 30000);
+      
+      return () => {
+        if (authTimeoutRef.current) {
+          clearTimeout(authTimeoutRef.current);
+          authTimeoutRef.current = null;
+        }
+      };
     }
-  }, [session, onClose, visible]);
+  }, [authStatusRef.current]);
+
+  // IMPORTANT: Session effect removed to prevent AuthProvider interference
+  // Modal should only close on explicit user actions or successful authentication
+  // Previous automatic session-based closure was causing premature modal dismissal
 
   // Check email status when user finishes typing
   useEffect(() => {
@@ -96,11 +189,19 @@ export const EmailOTPModal: React.FC<EmailOTPModalProps> = ({ visible, onClose }
       Alert.alert('Error', 'Please enter a valid email and password.');
       return;
     }
+    
+    console.log('[EmailOTPModal] Starting sign in process');
+    authStatusRef.current = 'authenticating';
     setIsLoading(true);
+    
     try {
       await signInWithEmailPassword(email, password);
-      // On success, session change effect will close modal
+      console.log('[EmailOTPModal] Sign in successful - auth state listener will handle modal closure');
+      // Note: Modal closure is now handled by the auth state listener on SIGNED_IN event
     } catch (error: any) {
+      console.log('[EmailOTPModal] Sign in failed:', error.message);
+      authFailureTimeRef.current = Date.now(); // Record failure time for blackout period
+      authStatusRef.current = 'idle';
       Alert.alert('Sign In Failed', error.message || 'An unexpected error occurred.');
     } finally {
       setIsLoading(false);
@@ -112,15 +213,23 @@ export const EmailOTPModal: React.FC<EmailOTPModalProps> = ({ visible, onClose }
       Alert.alert('Error', 'Please enter a valid email and password.');
       return;
     }
+    
+    console.log('[EmailOTPModal] Starting sign up process');
+    authStatusRef.current = 'authenticating';
     setIsLoading(true);
+    
     try {
       await signUpWithEmailPassword(email, password);
+      console.log('[EmailOTPModal] Sign up successful');
       Alert.alert(
         'Sign Up Initiated',
         'If this is your first time, please check your email to verify your account. You might be signed in directly if verification is not required or already completed.'
       );
-      // On success, session change effect might close modal, or user needs to verify email
+      // Note: Modal closure is handled by the auth state listener on SIGNED_IN event if auto-signed in
     } catch (error: any) {
+      console.log('[EmailOTPModal] Sign up failed:', error.message);
+      authFailureTimeRef.current = Date.now(); // Record failure time for blackout period
+      authStatusRef.current = 'idle';
       Alert.alert('Sign Up Failed', error.message || 'An unexpected error occurred.');
     } finally {
       setIsLoading(false);
@@ -132,13 +241,20 @@ export const EmailOTPModal: React.FC<EmailOTPModalProps> = ({ visible, onClose }
       Alert.alert('Error', 'Please enter a valid email address.');
       return;
     }
+    
+    console.log('[EmailOTPModal] Starting magic link sign in process');
+    authStatusRef.current = 'waiting_for_link';
     setIsLoading(true);
     setIsWaitingForLink(true); // Set waiting for link state
+    
     try {
       await signInWithEmail(email); // Uses the magic link signInWithEmail
+      console.log('[EmailOTPModal] Magic link sent successfully');
       setResendTimer(60);
       Alert.alert('Magic Link Sent', 'Check your email for a magic link to sign in.');
     } catch (error: any) {
+      console.log('[EmailOTPModal] Magic link failed:', error.message);
+      authStatusRef.current = 'idle';
       Alert.alert('Error', error.message || 'Failed to send magic link.');
       setIsWaitingForLink(false); // Reset on error
     } finally {
@@ -161,12 +277,26 @@ export const EmailOTPModal: React.FC<EmailOTPModalProps> = ({ visible, onClose }
   };
 
   const handleClose = () => {
+    console.log('[EmailOTPModal] Manual close triggered');
+    
+    // Reset all state
     setEmail('');
     setPassword('');
     setIsLoading(false);
     setIsWaitingForLink(false);
     setEmailStatus(null);
     setResendTimer(0);
+    
+    // Reset ref tracking
+    authStatusRef.current = 'idle';
+    authFailureTimeRef.current = 0;
+    
+    // Clear any pending timeout
+    if (authTimeoutRef.current) {
+      clearTimeout(authTimeoutRef.current);
+      authTimeoutRef.current = null;
+    }
+    
     onClose();
   };
 

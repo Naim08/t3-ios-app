@@ -136,6 +136,26 @@ jest.mock('expo-haptics', () => ({
   },
 }));
 
+// Mock react-native-iap to prevent TurboModule errors
+jest.mock('react-native-iap', () => ({
+  default: {
+    initConnection: jest.fn().mockResolvedValue(true),
+    endConnection: jest.fn().mockResolvedValue(true),
+    getProducts: jest.fn().mockResolvedValue([]),
+    getSubscriptions: jest.fn().mockResolvedValue([]),
+    requestPurchase: jest.fn().mockResolvedValue({}),
+    finishTransaction: jest.fn().mockResolvedValue(true),
+    validateReceiptIos: jest.fn().mockResolvedValue({}),
+    validateReceiptAndroid: jest.fn().mockResolvedValue({}),
+  },
+  Product: {},
+  ProductPurchase: {},
+  PurchaseError: {},
+  IAPErrorCode: {},
+  purchaseErrorListener: jest.fn(),
+  purchaseUpdatedListener: jest.fn(),
+}));
+
 // Mock Supabase globally for all tests
 jest.mock('./src/lib/supabase', () => ({
   supabase: {

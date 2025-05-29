@@ -1,0 +1,118 @@
+{
+  "identifier" : "91B2FA7F",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "2.99",
+      "familyShareable" : false,
+      "id" : "25K_tokens",
+      "localizations" : [
+        {
+          "description" : "25,000 tokens package",
+          "displayName" : "25,000 Tokens",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "25K_tokens",
+      "referenceName" : "25K Tokens Package",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "9.99",
+      "familyShareable" : false,
+      "id" : "100K_tokens",
+      "localizations" : [
+        {
+          "description" : "100,000 tokens package (includes 10K bonus)",
+          "displayName" : "100,000 Tokens",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "100K_tokens",
+      "referenceName" : "100K Tokens Package",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "19.99",
+      "familyShareable" : false,
+      "id" : "tokens_250k",
+      "localizations" : [
+        {
+          "description" : "250,000 tokens package (includes 50K bonus)",
+          "displayName" : "250,000 Tokens",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "tokens_250k",
+      "referenceName" : "250K Tokens Package",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "34.99",
+      "familyShareable" : false,
+      "id" : "500K_tokens",
+      "localizations" : [
+        {
+          "description" : "500,000 tokens package (includes 150K bonus)",
+          "displayName" : "500,000 Tokens",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "500K_tokens",
+      "referenceName" : "500K Tokens Package",
+      "type" : "Consumable"
+    }
+  ],
+  "settings" : {
+    "_askToBuyEnabled" : false,
+    "_billingIssuesEnabled" : false,
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21693600",
+      "localizations" : [
+
+      ],
+      "name" : "Premium Subscriptions",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "7.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "id" : "premium_pass_monthly",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Premium Pass - Monthly subscription with 500K tokens and premium AI models",
+              "displayName" : "Premium Pass",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "premium_pass_monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Premium Pass Monthly",
+          "subscriptionGroupID" : "21693600",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { supabase } from '../lib/supabase';
+import { PurchaseError } from './errors';
 
 export interface PendingPurchase {
   id: string;
@@ -86,6 +87,18 @@ export class OfflinePurchaseQueue {
         console.log('No internet connection, skipping pending purchase processing');
         return { processed, failed };
       }
+         const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.access_token) {
+              throw new PurchaseError({
+                message: 'Not authenticated',
+                userFriendlyMessage: 'Please sign in to validate your purchase.',
+              });
+            }
+      
+            const headers = {
+              'Authorization': `Bearer ${session.access_token}`,
+              'Content-Type': 'application/json',
+            };
 
       const pendingPurchases = await this.getPendingPurchases();
       console.log(`Processing ${pendingPurchases.length} pending purchases`);
@@ -97,6 +110,7 @@ export class OfflinePurchaseQueue {
               receipt_data: purchase.receiptData,
               user_id: purchase.userId,
             },
+            headers,
           });
 
           if (error) {

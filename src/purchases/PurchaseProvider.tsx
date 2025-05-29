@@ -158,6 +158,9 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
   const handlePurchaseError = useCallback((error: RNIapPurchaseError) => {
     console.error('❌ Purchase error from listener:', error);
     
+    // Always reset loading state on purchase errors
+    setIsLoading(false);
+    
     if (error.code === 'E_USER_CANCELLED') {
       console.log('ℹ️ User cancelled purchase');
     } else {
@@ -167,8 +170,6 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
         userFriendlyMessage: 'Purchase failed. Please try again.',
       }));
     }
-    
-    setIsLoading(false);
   }, []);
 
   // CRITICAL FIX #3: Separate product fetching with proper error handling
@@ -271,6 +272,20 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
         return true;
       }
 
+      // Get authentication headers for the function call
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new PurchaseError({
+          message: 'Not authenticated',
+          userFriendlyMessage: 'Please sign in to validate your purchase.',
+        });
+      }
+
+      const headers = {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      };
+
       const { data, error } = await supabase.functions.invoke('validate_receipt', {
         body: {
           receipt_data: purchase.transactionReceipt,
@@ -279,6 +294,7 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
           transaction_id: purchase.transactionId,
           platform: Platform.OS,
         },
+        headers,
       });
 
       if (error) {
@@ -346,10 +362,18 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
 
       console.log('🛒 Requesting subscription for product:', subscriptionProduct.productId);
       
+      // Set a timeout to reset loading state if purchase doesn't complete
+      const purchaseTimeout = setTimeout(() => {
+        console.log('⏰ Purchase timeout - resetting loading state');
+        setIsLoading(false);
+      }, 60000); // 60 second timeout
+      
       // The purchase will be handled by listeners
-      requestSubscription({
+      await requestSubscription({
         sku: subscriptionProduct.productId,
       });
+      
+      clearTimeout(purchaseTimeout);
       
     } catch (error) {
       console.error('❌ Error requesting subscription:', error);
@@ -383,12 +407,20 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
 
       console.log('🛒 Requesting token purchase for product:', tokenProduct.productId);
 
+      // Set a timeout to reset loading state if purchase doesn't complete
+      const purchaseTimeout = setTimeout(() => {
+        console.log('⏰ Token purchase timeout - resetting loading state');
+        setIsLoading(false);
+      }, 60000); // 60 second timeout
+
       // The purchase will be handled by listeners
       if (Platform.OS === 'android') {
-        requestPurchase({ skus: [tokenProduct.productId] });
+        await requestPurchase({ skus: [tokenProduct.productId] });
       } else {
-        requestPurchase({ sku: tokenProduct.productId });
+        await requestPurchase({ sku: tokenProduct.productId });
       }
+      
+      clearTimeout(purchaseTimeout);
 
     } catch (error) {
       console.error('❌ Error requesting token purchase:', error);

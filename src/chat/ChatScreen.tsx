@@ -1,5 +1,4 @@
-
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -9,17 +8,19 @@ import {
   Platform,
   TouchableOpacity,
   ListRenderItem,
+  Keyboard,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../components/ThemeProvider';
 import { Typography, TextField, Surface } from '../ui/atoms';
 import { MessageBubble } from './MessageBubble';
 import { EmptyState } from './EmptyState';
-import { Message, mockMessages } from './types';
+import { Message, mockMessages, StreamMessage } from './types';
 import { SimpleModelPicker } from '../models/SimpleModelPicker';
 import { CreditsDisplay } from '../credits/CreditsDisplay';
 import { useEntitlements } from '../hooks/useEntitlements';
-import { useCredits, spendTokens } from '../hooks/useCredits';
-import { offlineQueue } from '../services/offlineQueue';
+import { useCredits } from '../hooks/useCredits';
+import { useStream } from './useStream';
 import { useTranslation } from 'react-i18next';
 
 interface ChatScreenProps {
@@ -33,88 +34,148 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ navigation }) => {
   const { t } = useTranslation();
   const { isSubscriber, hasCustomKey } = useEntitlements();
   const { remaining: remainingTokens, refetch: refetchCredits } = useCredits();
+  const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<Message[]>(mockMessages);
   const [inputText, setInputText] = useState('');
   const [isModelPickerVisible, setIsModelPickerVisible] = useState(false);
   const [currentModel, setCurrentModel] = useState('gpt-3.5');
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const flatListRef = useRef<FlatList>(null);
 
-  const handleSend = useCallback(async () => {
-    if (inputText.trim().length === 0) return;
+  // Keyboard listeners for better input positioning
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+        // Auto scroll to bottom when keyboard appears
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
+    );
+    const keyboardDidHideListener = Keyboard.addListener(
+      'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
 
-    // Check if user has enough tokens for free models
+    return () => {
+      keyboardDidHideListener?.remove();
+      keyboardDidShowListener?.remove();
+    };
+  }, []);
+
+  const { 
+    isStreaming, 
+    streamingText, 
+    error: streamError, 
+    startStream, 
+    abortStream,
+    retryStream 
+  } = useStream({
+    onTokenSpent: () => {
+      // Tokens are spent automatically by the gateway
+      refetchCredits();
+    },
+    onError: (error) => {
+      console.error('Stream error:', error);
+      // Remove the streaming message on error
+      if (streamingMessageId) {
+        setMessages(prev => prev.filter(m => m.id !== streamingMessageId));
+        setStreamingMessageId(null);
+      }
+    },
+    onComplete: (usage) => {
+      if (streamingMessageId && streamingText) {
+        // Finalize the streaming message
+        setMessages(prev => prev.map(m => 
+          m.id === streamingMessageId 
+            ? { ...m, text: streamingText, isStreaming: false }
+            : m
+        ));
+      }
+      setStreamingMessageId(null);
+      refetchCredits();
+      console.log('Stream completed with usage:', usage);
+    }
+  });
+
+  // Update streaming message text in real-time
+  React.useEffect(() => {
+    if (streamingMessageId && streamingText) {
+      setMessages(prev => prev.map(m => 
+        m.id === streamingMessageId 
+          ? { ...m, text: streamingText }
+          : m
+      ));
+    }
+  }, [streamingMessageId, streamingText]);
+
+  const handleSend = useCallback(async () => {
+    if (inputText.trim().length === 0 || isStreaming) return;
+
+    // Check if user has access to the selected model
     const isModelPremium = currentModel !== 'gpt-3.5' && currentModel !== 'gemini-pro';
     const hasAccess = isModelPremium ? (isSubscriber || hasCustomKey) : true;
     
     if (!hasAccess) {
-      // Should not happen as UI should prevent this, but failsafe
       navigation.navigate('Paywall');
       return;
     }
 
     // For free models, check token balance
     if (!isModelPremium && remainingTokens <= 0) {
-      // Show paywall or error
       navigation.navigate('Paywall');
       return;
     }
 
-    const newMessage: Message = {
+    const userMessage: Message = {
       id: `m${Date.now()}`,
       role: 'user',
       text: inputText.trim(),
       createdAt: new Date().toISOString(),
     };
 
-    setMessages(prev => [...prev, newMessage]);
+    // Create placeholder assistant message for streaming
+    const assistantMessageId = `m${Date.now() + 1}`;
+    const assistantMessage: Message = {
+      id: assistantMessageId,
+      role: 'assistant',
+      text: '',
+      createdAt: new Date().toISOString(),
+      isStreaming: true,
+    };
+
+    setMessages(prev => [...prev, userMessage, assistantMessage]);
+    setStreamingMessageId(assistantMessageId);
+    
+    const messageText = inputText.trim();
     setInputText('');
 
-    // Auto-scroll to bottom (newest messages)
-    global.setTimeout(() => {
+    // Auto-scroll to bottom
+    setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
     }, 100);
 
-    // Estimate token cost (rough estimation: ~4 chars per token)
-    const estimatedTokens = Math.ceil(newMessage.text.length / 4);
-    
-    // For free models, spend tokens
-    if (!isModelPremium) {
-      try {
-        await offlineQueue.queueSpend(estimatedTokens);
-        // Refresh credits to update UI
-        await refetchCredits();
-      } catch (error) {
-        console.error('Failed to spend tokens:', error);
-        // Continue with the conversation even if token spending fails
-      }
-    }
+    // Prepare messages for the stream
+    const streamMessages: StreamMessage[] = [
+      ...messages.map(m => ({ role: m.role, content: m.text })),
+      { role: 'user', content: messageText }
+    ];
 
-    // Simulate AI response (optional - for demo purposes)
-    global.setTimeout(async () => {
-      const aiResponse: Message = {
-        id: `m${Date.now() + 1}`,
-        role: 'assistant',
-        text: `I received your message: "${newMessage.text}". This is a mock response from ${currentModel}.`,
-        createdAt: new Date().toISOString(),
-      };
-      setMessages(prev => [...prev, aiResponse]);
-      
-      // Spend tokens for AI response as well (typically more costly)
-      const responseTokens = Math.ceil(aiResponse.text.length / 4);
-      if (!isModelPremium) {
-        try {
-          await offlineQueue.queueSpend(responseTokens);
-          await refetchCredits();
-        } catch (error) {
-          console.error('Failed to spend tokens for AI response:', error);
-        }
-      }
-      
-      global.setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-    }, 1500);
-  }, [inputText, currentModel, isSubscriber, hasCustomKey, remainingTokens, navigation, refetchCredits]);
+    try {
+      await startStream({
+        model: currentModel,
+        messages: streamMessages,
+        customApiKey: hasCustomKey ? undefined : undefined, // TODO: Get from user settings
+      });
+    } catch (error) {
+      console.error('Failed to start stream:', error);
+    }
+  }, [inputText, currentModel, isSubscriber, hasCustomKey, remainingTokens, navigation, messages, isStreaming, startStream, streamingMessageId]);
 
   const renderMessage: ListRenderItem<Message> = ({ item }) => (
     <MessageBubble message={item} />
@@ -138,13 +199,9 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ navigation }) => {
   }, [isModelPickerVisible, currentModel]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <KeyboardAvoidingView
-        style={styles.keyboardAvoidingView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-      >
-        {/* Header */}
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* Header */}
+      <SafeAreaView style={styles.headerSafeArea}>
         <Surface elevation={1} style={styles.header}>
           <View style={styles.headerContent}>
             <Typography
@@ -184,8 +241,14 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ navigation }) => {
             </Typography>
           </TouchableOpacity>
         </Surface>
+      </SafeAreaView>
 
-        {/* Messages List */}
+      {/* Messages List */}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={insets.top + 60}
+      >
         <FlatList
           ref={flatListRef}
           data={messages}
@@ -195,6 +258,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ navigation }) => {
           contentContainerStyle={[
             styles.messagesContent,
             messages.length === 0 && styles.emptyContent,
+            { paddingBottom: 16 }
           ]}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={renderEmptyState}
@@ -209,10 +273,26 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ navigation }) => {
             }
           }}
         />
-
-        {/* Input Bar */}
-        <Surface elevation={3} style={styles.inputBar}>
+        <Surface 
+          elevation={3} 
+          style={{
+            ...styles.inputBar,
+            paddingBottom: Math.max(insets.bottom, 12),
+          }}
+        >
           <View style={styles.inputContainer}>
+            {streamError && (
+              <View style={styles.errorContainer}>
+                <Typography variant="bodySm" color={theme.colors.danger['600']}>
+                  {streamError}
+                </Typography>
+                <TouchableOpacity onPress={retryStream} style={styles.retryButton}>
+                  <Typography variant="bodySm" color={theme.colors.brand['500']}>
+                    Retry
+                  </Typography>
+                </TouchableOpacity>
+              </View>
+            )}
             <TextField
               value={inputText}
               onChangeText={setInputText}
@@ -221,19 +301,27 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ navigation }) => {
               numberOfLines={3}
               style={styles.textInput}
               inputStyle={styles.textInputStyle}
+              editable={!isStreaming}
+              autoFocus={false}
+              onFocus={() => {
+                // Scroll to bottom when input is focused
+                setTimeout(() => {
+                  flatListRef.current?.scrollToEnd({ animated: true });
+                }, 100);
+              }}
             />
             
             <TouchableOpacity
               style={[
                 styles.sendButton,
                 {
-                  backgroundColor: inputText.trim().length > 0
+                  backgroundColor: inputText.trim().length > 0 && !isStreaming
                     ? theme.colors.brand['500']
                     : theme.colors.gray['300'],
                 },
               ]}
-              onPress={handleSend}
-              disabled={inputText.trim().length === 0}
+              onPress={isStreaming ? abortStream : handleSend}
+              disabled={inputText.trim().length === 0 && !isStreaming}
               activeOpacity={0.7}
             >
               <Typography
@@ -241,7 +329,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ navigation }) => {
                 color="#FFFFFF"
                 align="center"
               >
-                ➤
+                {isStreaming ? '⏹' : '➤'}
               </Typography>
             </TouchableOpacity>
           </View>
@@ -264,7 +352,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ navigation }) => {
           remainingTokens={remainingTokens}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -272,8 +360,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  keyboardAvoidingView: {
-    flex: 1,
+  headerSafeArea: {
+    backgroundColor: 'transparent',
   },
   header: {
     paddingHorizontal: 16,
@@ -334,5 +422,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 4, // Align with text input bottom
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 0, 0, 0.1)',
+  },
+  retryButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  inputKeyboardView: {
+    // set inpput keyboard to bottom of screen and under text input
+   
   },
 });

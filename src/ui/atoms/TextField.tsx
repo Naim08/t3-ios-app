@@ -24,6 +24,7 @@ export interface TextFieldProps extends AccessibilityProps {
   keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad';
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   autoComplete?: 'off' | 'username' | 'password' | 'email' | 'name' | 'tel' | 'street-address' | 'postal-code';
+  autoFocus?: boolean;
   editable?: boolean;
   multiline?: boolean;
   numberOfLines?: number;
@@ -47,6 +48,7 @@ export const TextField: React.FC<TextFieldProps> = ({
   keyboardType = 'default',
   autoCapitalize = 'sentences',
   autoComplete = 'off',
+  autoFocus = false,
   editable = true,
   multiline = false,
   numberOfLines = 1,
@@ -151,6 +153,7 @@ export const TextField: React.FC<TextFieldProps> = ({
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
           autoComplete={autoComplete}
+          autoFocus={autoFocus}
           editable={editable}
           multiline={multiline}
           numberOfLines={numberOfLines}

@@ -98,6 +98,7 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
     (model: ModelOption) => {
       const isUnlocked = isModelUnlocked(model);
       const showWarning = !model.isPremium && remainingTokens === 0;
+      const isLockedPremium = model.isPremium && !isUnlocked;
       const isDisabled = showWarning;
 
       return (
@@ -106,7 +107,8 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
           onPress={() => !isDisabled && handleModelPress(model)}
           style={[
             styles.modelCard,
-            isDisabled && styles.disabledCard
+            isDisabled && styles.disabledCard,
+            isLockedPremium && styles.lockedCard
           ]}
           activeOpacity={isDisabled ? 1 : 0.7}
           accessibilityRole="button"
@@ -123,6 +125,12 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
           <Surface style={{
             ...styles.cardSurface,
             ...(isDisabled && { opacity: 0.6 }),
+            ...(isLockedPremium && { 
+              opacity: 0.7,
+              borderColor: theme.colors.gray['300'],
+              borderWidth: 1,
+              borderStyle: 'dashed' as any
+            }),
             ...(showWarning && { borderColor: theme.colors.danger['600'] })
           }}>
             <View style={styles.cardContent}>
@@ -131,12 +139,17 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
                   variant="bodyMd"
                   weight="semibold"
                   style={{ 
-                    color: isDisabled 
+                    color: isDisabled || isLockedPremium
                       ? theme.colors.textSecondary 
                       : theme.colors.textPrimary 
                   }}
                 >
                   {model.name}
+                  {isLockedPremium && (
+                    <Typography variant="caption" style={{ color: theme.colors.brand['500'] }}>
+                      {' '}🔒 Premium
+                    </Typography>
+                  )}
                 </Typography>
                 {showWarning && (
                   <Typography
@@ -166,6 +179,18 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
                   }}
                 >
                   {t('models.insufficientTokens')}
+                </Typography>
+              )}
+              {isLockedPremium && (
+                <Typography
+                  variant="caption"
+                  style={{ 
+                    color: theme.colors.brand['600'],
+                    marginTop: 4,
+                    fontStyle: 'italic'
+                  }}
+                >
+                  Requires subscription or custom API key
                 </Typography>
               )}
             </View>
@@ -261,6 +286,9 @@ const styles = StyleSheet.create({
   },
   disabledCard: {
     opacity: 0.6,
+  },
+  lockedCard: {
+    opacity: 0.8,
   },
   cardSurface: {
     padding: 16,

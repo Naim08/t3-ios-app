@@ -121,17 +121,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔄 Auth state changed:', event, session ? '✅ Session exists' : '❌ No session');
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+      console.log('🔄 Auth state changed:', event, session ? `✅ Session exists (${session.user?.email})` : '❌ No session');
       
-      // Store or clear session in SecureStore
+      // Debug: Log all session details for troubleshooting
       if (session) {
+        console.log('🔍 Session details:', {
+          access_token: session.access_token ? 'present' : 'missing',
+          user_id: session.user?.id,
+          user_email: session.user?.email,
+          expires_at: session.expires_at,
+        });
+      }
+      
+      // Only update session state for legitimate auth events
+      // Ignore transient session states that might occur during failed auth attempts
+      if (event === 'SIGNED_IN' && session) {
+        console.log('✅ Legitimate sign-in detected, updating session state');
+        setSession(session);
+        setUser(session?.user ?? null);
+        await storeSession(session);
+      } else if (event === 'SIGNED_OUT') {
+        console.log('🚪 Sign-out detected, clearing session state');
+        setSession(null);
+        setUser(null);
+        await clearStoredSession();
+      } else if (event === 'TOKEN_REFRESHED' && session) {
+        console.log('🔄 Token refreshed, updating session');
+        setSession(session);
+        setUser(session?.user ?? null);
         await storeSession(session);
       } else {
-        await clearStoredSession();
+        console.log(`⚠️ Ignoring auth event: ${event} (session: ${session ? 'present' : 'null'})`);
       }
+      
+      setLoading(false);
     });
 
     // Handle deep linking when app returns from OAuth
@@ -327,19 +350,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       if (error) {
         console.error('❌ Email/Password sign in error:', error);
+        console.log('🔍 About to throw error in AuthProvider');
+        // Make sure no session state gets updated on error
+        setLoading(false);
         throw error;
       }
       
       if (data.session) {
         console.log('✅ Email/Password sign in successful');
-        await storeSession(data.session);
+        // Session will be set by the onAuthStateChange listener
+        // Don't manually set it here to avoid race conditions
       }
     } catch (error: any) {
       console.error('💥 Email/Password sign in error:', error);
-      throw error;
-    } finally {
+      console.log('🔍 In catch block of AuthProvider, about to throw error');
       setLoading(false);
+      throw error;
     }
+    // Don't set loading to false here in finally block - let the auth state change handle it
   };
 
   const signUpWithEmailPassword = async (email: string, password: string) => {
@@ -354,22 +382,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       if (error) {
         console.error('❌ Email/Password sign up error:', error);
+        setLoading(false);
         throw error;
       }
       
       if (data.session) {
         console.log('✅ Email/Password sign up successful with immediate session');
-        await storeSession(data.session);
+        // Session will be set by the onAuthStateChange listener
       } else if (data.user && !data.user.email_confirmed_at) {
         console.log('📧 Email confirmation required');
+        setLoading(false);
         // You might want to show a message to the user about checking their email
       }
     } catch (error: any) {
       console.error('💥 Email/Password sign up error:', error);
-      throw error;
-    } finally {
       setLoading(false);
+      throw error;
     }
+    // Don't set loading to false in finally - let auth state change handle successful cases
   };
 
   const signInWithApple = async () => {

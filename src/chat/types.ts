@@ -4,6 +4,12 @@ export interface Message {
   role: 'user' | 'assistant';
   text: string;
   createdAt: string;
+  isStreaming?: boolean;
+}
+
+export interface StreamMessage {
+  role: 'user' | 'assistant';
+  content: string;
 }
 
 // Temporary mock messages
