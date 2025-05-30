@@ -57,7 +57,7 @@
       [
         "@sentry/react-native/expo",
         {
-          "url": "https://sentry.io/",
+          "url": "https://8b23a6fa7f9489510690ec9b7ac76375@o4507090108284928.ingest.us.sentry.io/4509370246234112",
           "project": "react-native",
           "organization": "originx"
         }

@@ -21,6 +21,9 @@
       "autoIncrement": true,
       "ios": {
         "buildConfiguration": "Release"
+      },
+      "env": {
+        "SENTRY_AUTH_TOKEN": "from_eas_secret:SENTRY_AUTH_TOKEN"
       }
     }
   },
