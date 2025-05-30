@@ -3,6 +3,10 @@
  * 
  * Basic tests for Apple S2S webhook functionality.
  * These tests mock the Apple JWT payloads and database operations.
+ * 
+ * NOTE: These tests use mock JWTs. The production webhook now includes
+ * proper JWT signature verification using Apple's JWKS keys.
+ * For testing with real Apple JWTs, you would need valid signatures.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8';

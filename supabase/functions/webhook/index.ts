@@ -82,53 +82,6 @@ interface AppleRenewalInfo {
 const SUBSCRIPTION_ID = 'premium_pass_monthly';
 const MONTHLY_TOKENS = 150000;
 
-/**
- * Simple JWT decoder without signature verification
- * WARNING: Only use for development/testing. Production should verify signatures.
- */
-function decodeJWTUnsafe(token: string): any {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) {
-      throw new Error('Invalid JWT format');
-    }
-    
-    const payload = parts[1];
-    // Add padding if needed
-    const padded = payload + '='.repeat((4 - payload.length % 4) % 4);
-    const decoded = atob(padded.replace(/-/g, '+').replace(/_/g, '/'));
-    return JSON.parse(decoded);
-  } catch (error) {
-    console.error('❌ Failed to decode JWT:', error);
-    return null;
-  }
-}
-
-/**
- * Simple function to verify and decode Apple JWT
- * For development: just decodes without verification
- * For production: should implement proper signature verification
- */
-async function verifyAndDecodeJWT(signedPayload: string): Promise<AppleJWTPayload | null> {
-  const isDevelopment = Deno.env.get('ENVIRONMENT') !== 'production';
-  
-  if (isDevelopment) {
-    console.log('⚠️ DEVELOPMENT MODE: Skipping JWT signature verification');
-    return decodeJWTUnsafe(signedPayload);
-  } else {
-    // TODO: Implement proper JWT signature verification for production
-    console.log('🔒 PRODUCTION MODE: JWT verification not implemented yet');
-    return decodeJWTUnsafe(signedPayload);
-  }
-}
-
-/**
- * Decode Apple's signed transaction/renewal info JWTs
- */
-async function decodeJWTToken(signedToken: string): Promise<any> {
-  return decodeJWTUnsafe(signedToken);
-}
-
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
@@ -151,8 +104,8 @@ Deno.serve(async (req: Request) => {
     // Verify and decode the JWT payload
     const payload = await verifyAndDecodeJWT(signedPayload);
     if (!payload) {
-      console.error('❌ Invalid JWT payload');
-      return new Response('Invalid JWT', { status: 400 });
+      console.error('❌ JWT verification failed - invalid signature or payload');
+      return new Response('Invalid JWT signature', { status: 401 });
     }
 
     console.log(`📧 Notification type: ${payload.notificationType}`);
@@ -178,8 +131,8 @@ Deno.serve(async (req: Request) => {
     // Decode transaction info
     const transactionInfo = await decodeJWTToken(payload.data.signedTransactionInfo);
     if (!transactionInfo) {
-      console.error('❌ Failed to decode transaction info');
-      return new Response('Invalid transaction info', { status: 400 });
+      console.error('❌ Failed to verify transaction info JWT');
+      return new Response('Invalid transaction JWT', { status: 401 });
     }
 
     console.log(`💳 Transaction ID: ${transactionInfo.transactionId}`);
@@ -270,38 +223,202 @@ Deno.serve(async (req: Request) => {
   }
 });
 
+// Apple's JWKS keys for JWT verification
+const APPLE_JWKS = {
+  "keys": [
+    {
+      "kty": "RSA",
+      "kid": "rs0M3kOV9p",
+      "use": "sig",
+      "alg": "RS256",
+      "n": "zH5so3zLsgmRypxAAYJimfF9cx3ISSyHyzjDP3yvE9ieqpnjFJhzgCP8L4oKO9vUFNpoG1ub7I3paYNY6Vb2yc4chnsjJxB3j0jomJ3iI9MlWoVecTFG2tywyx5NRhy3YfTUpw2uCLafzWrpIJIoKUCGM6iUgaIFjvfi-cGT5T_5eUSWZHN-ziH69mGcbMRGLQEixQUatwru9i4i-OSk-w-JmLOqAzRP1mVn1tcZRIoGSB2PFSSJX9SK90OX8i5sj7dpIO_2xbGMtyNJkDzGq88x1pMJ4sv6HMj-tx4QrpGDbUi7zBCgbBnNSGSB_LBv4dbswwWY96ckHgx9yf_7IQ",
+      "e": "AQAB"
+    },
+    {
+      "kty": "RSA",
+      "kid": "E6q83RB15n",
+      "use": "sig",
+      "alg": "RS256",
+      "n": "qD2kjZNSBESRVJksHHnDpMPprhCymecPO8Ji6xlY_fGdUOioVf0nckGaiBwjPGo3xKadAGvbNJ1BjCZOmbLL7lQ5mT8fI6l5HaY8txcz3_PjOUHdiXBuThmQ2eEXtmOtRxi3LNnXaOCpl7QxHgyiPTVgJpJ18Teqz2ESVXg_Lpmw7ot3zBI0p9E56-HVZwxpwS8EoN53nx850fxAlpZj5d1szgV8YzhcRG-8FMOialu-me0OFZWghB-_jCMfdBhWHMWpGkfLPDA1o8eLkr0UByZwMHKCWA--JUvlKvSv3xavDD7ILj8t5PiItonVV9telbza-ToaOWMiG5gZ5QfWDQ",
+      "e": "AQAB"
+    },
+    {
+      "kty": "RSA",
+      "kid": "Sf2lFqwkpX",
+      "use": "sig",
+      "alg": "RS256",
+      "n": "oNe3ZKHU5-fnmbjhCamUpBSyLkR4jbQy-PCZU4cr7tyPcFokyZ1CjSGm44sw3EPONWO6bWgKZYBX2UPv7UM3GBIuB8qBkkN0_vu0Kdr8KUWJ-6m9fnKgceDil4K4TsSS8Owe9qnP9XjjmVRK7cCEjew4GYqQ7gRcHUjIQ-PrKkNBOOijxLlwckeQK2IN9WS_CBXVMleXLutfYAHpwr2KoAmt5BQvPFqBegozHaTc2UvarcUPKMrl-sjY_AXobH7NjqfbBLRJLzS2EzE4y865QiBpwwdhlK4ZQ3g1DCV57BDKvoBX0guCDNSFvoPuIjMmTxZEUbwrJ1CQ4Ib5j4VCkQ",
+      "e": "AQAB"
+    }
+  ]
+};
+
 async function verifyAndDecodeJWT(signedPayload: string): Promise<AppleJWTPayload | null> {
   try {
-    // Check if we're in development mode
-    const isDevelopment = Deno.env.get('SUPABASE_ENV') === 'development' || 
-                         Deno.env.get('ENVIRONMENT') === 'development';
-
-    if (isDevelopment) {
-      console.log('⚠️ Development mode: Using unsafe JWT decoding');
-      return decodeJWTUnsafe<AppleJWTPayload>(signedPayload);
-    } else {
-      console.log('🔒 Production mode: Verifying JWT signature');
-      return await verifyAndDecodeAppleJWT<AppleJWTPayload>(signedPayload);
+    console.log('🔐 Starting JWT verification with Apple JWKS...');
+    
+    const [headerB64, payloadB64, signatureB64] = signedPayload.split('.');
+    if (!headerB64 || !payloadB64 || !signatureB64) {
+      console.error('❌ Invalid JWT format');
+      return null;
     }
+
+    // Decode header to get the key ID
+    const header = JSON.parse(
+      new TextDecoder().decode(
+        Uint8Array.from(
+          atob(headerB64.replace(/-/g, '+').replace(/_/g, '/')),
+          c => c.charCodeAt(0)
+        )
+      )
+    );
+
+    console.log(`🔑 JWT Key ID: ${header.kid}`);
+
+    // Find the matching key in JWKS
+    const jwk = APPLE_JWKS.keys.find(key => key.kid === header.kid);
+    if (!jwk) {
+      console.error(`❌ No matching key found for kid: ${header.kid}`);
+      return null;
+    }
+
+    console.log('✅ Found matching JWKS key');
+
+    // Verify the JWT signature using the public key
+    const isValid = await verifyJWTSignature(signedPayload, jwk);
+    if (!isValid) {
+      console.error('❌ JWT signature verification failed');
+      return null;
+    }
+
+    console.log('✅ JWT signature verified successfully');
+
+    // Decode payload
+    const decodedPayload = JSON.parse(
+      new TextDecoder().decode(
+        Uint8Array.from(
+          atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')),
+          c => c.charCodeAt(0)
+        )
+      )
+    );
+
+    return decodedPayload as AppleJWTPayload;
   } catch (error) {
-    console.error('❌ Failed to decode JWT:', error);
+    console.error('❌ Failed to verify and decode JWT:', error);
     return null;
   }
 }
 
+async function verifyJWTSignature(jwt: string, jwk: any): Promise<boolean> {
+  try {
+    // Convert JWK to CryptoKey
+    const publicKey = await importJWKToCryptoKey(jwk);
+    
+    // Split JWT
+    const [headerB64, payloadB64, signatureB64] = jwt.split('.');
+    
+    // Create the signed data (header + payload)
+    const signedData = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
+    
+    // Decode signature from base64url
+    const signature = base64urlToArrayBuffer(signatureB64);
+    
+    // Verify signature
+    const isValid = await crypto.subtle.verify(
+      'RSASSA-PKCS1-v1_5',
+      publicKey,
+      signature,
+      signedData
+    );
+    
+    return isValid;
+  } catch (error) {
+    console.error('❌ Error verifying JWT signature:', error);
+    return false;
+  }
+}
+
+async function importJWKToCryptoKey(jwk: any): Promise<CryptoKey> {
+  const keyData = {
+    kty: jwk.kty,
+    n: jwk.n,
+    e: jwk.e,
+    alg: jwk.alg,
+    use: jwk.use
+  };
+  
+  return await crypto.subtle.importKey(
+    'jwk',
+    keyData,
+    {
+      name: 'RSASSA-PKCS1-v1_5',
+      hash: 'SHA-256'
+    },
+    false,
+    ['verify']
+  );
+}
+
+function base64urlToArrayBuffer(base64url: string): ArrayBuffer {
+  const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, '=');
+  const binary = atob(padded);
+  const buffer = new ArrayBuffer(binary.length);
+  const view = new Uint8Array(buffer);
+  for (let i = 0; i < binary.length; i++) {
+    view[i] = binary.charCodeAt(i);
+  }
+  return buffer;
+}
+
 async function decodeJWTToken(token: string): Promise<AppleTransactionInfo | null> {
   try {
-    // Check if we're in development mode
-    const isDevelopment = Deno.env.get('SUPABASE_ENV') === 'development' || 
-                         Deno.env.get('ENVIRONMENT') === 'development';
-
-    if (isDevelopment) {
-      console.log('⚠️ Development mode: Using unsafe JWT decoding for transaction');
-      return decodeJWTUnsafe<AppleTransactionInfo>(token);
-    } else {
-      console.log('🔒 Production mode: Verifying transaction JWT signature');
-      return await verifyAndDecodeAppleJWT<AppleTransactionInfo>(token);
+    console.log('🔐 Verifying transaction JWT...');
+    
+    const [headerB64, payloadB64, signatureB64] = token.split('.');
+    if (!headerB64 || !payloadB64 || !signatureB64) {
+      console.error('❌ Invalid transaction JWT format');
+      return null;
     }
+
+    // Decode header to get the key ID
+    const header = JSON.parse(
+      new TextDecoder().decode(
+        Uint8Array.from(
+          atob(headerB64.replace(/-/g, '+').replace(/_/g, '/')),
+          c => c.charCodeAt(0)
+        )
+      )
+    );
+
+    // Find the matching key in JWKS
+    const jwk = APPLE_JWKS.keys.find(key => key.kid === header.kid);
+    if (!jwk) {
+      console.error(`❌ No matching key found for transaction JWT kid: ${header.kid}`);
+      return null;
+    }
+
+    // Verify the JWT signature
+    const isValid = await verifyJWTSignature(token, jwk);
+    if (!isValid) {
+      console.error('❌ Transaction JWT signature verification failed');
+      return null;
+    }
+
+    console.log('✅ Transaction JWT signature verified');
+
+    // Decode payload
+    const decodedPayload = JSON.parse(
+      new TextDecoder().decode(
+        Uint8Array.from(
+          atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')),
+          c => c.charCodeAt(0)
+        )
+      )
+    );
+
+    return decodedPayload as AppleTransactionInfo;
   } catch (error) {
     console.error('❌ Failed to decode transaction token:', error);
     return null;

@@ -528,6 +528,33 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
     }
   }, [user, isInitialized, checkSubscriptionStatus]);
 
+  // Set up realtime listener for subscription status changes
+  useEffect(() => {
+    if (!user) return;
+
+    console.log('📡 Setting up realtime listener for subscription changes');
+    
+    // Subscribe to subscription status changes via pg_notify
+    const channel = supabase
+      .channel('sub_status_changed')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'user_subscriptions',
+        filter: `user_id=eq.${user.id}`
+      }, (payload) => {
+        console.log('📡 Subscription status changed:', payload);
+        checkSubscriptionStatus();
+        refetchCredits();
+      })
+      .subscribe();
+
+    return () => {
+      console.log('📡 Cleaning up realtime subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [user, checkSubscriptionStatus, refetchCredits]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
