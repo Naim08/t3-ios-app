@@ -10,7 +10,7 @@
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		2BE6C6BF2DE9830C00616E4C /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2BE6C6BE2DE9830C00616E4C /* StoreKit.framework */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		57B88F6931D8281691EFBB1B /* libPods-Pockett3.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 06C19ABCFE4BB06D0B704695 /* libPods-Pockett3.a */; };
+		57B88F6931D8281691EFBB1B /* libPods-pockett3.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 06C19ABCFE4BB06D0B704695 /* libPods-pockett3.a */; };
 		622314F4D0E9A3D439003D4A /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69F31AE49EF3A645C69A3D93 /* ExpoModulesProvider.swift */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		DB687B4E89FB75DCC712C6B0 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 811B2E39BFD75B828DB53CFB /* PrivacyInfo.xcprivacy */; };
@@ -18,20 +18,20 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		06BF46EE0FE7E14B29932C24 /* Pods-Pockett3.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Pockett3.release.xcconfig"; path = "Target Support Files/Pods-PocketT3/Pods-Pockett3.release.xcconfig"; sourceTree = "<group>"; };
-		06C19ABCFE4BB06D0B704695 /* libPods-Pockett3.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Pockett3.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		0B492F8D551789EB7DE69F68 /* Pods-Pockett3.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Pockett3.debug.xcconfig"; path = "Target Support Files/Pods-PocketT3/Pods-Pockett3.debug.xcconfig"; sourceTree = "<group>"; };
+		06BF46EE0FE7E14B29932C24 /* Pods-pockett3.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-pockett3.release.xcconfig"; path = "Target Support Files/Pods-pockett3/Pods-pockett3.release.xcconfig"; sourceTree = "<group>"; };
+		06C19ABCFE4BB06D0B704695 /* libPods-pockett3.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-pockett3.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0B492F8D551789EB7DE69F68 /* Pods-pockett3.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-pockett3.debug.xcconfig"; path = "Target Support Files/Pods-pockett3/Pods-pockett3.debug.xcconfig"; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* pockett3.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = pockett3.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = PocketT3/Images.xcassets; sourceTree = "<group>"; };
-		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = PocketT3/Info.plist; sourceTree = "<group>"; };
+		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = pockett3/Images.xcassets; sourceTree = "<group>"; };
+		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = pockett3/Info.plist; sourceTree = "<group>"; };
 		2BE6C6BE2DE9830C00616E4C /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
-		69F31AE49EF3A645C69A3D93 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-PocketT3/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		811B2E39BFD75B828DB53CFB /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = PocketT3/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = PocketT3/SplashScreen.storyboard; sourceTree = "<group>"; };
+		69F31AE49EF3A645C69A3D93 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-pockett3/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		811B2E39BFD75B828DB53CFB /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = pockett3/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = pockett3/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
-		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = PocketT3/AppDelegate.swift; sourceTree = "<group>"; };
-		F11748442D0722820044C1D9 /* Pockett3-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Pockett3-Bridging-Header.h"; path = "PocketT3/Pockett3-Bridging-Header.h"; sourceTree = "<group>"; };
+		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = pockett3/AppDelegate.swift; sourceTree = "<group>"; };
+		F11748442D0722820044C1D9 /* pockett3-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "pockett3-Bridging-Header.h"; path = "pockett3/pockett3-Bridging-Header.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -39,7 +39,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				57B88F6931D8281691EFBB1B /* libPods-Pockett3.a in Frameworks */,
+				57B88F6931D8281691EFBB1B /* libPods-pockett3.a in Frameworks */,
 				2BE6C6BF2DE9830C00616E4C /* StoreKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -50,23 +50,23 @@
 		02D853CB76CC211B4ABAA484 /* ExpoModulesProviders */ = {
 			isa = PBXGroup;
 			children = (
-				8E5892111C3B4149CE4ECDD0 /* Pockett3 */,
+				8E5892111C3B4149CE4ECDD0 /* pockett3 */,
 			);
 			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
-		13B07FAE1A68108700A75B9A /* Pockett3 */ = {
+		13B07FAE1A68108700A75B9A /* pockett3 */ = {
 			isa = PBXGroup;
 			children = (
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
-				F11748442D0722820044C1D9 /* Pockett3-Bridging-Header.h */,
+				F11748442D0722820044C1D9 /* pockett3-Bridging-Header.h */,
 				BB2F792B24A3F905000567C9 /* Supporting */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
 				811B2E39BFD75B828DB53CFB /* PrivacyInfo.xcprivacy */,
 			);
-			name = Pockett3;
+			name = pockett3;
 			sourceTree = "<group>";
 		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
@@ -74,7 +74,7 @@
 			children = (
 				2BE6C6BE2DE9830C00616E4C /* StoreKit.framework */,
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				06C19ABCFE4BB06D0B704695 /* libPods-Pockett3.a */,
+				06C19ABCFE4BB06D0B704695 /* libPods-pockett3.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -89,7 +89,7 @@
 		83CBB9F61A601CBA00E9B192 = {
 			isa = PBXGroup;
 			children = (
-				13B07FAE1A68108700A75B9A /* Pockett3 */,
+				13B07FAE1A68108700A75B9A /* pockett3 */,
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
@@ -109,19 +109,19 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		8E5892111C3B4149CE4ECDD0 /* Pockett3 */ = {
+		8E5892111C3B4149CE4ECDD0 /* pockett3 */ = {
 			isa = PBXGroup;
 			children = (
 				69F31AE49EF3A645C69A3D93 /* ExpoModulesProvider.swift */,
 			);
-			name = Pockett3;
+			name = pockett3;
 			sourceTree = "<group>";
 		};
 		B5A2CA1260EF23CD31AE6C64 /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				0B492F8D551789EB7DE69F68 /* Pods-Pockett3.debug.xcconfig */,
-				06BF46EE0FE7E14B29932C24 /* Pods-Pockett3.release.xcconfig */,
+				0B492F8D551789EB7DE69F68 /* Pods-pockett3.debug.xcconfig */,
+				06BF46EE0FE7E14B29932C24 /* Pods-pockett3.release.xcconfig */,
 			);
 			path = Pods;
 			sourceTree = "<group>";
@@ -132,15 +132,15 @@
 				BB2F792C24A3F905000567C9 /* Expo.plist */,
 			);
 			name = Supporting;
-			path = PocketT3/Supporting;
+			path = pockett3/Supporting;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		13B07F861A680F5B00A75B9A /* PocketT3 */ = {
+		13B07F861A680F5B00A75B9A /* pockett3 */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "PocketT3" */;
+			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "pockett3" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
 				92C0F6C814B19B6083F5E495 /* [Expo] Configure project */,
@@ -156,8 +156,8 @@
 			);
 			dependencies = (
 			);
-			name = PocketT3;
-			productName = PocketT3;
+			name = pockett3;
+			productName = pockett3;
 			productReference = 13B07F961A680F5B00A75B9A /* pockett3.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -187,7 +187,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				13B07F861A680F5B00A75B9A /* PocketT3 */,
+				13B07F861A680F5B00A75B9A /* pockett3 */,
 			);
 		};
 /* End PBXProject section */
@@ -237,7 +237,7 @@
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-PocketT3-checkManifestLockResult.txt",
+				"$(DERIVED_FILE_DIR)/Pods-pockett3-checkManifestLockResult.txt",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -250,7 +250,7 @@
 			files = (
 			);
 			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-PocketT3/Pods-PocketT3-resources.sh",
+				"${PODS_ROOT}/Target Support Files/Pods-pockett3/Pods-pockett3-resources.sh",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXApplication/ExpoApplication_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/EXConstants.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/ExpoConstants_privacy.bundle",
@@ -283,7 +283,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-PocketT3/Pods-PocketT3-resources.sh\"\n";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-pockett3/Pods-pockett3-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 		92C0F6C814B19B6083F5E495 /* [Expo] Configure project */ = {
@@ -303,7 +303,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-PocketT3/expo-configure-project.sh\"\n";
+			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-pockett3/expo-configure-project.sh\"\n";
 		};
 		C3DA3116C217378AE6520EF2 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -311,7 +311,7 @@
 			files = (
 			);
 			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-PocketT3/Pods-PocketT3-frameworks.sh",
+				"${PODS_ROOT}/Target Support Files/Pods-pockett3/Pods-pockett3-frameworks.sh",
 				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
 			);
 			name = "[CP] Embed Pods Frameworks";
@@ -320,7 +320,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-PocketT3/Pods-PocketT3-frameworks.sh\"\n";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-pockett3/Pods-pockett3-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 		E068139AC48C46458D5E9D4C /* Upload Debug Symbols to Sentry */ = {
@@ -354,11 +354,11 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 0B492F8D551789EB7DE69F68 /* Pods-Pockett3.debug.xcconfig */;
+			baseConfigurationReference = 0B492F8D551789EB7DE69F68 /* Pods-pockett3.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = PocketT3/PocketT3.entitlements;
+				CODE_SIGN_ENTITLEMENTS = pockett3/pockett3.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = UJ2X7H6A7E;
 				ENABLE_BITCODE = NO;
@@ -366,7 +366,7 @@
 					"$(inherited)",
 					"FB_SONARKIT_ENABLED=1",
 				);
-				INFOPLIST_FILE = PocketT3/Info.plist;
+				INFOPLIST_FILE = pockett3/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -381,7 +381,7 @@
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
 				PRODUCT_BUNDLE_IDENTIFIER = org.name.pockett3;
 				PRODUCT_NAME = pockett3;
-				SWIFT_OBJC_BRIDGING_HEADER = "PocketT3/PocketT3-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "pockett3/pockett3-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -391,14 +391,14 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 06BF46EE0FE7E14B29932C24 /* Pods-Pockett3.release.xcconfig */;
+			baseConfigurationReference = 06BF46EE0FE7E14B29932C24 /* Pods-pockett3.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = PocketT3/PocketT3.entitlements;
+				CODE_SIGN_ENTITLEMENTS = pockett3/pockett3.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = UJ2X7H6A7E;
-				INFOPLIST_FILE = PocketT3/Info.plist;
+				INFOPLIST_FILE = pockett3/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -413,7 +413,7 @@
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
 				PRODUCT_BUNDLE_IDENTIFIER = org.name.pockett3;
 				PRODUCT_NAME = pockett3;
-				SWIFT_OBJC_BRIDGING_HEADER = "PocketT3/PocketT3-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "pockett3/pockett3-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
@@ -475,7 +475,10 @@
 				LIBRARY_SEARCH_PATHS = "$(SDKROOT)/usr/lib/swift\"$(inherited)\"";
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				OTHER_LDFLAGS = "$(inherited)  ";
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					" ",
+				);
 				PRODUCT_NAME = pockett3;
 				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
@@ -531,7 +534,10 @@
 				);
 				LIBRARY_SEARCH_PATHS = "$(SDKROOT)/usr/lib/swift\"$(inherited)\"";
 				MTL_ENABLE_DEBUG_INFO = NO;
-				OTHER_LDFLAGS = "$(inherited)  ";
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					" ",
+				);
 				PRODUCT_NAME = pockett3;
 				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
@@ -543,7 +549,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "PocketT3" */ = {
+		13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "pockett3" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				13B07F941A680F5B00A75B9A /* Debug */,
