@@ -22,4 +22,26 @@ config.resolver.alias = {
 
 config.resolver.platforms = ['native', 'android', 'ios', 'web'];
 
+// Hermes source map configuration for better debugging
+config.serializer = {
+  ...config.serializer,
+};
+
+// Enable source maps in production for Hermes
+if (process.env.NODE_ENV === 'production') {
+  config.transformer = {
+    ...config.transformer,
+    minifierConfig: {
+      // Preserve source maps for Hermes
+      mangle: {
+        keep_fnames: true,
+      },
+      output: {
+        comments: false,
+        ascii_only: true,
+      },
+    },
+  };
+}
+
 module.exports = config;

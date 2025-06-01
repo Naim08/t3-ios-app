@@ -25,6 +25,7 @@
 				}
 			}
 		},
-		"github.copilot.chat.reviewSelection.instructions": []
+		"github.copilot.chat.reviewSelection.instructions": [],
+		"deno.path": "/opt/homebrew/bin/deno"
 	}
 }

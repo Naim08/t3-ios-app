@@ -1,3 +1,6 @@
+/* eslint-disable no-undef */
+import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+
 // LLM Provider Configuration for LangChain
 export interface ProviderConfig {
   baseURL?: string;

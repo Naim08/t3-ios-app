@@ -125,7 +125,7 @@ export class TokenSpendingMiddleware {
   async finalize(): Promise<void> {
     // Calculate final accurate cost based on accumulated text
     if (this.accumulatedText) {
-      const { calculateStreamingCost } = await import('./costs.js');
+      const { calculateStreamingCost } = await import('./costs');
       const actualCost = calculateStreamingCost(this.modelId, this.promptTokens, this.accumulatedText);
       const completionTokens = Math.ceil(this.accumulatedText.length / 4);
       

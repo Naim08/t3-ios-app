@@ -7,10 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		05C599B0FC47FA2F86055C51 /* libPods-pockett3.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 479AAFFA4D73FFB3AF13D81A /* libPods-pockett3.a */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		2BE6C6BF2DE9830C00616E4C /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2BE6C6BE2DE9830C00616E4C /* StoreKit.framework */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		57B88F6931D8281691EFBB1B /* libPods-pockett3.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 06C19ABCFE4BB06D0B704695 /* libPods-pockett3.a */; };
 		622314F4D0E9A3D439003D4A /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69F31AE49EF3A645C69A3D93 /* ExpoModulesProvider.swift */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		DB687B4E89FB75DCC712C6B0 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 811B2E39BFD75B828DB53CFB /* PrivacyInfo.xcprivacy */; };
@@ -18,13 +18,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		06BF46EE0FE7E14B29932C24 /* Pods-pockett3.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-pockett3.release.xcconfig"; path = "Target Support Files/Pods-pockett3/Pods-pockett3.release.xcconfig"; sourceTree = "<group>"; };
-		06C19ABCFE4BB06D0B704695 /* libPods-pockett3.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-pockett3.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		0B492F8D551789EB7DE69F68 /* Pods-pockett3.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-pockett3.debug.xcconfig"; path = "Target Support Files/Pods-pockett3/Pods-pockett3.debug.xcconfig"; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* pockett3.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = pockett3.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = pockett3/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = pockett3/Info.plist; sourceTree = "<group>"; };
 		2BE6C6BE2DE9830C00616E4C /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
+		479AAFFA4D73FFB3AF13D81A /* libPods-pockett3.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-pockett3.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		48C104B37BA6DD2B0158E0CC /* Pods-pockett3.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-pockett3.release.xcconfig"; path = "Target Support Files/Pods-pockett3/Pods-pockett3.release.xcconfig"; sourceTree = "<group>"; };
+		65C8CC98694406789A5DB26A /* Pods-pockett3.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-pockett3.debug.xcconfig"; path = "Target Support Files/Pods-pockett3/Pods-pockett3.debug.xcconfig"; sourceTree = "<group>"; };
 		69F31AE49EF3A645C69A3D93 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-pockett3/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		811B2E39BFD75B828DB53CFB /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = pockett3/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = pockett3/SplashScreen.storyboard; sourceTree = "<group>"; };
@@ -39,8 +39,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				57B88F6931D8281691EFBB1B /* libPods-pockett3.a in Frameworks */,
 				2BE6C6BF2DE9830C00616E4C /* StoreKit.framework in Frameworks */,
+				05C599B0FC47FA2F86055C51 /* libPods-pockett3.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -74,7 +74,7 @@
 			children = (
 				2BE6C6BE2DE9830C00616E4C /* StoreKit.framework */,
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				06C19ABCFE4BB06D0B704695 /* libPods-pockett3.a */,
+				479AAFFA4D73FFB3AF13D81A /* libPods-pockett3.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -120,8 +120,8 @@
 		B5A2CA1260EF23CD31AE6C64 /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				0B492F8D551789EB7DE69F68 /* Pods-pockett3.debug.xcconfig */,
-				06BF46EE0FE7E14B29932C24 /* Pods-pockett3.release.xcconfig */,
+				65C8CC98694406789A5DB26A /* Pods-pockett3.debug.xcconfig */,
+				48C104B37BA6DD2B0158E0CC /* Pods-pockett3.release.xcconfig */,
 			);
 			path = Pods;
 			sourceTree = "<group>";
@@ -142,15 +142,16 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "pockett3" */;
 			buildPhases = (
-				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
+				2F5418A8E6F3C91AC0CFB889 /* [CP] Check Pods Manifest.lock */,
 				92C0F6C814B19B6083F5E495 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
-				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
+				F1174850F1X7H3R5M3S /* Fix Hermes dSYM Files */,
 				E068139AC48C46458D5E9D4C /* Upload Debug Symbols to Sentry */,
-				C3DA3116C217378AE6520EF2 /* [CP] Embed Pods Frameworks */,
+				1DAD904104A01E711631AE9C /* [CP] Embed Pods Frameworks */,
+				4E05AE5EF3C338A8651BDDB4 /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -222,7 +223,25 @@
 			shellPath = /bin/sh;
 			shellScript = "if [[ -f \"$PODS_ROOT/../.xcode.env\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env\"\nfi\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n# The project root by default is one level up from the ios directory\nexport PROJECT_ROOT=\"$PROJECT_DIR\"/..\n\nif [[ \"$CONFIGURATION\" = *Debug* ]]; then\n  export SKIP_BUNDLING=1\nfi\nif [[ -z \"$ENTRY_FILE\" ]]; then\n  # Set the entry JS file using the bundler's entry resolution.\n  export ENTRY_FILE=\"$(\"$NODE_BINARY\" -e \"require('expo/scripts/resolveAppEntry')\" \"$PROJECT_ROOT\" ios absolute | tail -n 1)\"\nfi\n\nif [[ -z \"$CLI_PATH\" ]]; then\n  # Use Expo CLI\n  export CLI_PATH=\"$(\"$NODE_BINARY\" --print \"require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })\")\"\nfi\nif [[ -z \"$BUNDLE_COMMAND\" ]]; then\n  # Default Expo CLI command for bundling\n  export BUNDLE_COMMAND=\"export:embed\"\nfi\n\n# Source .xcode.env.updates if it exists to allow\n# SKIP_BUNDLING to be unset if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.updates\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.updates\"\nfi\n# Source local changes to allow overrides\n# if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n/bin/sh `\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('@sentry/react-native/package.json')) + '/scripts/sentry-xcode.sh'\"` `\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('react-native/package.json')) + '/scripts/react-native-xcode.sh'\"`\n\n";
 		};
-		08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */ = {
+		1DAD904104A01E711631AE9C /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-pockett3/Pods-pockett3-frameworks.sh",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-pockett3/Pods-pockett3-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		2F5418A8E6F3C91AC0CFB889 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -244,7 +263,7 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
+		4E05AE5EF3C338A8651BDDB4 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -305,24 +324,6 @@
 			shellPath = /bin/sh;
 			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-pockett3/expo-configure-project.sh\"\n";
 		};
-		C3DA3116C217378AE6520EF2 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-pockett3/Pods-pockett3-frameworks.sh",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-pockett3/Pods-pockett3-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
 		E068139AC48C46458D5E9D4C /* Upload Debug Symbols to Sentry */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -336,6 +337,20 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh `${NODE_BINARY:-node} --print \"require('path').dirname(require.resolve('@sentry/react-native/package.json')) + '/scripts/sentry-xcode-debug-files.sh'\"`";
+		};
+		F1174850F1X7H3R5M3S /* Fix Hermes dSYM Files */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Fix Hermes dSYM Files";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "#!/bin/bash\n\n# Run the Hermes dSYM fix script\nif [ -f \"$PROJECT_DIR/scripts/fix-hermes-dsym.sh\" ]; then\n    echo \"🔧 Running Hermes dSYM fix script...\"\n    bash \"$PROJECT_DIR/scripts/fix-hermes-dsym.sh\"\nelse\n    echo \"⚠️  Hermes dSYM fix script not found at $PROJECT_DIR/scripts/fix-hermes-dsym.sh\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -354,7 +369,7 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 0B492F8D551789EB7DE69F68 /* Pods-pockett3.debug.xcconfig */;
+			baseConfigurationReference = 65C8CC98694406789A5DB26A /* Pods-pockett3.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -391,7 +406,7 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 06BF46EE0FE7E14B29932C24 /* Pods-pockett3.release.xcconfig */;
+			baseConfigurationReference = 48C104B37BA6DD2B0158E0CC /* Pods-pockett3.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -450,6 +465,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
@@ -517,6 +533,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;

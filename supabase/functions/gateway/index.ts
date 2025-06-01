@@ -4,9 +4,9 @@ import { ChatOpenAI } from "npm:@langchain/openai"
 import { ChatAnthropic } from "npm:@langchain/anthropic"
 import { ChatGoogleGenerativeAI } from "npm:@langchain/google-genai"
 import { HumanMessage } from "npm:@langchain/core/messages"
-import { TokenSpendingMiddleware } from "./middleware.js"
-import { getProviderConfig, isModelPremium } from "./providers.js"
-import { calculateTokenCost } from "./costs.js"
+import { TokenSpendingMiddleware } from "./middleware"
+import { getProviderConfig, isModelPremium } from "./providers"
+import { calculateTokenCost } from "./costs"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
