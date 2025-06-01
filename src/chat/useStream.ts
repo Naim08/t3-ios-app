@@ -2,8 +2,8 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { fetch } from 'expo/fetch';
 
-interface StreamMessage {
-  role: 'user' | 'assistant';
+export interface StreamMessage {
+  role: 'user' | 'assistant' | 'system';
   content: string;
 }
 
@@ -11,6 +11,7 @@ interface StreamRequest {
   model: string;
   messages: StreamMessage[];
   customApiKey?: string;
+  conversationId?: string;
 }
 
 interface StreamChunk {
@@ -49,10 +50,6 @@ export function useStream(options: UseStreamOptions = {}): UseStreamResult {
   const lastRequestRef = useRef<StreamRequest | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   
-  // Enhanced buffering for smooth rendering
-  const pendingTokensRef = useRef<string>('');
-  const rafIdRef = useRef<number | null>(null);
-
   const cleanup = useCallback(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
@@ -62,29 +59,12 @@ export function useStream(options: UseStreamOptions = {}): UseStreamResult {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    if (rafIdRef.current) {
-      cancelAnimationFrame(rafIdRef.current);
-      rafIdRef.current = null;
-    }
-    pendingTokensRef.current = '';
   }, []);
 
-  // Smooth token buffering with RAF
-  const flushPendingTokens = useCallback(() => {
-    if (pendingTokensRef.current) {
-      setStreamingText(prev => prev + pendingTokensRef.current);
-      pendingTokensRef.current = '';
-    }
-    rafIdRef.current = null;
-  }, []);
-
+  // Simple, direct token addition without buffering
   const addToken = useCallback((token: string) => {
-    pendingTokensRef.current += token;
-    
-    if (!rafIdRef.current) {
-      rafIdRef.current = requestAnimationFrame(flushPendingTokens);
-    }
-  }, [flushPendingTokens]);
+    setStreamingText(prev => prev + token);
+  }, []);
 
   // Helper function to process SSE lines
   const processSSELine = useCallback((line: string, addToken: (token: string) => void, options: UseStreamOptions) => {

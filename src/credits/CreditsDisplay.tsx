@@ -15,7 +15,7 @@ export const CreditsDisplay: React.FC<CreditsDisplayProps> = ({
 }) => {
   const { theme } = useTheme();
   const { 
-    remaining, 
+    remaining,
     monthlyRemaining, 
     totalRemaining, 
     isPremiumSubscriber, 
@@ -54,7 +54,7 @@ export const CreditsDisplay: React.FC<CreditsDisplayProps> = ({
           color={theme.colors.textSecondary}
           style={styles.label}
         >
-          Credits
+          Total Credits
         </Typography>
       )}
       
@@ -64,7 +64,7 @@ export const CreditsDisplay: React.FC<CreditsDisplayProps> = ({
           weight="semibold"
           color={getDisplayColor()}
         >
-          {loading ? '...' : error ? 'Error' : formatTokens(remaining)}
+          {loading ? '...' : error ? 'Error' : formatTokens(totalRemaining)}
         </Typography>
         
         {!compact && (
@@ -76,8 +76,29 @@ export const CreditsDisplay: React.FC<CreditsDisplayProps> = ({
           </Typography>
         )}
       </View>
+
+      {!compact && !loading && !error && (monthlyRemaining > 0 || remaining > 0) && (
+        <View style={styles.breakdown}>
+          {monthlyRemaining > 0 && (
+            <Typography
+              variant="caption"
+              color={theme.colors.textSecondary}
+            >
+              Monthly: {formatTokens(monthlyRemaining)}
+            </Typography>
+          )}
+          {remaining > 0 && (
+            <Typography
+              variant="caption"
+              color={theme.colors.textSecondary}
+            >
+              Purchased: {formatTokens(remaining)}
+            </Typography>
+          )}
+        </View>
+      )}
       
-      {remaining < 1000 && !loading && !error && (
+      {totalRemaining < 1000 && !loading && !error && (
         <Typography
           variant="caption"
           color={theme.colors.accent['600']}
@@ -123,5 +144,9 @@ const styles = StyleSheet.create({
   },
   lowBalanceWarning: {
     marginTop: 2,
+  },
+  breakdown: {
+    marginTop: 4,
+    gap: 2,
   },
 });

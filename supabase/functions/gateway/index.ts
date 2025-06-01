@@ -4,9 +4,9 @@ import { ChatOpenAI } from "npm:@langchain/openai"
 import { ChatAnthropic } from "npm:@langchain/anthropic"
 import { ChatGoogleGenerativeAI } from "npm:@langchain/google-genai"
 import { HumanMessage } from "npm:@langchain/core/messages"
-import { TokenSpendingMiddleware } from "./middleware"
-import { getProviderConfig, isModelPremium } from "./providers"
-import { calculateTokenCost } from "./costs"
+import { TokenSpendingMiddleware } from "./middleware.ts"
+import { getProviderConfig, isModelPremium } from "./providers.ts"
+import { calculateTokenCost } from "./costs.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,6 +21,7 @@ interface StreamRequest {
   stream?: boolean
   customApiKey?: string
   hasCustomKey?: boolean
+  conversationId?: string
 }
 
 async function authenticateUser(authHeader: string): Promise<{ userId: string; isSubscriber: boolean; hasCustomKey: boolean, userToken: string }> {
@@ -129,7 +130,7 @@ Deno.serve(async (req: Request) => {
     const { userId, isSubscriber, hasCustomKey, userToken } = await authenticateUser(authHeader)
     
     // Parse request
-    const { model, messages, customApiKey }: StreamRequest = await req.json()
+    const { model, messages, customApiKey, conversationId }: StreamRequest = await req.json()
     
     if (!model || !messages || !Array.isArray(messages)) {
       return new Response(
@@ -185,6 +186,7 @@ Deno.serve(async (req: Request) => {
     const encoder = new TextEncoder()
     let promptTokens = 0
     let completionTokens = 0
+    let completeResponse = '' // Accumulate the complete assistant response
     
     const stream = new ReadableStream({
       async start(controller) {
@@ -208,6 +210,9 @@ Deno.serve(async (req: Request) => {
                   if (!token || typeof token !== 'string' || token.trim() === '' || token.length === 0) {
                     return;
                   }
+                  
+                  // Accumulate the complete response
+                  completeResponse += token
                   
                   // Additional filtering for LangChain artifacts
                   if (token === '\n' || token === '\r' || token === '\r\n') {
@@ -235,6 +240,38 @@ Deno.serve(async (req: Request) => {
                 async handleLLMEnd() {
                   // Calculate final token cost
                   const totalCost = calculateTokenCost(model, promptTokens, completionTokens)
+                  
+                  // Save assistant message to database if we have a conversation ID
+                  if (conversationId && completeResponse.trim()) {
+                    try {
+                      const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+                      const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!
+                      
+                      const saveResponse = await fetch(`${supabaseUrl}/rest/v1/messages`, {
+                        method: 'POST',
+                        headers: {
+                          'Authorization': `Bearer ${userToken}`,
+                          'apikey': supabaseKey,
+                          'Content-Type': 'application/json',
+                          'Prefer': 'return=minimal'
+                        },
+                        body: JSON.stringify({
+                          conversation_id: conversationId,
+                          role: 'assistant',
+                          content: completeResponse.trim(),
+                          model_used: model
+                        })
+                      })
+                      
+                      if (!saveResponse.ok) {
+                        console.error('Failed to save assistant message:', await saveResponse.text())
+                      } else {
+                        console.log('✅ Assistant message saved to database')
+                      }
+                    } catch (error) {
+                      console.error('Error saving assistant message:', error)
+                    }
+                  }
                   
                   // Finalize token spending
                   if (tokenMiddleware) {

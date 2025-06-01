@@ -9,78 +9,38 @@ interface QueuedSpend {
   retries: number;
 }
 
+const QUEUE_KEY = 'pending_token_spends';
+const MAX_RETRIES = 3;
+
 class OfflineQueue {
-  private static instance: OfflineQueue;
-  private queue: QueuedSpend[] = [];
-  private isProcessing = false;
-  private readonly QUEUE_KEY = 'credits_offline_queue';
-  private readonly MAX_RETRIES = 3;
-  private networkUnsubscribe?: () => void;
+  private processing = false;
+  private listeners: (() => void)[] = [];
 
-  private constructor() {
-    this.setupNetworkListener();
+  constructor() {
+    // Listen for network changes
+    NetInfo.addEventListener(state => {
+      if (state.isConnected && !this.processing) {
+        this.processQueue();
+      }
+    });
   }
 
-  static getInstance(): OfflineQueue {
-    if (!OfflineQueue.instance) {
-      OfflineQueue.instance = new OfflineQueue();
-    }
-    return OfflineQueue.instance;
-  }
-
-  // For testing - reset the singleton
-  static resetInstance(): void {
-    if (OfflineQueue.instance?.networkUnsubscribe) {
-      OfflineQueue.instance.networkUnsubscribe();
-    }
-    OfflineQueue.instance = undefined as any;
-  }
-
-  private async loadQueue(): Promise<void> {
-    try {
-      const stored = await AsyncStorage.getItem(this.QUEUE_KEY);
-      this.queue = stored ? JSON.parse(stored) : [];
-    } catch (error) {
-      console.error('Failed to load offline queue:', error);
-      this.queue = [];
-    }
-  }
-
-  private async saveQueue(): Promise<void> {
-    try {
-      await AsyncStorage.setItem(this.QUEUE_KEY, JSON.stringify(this.queue));
-    } catch (error) {
-      console.error('Failed to save offline queue:', error);
-    }
-  }
-
-  private setupNetworkListener(): void {
-    try {
-      this.networkUnsubscribe = NetInfo.addEventListener(state => {
-        if (state.isConnected && !this.isProcessing) {
-          this.processQueue();
-        }
-      });
-    } catch (error) {
-      console.error('Failed to setup network listener:', error);
-    }
-  }
-
+  /**
+   * Add a token spend to the offline queue
+   */
   async queueSpend(amount: number): Promise<void> {
+    const spend: QueuedSpend = {
+      id: Date.now().toString(),
+      amount,
+      timestamp: Date.now(),
+      retries: 0,
+    };
+
     try {
-      // Load existing queue first
-      await this.loadQueue();
-
-      const spend: QueuedSpend = {
-        id: `${Date.now()}_${Math.random()}`,
-        amount,
-        timestamp: Date.now(),
-        retries: 0,
-      };
-
-      this.queue.push(spend);
-      await this.saveQueue();
-
+      const existing = await this.getQueue();
+      const updated = [...existing, spend];
+      await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(updated));
+      
       // Try to process immediately if online
       const netState = await NetInfo.fetch();
       if (netState.isConnected) {
@@ -88,73 +48,115 @@ class OfflineQueue {
       }
     } catch (error) {
       console.error('Failed to queue spend:', error);
+      throw error;
     }
   }
 
-  private async processQueue(): Promise<void> {
-    if (this.isProcessing || this.queue.length === 0) {
-      return;
-    }
-
-    this.isProcessing = true;
-
+  /**
+   * Get all queued spends
+   */
+  async getQueue(): Promise<QueuedSpend[]> {
     try {
-      const netState = await NetInfo.fetch();
-      if (!netState.isConnected) {
-        return;
-      }
+      const stored = await AsyncStorage.getItem(QUEUE_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch (error) {
+      console.error('Failed to get queue:', error);
+      return [];
+    }
+  }
 
-      // Process items one by one to maintain order
-      while (this.queue.length > 0) {
-        const spend = this.queue[0];
+  /**
+   * Process all queued spends
+   */
+  async processQueue(): Promise<void> {
+    if (this.processing) return;
 
-        try {
-          await spendTokens(spend.amount);
-          // Success - remove from queue
-          this.queue.shift();
-          await this.saveQueue();
-        } catch (error) {
-          console.error('Failed to process queued spend:', error);
+    this.processing = true;
+    const queue = await this.getQueue();
+    const failed: QueuedSpend[] = [];
 
-          spend.retries++;
-          if (spend.retries >= this.MAX_RETRIES) {
-            // Max retries reached - remove from queue and log
-            console.error(`Dropping spend after ${this.MAX_RETRIES} retries:`, spend);
-            this.queue.shift();
-          } else {
-            // Keep in queue for retry, but break to avoid infinite loop
-            break;
-          }
-          await this.saveQueue();
+    for (const spend of queue) {
+      try {
+        await spendTokens(spend.amount);
+        // Success - remove from queue (implicitly by not adding to failed)
+      } catch (error) {
+        console.warn(`Failed to process spend ${spend.id}:`, error);
+        
+        // Increment retries
+        spend.retries += 1;
+        
+        // Keep if under max retries
+        if (spend.retries < MAX_RETRIES) {
+          failed.push(spend);
+        } else {
+          console.error(`Dropping spend ${spend.id} after ${MAX_RETRIES} retries`);
         }
       }
-    } catch (error) {
-      console.error('Error processing queue:', error);
-    } finally {
-      this.isProcessing = false;
     }
+
+    // Update queue with failed items
+    await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(failed));
+    
+    this.processing = false;
+    this.notifyListeners();
   }
 
-  async getQueuedAmount(): Promise<number> {
-    try {
-      await this.loadQueue();
-      return this.queue.reduce((total, spend) => total + spend.amount, 0);
-    } catch (error) {
-      console.error('Failed to get queued amount:', error);
-      return 0;
-    }
+  /**
+   * Get count of pending spends
+   */
+  async getPendingCount(): Promise<number> {
+    const queue = await this.getQueue();
+    return queue.reduce((total, spend) => total + spend.amount, 0);
   }
 
+  /**
+   * Clear all queued spends (for testing/debugging)
+   */
   async clearQueue(): Promise<void> {
-    try {
-      this.queue = [];
-      await this.saveQueue();
-    } catch (error) {
-      console.error('Failed to clear queue:', error);
-    }
+    await AsyncStorage.removeItem(QUEUE_KEY);
+    this.notifyListeners();
+  }
+
+  /**
+   * Add listener for queue changes
+   */
+  addListener(listener: () => void): () => void {
+    this.listeners.push(listener);
+    return () => {
+      const index = this.listeners.indexOf(listener);
+      if (index > -1) {
+        this.listeners.splice(index, 1);
+      }
+    };
+  }
+
+  private notifyListeners(): void {
+    this.listeners.forEach(listener => listener());
   }
 }
 
-export const offlineQueue = OfflineQueue.getInstance();
-export { OfflineQueue };
-export default offlineQueue;
+export const offlineQueue = new OfflineQueue();
+
+/**
+ * Enhanced spend function that handles offline scenarios
+ */
+export const spendTokensWithQueue = async (amount: number): Promise<{ remaining?: number; queued: boolean }> => {
+  const netState = await NetInfo.fetch();
+  
+  if (!netState.isConnected) {
+    // Offline - queue the spend
+    await offlineQueue.queueSpend(amount);
+    return { queued: true };
+  }
+
+  try {
+    // Online - try direct spend
+    const result = await spendTokens(amount);
+    return { remaining: result.remaining, queued: false };
+  } catch (error) {
+    // Network error - queue for later
+    console.warn('Direct spend failed, queuing:', error);
+    await offlineQueue.queueSpend(amount);
+    return { queued: true };
+  }
+};

@@ -1,3 +1,7 @@
+/* eslint-disable no-undef */
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { calculateStreamingCost } from './costs.ts';
+
 // Token spending middleware for streaming
 export class TokenSpendingMiddleware {
   private pendingCost = 0; // Changed from pendingTokens to pendingCost for fractional support
@@ -125,7 +129,6 @@ export class TokenSpendingMiddleware {
   async finalize(): Promise<void> {
     // Calculate final accurate cost based on accumulated text
     if (this.accumulatedText) {
-      const { calculateStreamingCost } = await import('./costs');
       const actualCost = calculateStreamingCost(this.modelId, this.promptTokens, this.accumulatedText);
       const completionTokens = Math.ceil(this.accumulatedText.length / 4);
       

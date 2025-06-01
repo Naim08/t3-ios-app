@@ -12,6 +12,7 @@ import { Typography, Surface } from '../ui/atoms';
 import { PremiumBadge } from './PremiumBadge';
 import { useEntitlements } from '../hooks/useEntitlements';
 import { useTranslation } from 'react-i18next';
+import { usePersona } from '../context/PersonaContext';
 
 export interface ModelOption {
   id: string;
@@ -27,6 +28,7 @@ export interface ModelPickerSheetProps {
   onSelect: (modelId: string) => void;
   onNavigateToPaywall: () => void;
   remainingTokens: number;
+  currentModelId?: string;
 }
 
 const models: ModelOption[] = [
@@ -62,10 +64,12 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
   onSelect,
   onNavigateToPaywall,
   remainingTokens,
+  currentModelId,
 }) => {
   const { theme } = useTheme();
   const { t } = useTranslation();
   const { isSubscriber, hasCustomKey } = useEntitlements();
+  const { currentPersona } = usePersona();
 
   const snapPoints = useMemo(() => ['50%', '70%'], []);
   const { width: screenWidth } = Dimensions.get('window');
@@ -100,6 +104,8 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
       const showWarning = !model.isPremium && remainingTokens === 0;
       const isLockedPremium = model.isPremium && !isUnlocked;
       const isDisabled = showWarning;
+      const isCurrentModel = currentModelId === model.id;
+      const isPersonaDefault = currentPersona?.default_model === model.id;
 
       return (
         <TouchableOpacity
@@ -108,7 +114,8 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
           style={[
             styles.modelCard,
             isDisabled && styles.disabledCard,
-            isLockedPremium && styles.lockedCard
+            isLockedPremium && styles.lockedCard,
+            isCurrentModel && styles.selectedCard
           ]}
           activeOpacity={isDisabled ? 1 : 0.7}
           accessibilityRole="button"
@@ -125,6 +132,11 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
           <Surface style={{
             ...styles.cardSurface,
             ...(isDisabled && { opacity: 0.6 }),
+            ...(isCurrentModel && { 
+              borderColor: theme.colors.brand['500'],
+              borderWidth: 2,
+              backgroundColor: theme.colors.brand['50']
+            }),
             ...(isLockedPremium && { 
               opacity: 0.7,
               borderColor: theme.colors.gray['300'],
@@ -135,22 +147,40 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
           }}>
             <View style={styles.cardContent}>
               <View style={styles.cardHeader}>
-                <Typography
-                  variant="bodyMd"
-                  weight="semibold"
-                  style={{ 
-                    color: isDisabled || isLockedPremium
-                      ? theme.colors.textSecondary 
-                      : theme.colors.textPrimary 
-                  }}
-                >
-                  {model.name}
-                  {isLockedPremium && (
-                    <Typography variant="caption" style={{ color: theme.colors.brand['500'] }}>
-                      {' '}🔒 Premium
-                    </Typography>
-                  )}
-                </Typography>
+                <View style={styles.modelNameContainer}>
+                  <Typography
+                    variant="bodyMd"
+                    weight="semibold"
+                    style={{ 
+                      color: isDisabled || isLockedPremium
+                        ? theme.colors.textSecondary 
+                        : theme.colors.textPrimary 
+                    }}
+                  >
+                    {model.name}
+                    {isLockedPremium && (
+                      <Typography variant="caption" style={{ color: theme.colors.brand['500'] }}>
+                        {' '}🔒 Premium
+                      </Typography>
+                    )}
+                  </Typography>
+                  <View style={styles.badges}>
+                    {isPersonaDefault && (
+                      <View style={[styles.badge, { backgroundColor: theme.colors.accent['100'] }]}>
+                        <Typography variant="caption" style={{ color: theme.colors.accent['700'] }}>
+                          {currentPersona?.icon} Default
+                        </Typography>
+                      </View>
+                    )}
+                    {isCurrentModel && (
+                      <View style={[styles.badge, { backgroundColor: theme.colors.brand['100'] }]}>
+                        <Typography variant="caption" style={{ color: theme.colors.brand['700'] }}>
+                          ✓ Selected
+                        </Typography>
+                      </View>
+                    )}
+                  </View>
+                </View>
                 {showWarning && (
                   <Typography
                     variant="caption"
@@ -205,6 +235,8 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
     [
       isModelUnlocked,
       remainingTokens,
+      currentModelId,
+      currentPersona,
       theme.colors,
       t,
       handleModelPress,
@@ -290,6 +322,9 @@ const styles = StyleSheet.create({
   lockedCard: {
     opacity: 0.8,
   },
+  selectedCard: {
+    // Additional styles will be applied inline
+  },
   cardSurface: {
     padding: 16,
     borderRadius: 12,
@@ -303,8 +338,22 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 4,
+  },
+  modelNameContainer: {
+    flex: 1,
+  },
+  badges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+  },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
   },
   modelDescription: {
     color: 'textSecondary',

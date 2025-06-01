@@ -96,22 +96,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           if (error) {
             console.log('⚠️ Stored session invalid, clearing...');
             await clearStoredSession();
+            setLoading(false);
           } else {
             console.log('✅ Session restored successfully');
-            setSession(data.session);
-            setUser(data.session?.user ?? null);
+            // Don't set session here - let the auth state change handler do it
+            setLoading(false);
           }
+          return; // Exit early if we found a stored session
         }
       } catch (error) {
         console.log('⚠️ Error restoring session:', error);
         await clearStoredSession();
       }
       
-      // Fall back to Supabase session check
+      // Only check Supabase session if no stored session was found
       const { data: { session } } = await supabase.auth.getSession();
       console.log('🔐 Initial session:', session ? '✅ Found' : '❌ None');
-      setSession(session);
-      setUser(session?.user ?? null);
+      
+      // Only set session state if no session exists (avoid duplicate auth events)
+      if (session) {
+        setSession(session);
+        setUser(session?.user ?? null);
+      }
       setLoading(false);
     };
 
@@ -146,6 +152,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setSession(session);
         setUser(session?.user ?? null);
         await storeSession(session);
+      } else if (event === 'INITIAL_SESSION' && session) {
+        // Handle initial session detection on app startup
+        if (!session.access_token || !session.user) {
+          console.log('⚠️ Ignoring INITIAL_SESSION event - invalid session data');
+          return;
+        }
+        
+        console.log('🔐 Initial session found, updating session state');
+        setSession(session);
+        setUser(session?.user ?? null);
+        await storeSession(session);
       } else if (event === 'SIGNED_OUT') {
         console.log('🚪 Sign-out detected, clearing session state');
         setSession(null);
@@ -166,76 +183,81 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Handle deep linking when app returns from OAuth
     const handleURL = async (url: string) => {
       console.log('🔗 Received deep link:', url);
-      if (url.includes('pocket-t3://auth')) {
-        console.log('✅ OAuth redirect detected, completing auth session...');
-        // This tells WebBrowser that the auth session is complete and Safari should close
-        WebBrowser.maybeCompleteAuthSession();
-        
-        // Parse the URL to extract tokens from the hash fragment
-        try {
-          const urlObj = new URL(url);
-          let fragment = urlObj.hash.substring(1); // Remove the #
-          
-          // First decode the URL-encoded fragment
-          fragment = decodeURIComponent(fragment);
-          console.log('🔍 Decoded fragment:', fragment);
-          
-          const params = new URLSearchParams(fragment);
-          
-          const accessToken = params.get('access_token');
-          const refreshToken = params.get('refresh_token');
-          const expiresAt = params.get('expires_at');
-          
-          console.log('🔍 Extracted tokens:', { 
-            accessToken: accessToken ? `✅ Present (${accessToken.substring(0, 20)}...)` : '❌ Missing',
-            refreshToken: refreshToken ? `✅ Present (${refreshToken.substring(0, 20)}...)` : '❌ Missing',
-            expiresAt: expiresAt || 'Not provided'
-          });
-          
-          if (accessToken && refreshToken) {
-            console.log('🎯 Tokens found in redirect URL, setting session...');
-            
-            // Set the session with Supabase immediately
-            const sessionData: {
-              access_token: string;
-              refresh_token: string;
-              expires_at?: number;
-            } = {
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            };
-            
-            // Add expires_at if available
-            if (expiresAt) {
-              sessionData.expires_at = parseInt(expiresAt);
-            }
-            
-            const { data, error } = await supabase.auth.setSession(sessionData);
-            
-            if (error) {
-              console.error('❌ Error setting session from deep link:', error);
-            } else {
-              console.log('✅ Session set successfully from deep link!', data.user?.email);
-              setSession(data.session);
-              setUser(data.session?.user ?? null);
-              if (data.session) {
-                await storeSession(data.session);
-              }
-            }
-            return; // Exit early since we handled the tokens
-          }
-        } catch (e) {
-          console.log('⚠️ Could not parse redirect URL tokens:', e);
-        }
-        
-        // Fallback: Give Supabase a moment to process the session
-        setTimeout(async () => {
-          const { data: sessionData } = await supabase.auth.getSession();
-          if (sessionData.session) {
-            console.log('✅ Session established from deep link fallback:', sessionData.session.user?.email);
-          }
-        }, 500);
+      
+      // Only handle OAuth-related deep links
+      if (!url.includes('pocket-t3://auth')) {
+        console.log('⚠️ Non-OAuth deep link, ignoring');
+        return;
       }
+      
+      console.log('✅ OAuth redirect detected, completing auth session...');
+      // This tells WebBrowser that the auth session is complete and Safari should close
+      WebBrowser.maybeCompleteAuthSession();
+      
+      // Parse the URL to extract tokens from the hash fragment
+      try {
+        const urlObj = new URL(url);
+        let fragment = urlObj.hash.substring(1); // Remove the #
+        
+        // First decode the URL-encoded fragment
+        fragment = decodeURIComponent(fragment);
+        console.log('🔍 Decoded fragment:', fragment);
+        
+        const params = new URLSearchParams(fragment);
+        
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        const expiresAt = params.get('expires_at');
+        
+        console.log('🔍 Extracted tokens:', { 
+          accessToken: accessToken ? `✅ Present (${accessToken.substring(0, 20)}...)` : '❌ Missing',
+          refreshToken: refreshToken ? `✅ Present (${refreshToken.substring(0, 20)}...)` : '❌ Missing',
+          expiresAt: expiresAt || 'Not provided'
+        });
+        
+        if (accessToken && refreshToken) {
+          console.log('🎯 Tokens found in redirect URL, setting session...');
+          
+          // Set the session with Supabase immediately
+          const sessionData: {
+            access_token: string;
+            refresh_token: string;
+            expires_at?: number;
+          } = {
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          };
+          
+          // Add expires_at if available
+          if (expiresAt) {
+            sessionData.expires_at = parseInt(expiresAt);
+          }
+          
+          const { data, error } = await supabase.auth.setSession(sessionData);
+          
+          if (error) {
+            console.error('❌ Error setting session from deep link:', error);
+          } else {
+            console.log('✅ Session set successfully from deep link!', data.user?.email);
+            setSession(data.session);
+            setUser(data.session?.user ?? null);
+            if (data.session) {
+              await storeSession(data.session);
+            }
+          }
+          return; // Exit early since we handled the tokens
+        }
+      } catch (e) {
+        console.log('⚠️ Could not parse redirect URL tokens:', e);
+      }
+      
+      // Fallback: Give Supabase a moment to process the session
+      setTimeout(async () => {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData.session) {
+          console.log('✅ Session established from deep link fallback:', sessionData.session.user?.email);
+        }
+      }, 500);
     };
 
     // Listen for URL events

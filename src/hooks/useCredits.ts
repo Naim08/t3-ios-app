@@ -33,7 +33,11 @@ export const useCredits = (): UseCreditsReturn => {
   const [error, setError] = useState<string | null>(null);
   const { user, loading: authLoading } = useAuth();
 
+  console.log('💰 useCredits hook called');
+
   const fetchCredits = useCallback(async () => {
+    console.log('💰 fetchCredits called', { user: user?.id, authLoading });
+    
     if (!user) {
       // No user authenticated, reset state
       setRemaining(0);
@@ -50,11 +54,14 @@ export const useCredits = (): UseCreditsReturn => {
       setLoading(true);
       setError(null);
 
+      console.log('💰 Making credits API call...');
       const { data, error: funcError } = await supabase.functions.invoke('get_credits');
       
       if (funcError) {
         throw funcError;
       }
+
+      console.log('💰 RAW API RESPONSE:', JSON.stringify(data, null, 2));
 
       setRemaining(data?.remaining || 0);
       setMonthlyRemaining(data?.monthly_remaining || 0);
@@ -67,7 +74,7 @@ export const useCredits = (): UseCreditsReturn => {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, authLoading]);
 
   useEffect(() => {
     // Only fetch credits when auth loading is complete

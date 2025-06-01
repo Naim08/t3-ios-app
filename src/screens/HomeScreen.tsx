@@ -49,7 +49,7 @@ export const HomeScreen = ({ navigation }: any) => {
           />
           
           <PrimaryButton
-            title="💬 Chat with AI Assistant"
+            title="💬 Chat"
             onPress={() => navigation.navigate('Chat')}
             variant="secondary"
             size="large"

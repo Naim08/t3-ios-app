@@ -1,5 +1,4 @@
-
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { View, StyleSheet, Animated, TouchableOpacity, Dimensions } from 'react-native';
 // Conditional imports for gradients
 let LinearGradient, BlurView;
@@ -22,7 +21,7 @@ interface EmptyStateProps {
   onSuggestionPress?: (suggestion: string) => void;
 }
 
-export const EmptyState: React.FC<EmptyStateProps> = ({ onSuggestionPress }) => {
+const EmptyStateComponent: React.FC<EmptyStateProps> = ({ onSuggestionPress }) => {
   const { theme } = useTheme();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -61,12 +60,12 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onSuggestionPress }) => 
     ).start();
   }, []);
 
-  const suggestions = [
+  const suggestions = useMemo(() => [
     { icon: '💡', text: 'Explain quantum computing in simple terms' },
     { icon: '🚀', text: 'Help me write a business plan for a startup' },
     { icon: '🎨', text: 'Generate creative ideas for a birthday party' },
     { icon: '📚', text: 'Summarize the key points of machine learning' },
-  ];
+  ], []);
 
   return (
     <Animated.View 
@@ -288,3 +287,5 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
 });
+
+export const EmptyState = React.memo(EmptyStateComponent);

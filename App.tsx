@@ -1,4 +1,3 @@
-
 import 'react-native-url-polyfill/auto';
 import './src/polyfills'; // Import streaming polyfills
 import React from 'react';
@@ -14,6 +13,12 @@ import { PurchaseProvider } from './src/purchases';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import './src/i18n';
 import { LogBox } from 'react-native';
+
+// Enable/disable strict mode for debugging
+const ENABLE_STRICT_MODE = false; // Set to false to disable double renders
+
+// APP RENDER COUNTER - GLOBAL
+let globalAppRenderCount = 0;
 
 // Declare ErrorUtils type for React Native's internal error handler
 declare global {
@@ -57,12 +62,14 @@ Sentry.init({
   environment: __DEV__ ? 'development' : 'production',
 });
 
-export default Sentry.wrap(function App() {
+const AppContent = () => {
+  globalAppRenderCount++;
+  console.log(`🚀🚀🚀 APP CONTENT RENDER #${globalAppRenderCount} 🚀🚀🚀`);
+  
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
         <AuthProvider>
-          
           <PurchaseProvider>
             <EntitlementsProvider>
               <StatusBar style="auto" />
@@ -74,4 +81,16 @@ export default Sentry.wrap(function App() {
       </ThemeProvider>
     </GestureHandlerRootView>
   );
+};
+
+export default Sentry.wrap(function App() {
+  if (ENABLE_STRICT_MODE && __DEV__) {
+    return (
+      <React.StrictMode>
+        <AppContent />
+      </React.StrictMode>
+    );
+  }
+  
+  return <AppContent />;
 });
