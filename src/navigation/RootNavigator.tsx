@@ -10,6 +10,7 @@ import { PaywallScreen } from '../paywall/PaywallScreen';
 import { CreditsPurchaseScreen } from '../credits/CreditsPurchaseScreen';
 import { IAPDebugScreen } from '../debug/IAPDebugScreen';
 import { PersonaPickerScreen } from '../personas/PersonaPickerScreen';
+import { PersonaCreateScreen } from '../personas/PersonaCreateScreen';
 import { ConversationListScreen } from '../conversations/ConversationListScreen';
 import { useTheme } from '../components/ThemeProvider';
 import { AuthGate } from '../auth/AuthGate';
@@ -77,7 +78,12 @@ export const RootNavigator = () => {
             <Stack.Screen
               name="PersonaPicker"
               component={PersonaPickerScreen}
-              options={{ title: 'Choose Assistant' }}
+              options={{ title: 'AI Assistant' }}
+            />
+            <Stack.Screen
+              name="PersonaCreate"
+              component={PersonaCreateScreen}
+              options={{ title: 'Create Custom' }}
             />
             <Stack.Screen
               name="Chat"

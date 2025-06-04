@@ -19,10 +19,10 @@ CREATE TABLE IF NOT EXISTS public.tx_log (
 );
 
 -- Create indexes for common queries
-CREATE INDEX idx_tx_log_user_id ON public.tx_log(user_id);
-CREATE INDEX idx_tx_log_created_at ON public.tx_log(created_at);
-CREATE INDEX idx_tx_log_status ON public.tx_log(status);
-CREATE INDEX idx_tx_log_model ON public.tx_log(model);
+CREATE INDEX IF NOT EXISTS idx_tx_log_user_id ON public.tx_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_tx_log_created_at ON public.tx_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_tx_log_status ON public.tx_log(status);
+CREATE INDEX IF NOT EXISTS idx_tx_log_model ON public.tx_log(model);
 
 -- Enable RLS
 ALTER TABLE public.tx_log ENABLE ROW LEVEL SECURITY;

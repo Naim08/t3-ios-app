@@ -8,6 +8,7 @@ import {
   RefreshControl,
   Alert,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../components/ThemeProvider';
 import { usePersona } from '../context/PersonaContext';
 import { Typography, Surface, PrimaryButton } from '../ui/atoms';
@@ -166,6 +167,14 @@ export const ConversationListScreen = ({ navigation }: any) => {
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
+
+  // Automatically refresh conversations when the screen comes into focus
+  // This ensures the list is updated when returning from chat creation
+  useFocusEffect(
+    useCallback(() => {
+      fetchConversations();
+    }, [fetchConversations])
+  );
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);

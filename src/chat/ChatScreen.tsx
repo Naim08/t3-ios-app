@@ -38,6 +38,7 @@ import { useTranslation } from 'react-i18next';
 import { usePersona } from '../context/PersonaContext';
 import { usePremium } from '../hooks/usePremium';
 import { supabase } from '../lib/supabase';
+import { isModelPremium } from '../utils/modelUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -56,13 +57,6 @@ interface ChatScreenProps {
 }
 
 const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) => {
-  const renderCount = useRef(0);
-  renderCount.current += 1;
-
-  // Track if this is a mount or re-render
-  const isMounted = useRef(false);
-  const renderType = isMounted.current ? 'RE-RENDER' : 'MOUNT';
-  isMounted.current = true;
 
   const { theme } = useTheme();
   const { t } = useTranslation();
@@ -74,43 +68,6 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
   const [inputText, setInputText] = useState('');
   const [isModelPickerVisible, setIsModelPickerVisible] = useState(false);
   const [currentModel, setCurrentModel] = useState<string>('gpt-3.5'); // Will be loaded from storage
-
-  // Debug component lifecycle with render counter
-  console.log(`🔄 ChatScreen render #${renderCount.current} (${renderType}) - route params:`, route?.params, 'timestamp:', Date.now());
-  console.log('🔍 Render state:', {
-    currentPersona: currentPersona?.display_name,
-    messagesLength: messages?.length,
-    currentModel
-  });
-
-  // Add detailed tracking of all context values
-  const prevValues = useRef<any>({});
-  const currentValues = {
-    personaId: currentPersona?.id,
-    personaName: currentPersona?.display_name,
-    isSubscriber,
-    hasCustomKey,
-    messagesLength: messages.length,
-    currentModel,
-    routeParams: JSON.stringify(route?.params),
-    themeColors: theme.colors.background, // Sample theme value
-    navigationObject: navigation.constructor.name, // Track if navigation object changes
-  };
-
-  // Track what changed between renders
-  const changedKeys: string[] = [];
-  Object.keys(currentValues).forEach(key => {
-    if (prevValues.current[key] !== currentValues[key]) {
-      changedKeys.push(key);
-      console.log(`📝 Changed: ${key} from "${prevValues.current[key]}" to "${currentValues[key]}"`);
-    }
-  });
-  
-  if (changedKeys.length === 0 && renderCount.current > 1) {
-    console.log('⚠️  NO VALUES CHANGED - This suggests parent component or context re-render');
-  }
-  
-  prevValues.current = currentValues;
 
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -128,6 +85,8 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
       console.log('ChatScreen UNMOUNTED');
     };
   }, []);
+
+
 
   // Load model from conversation or use persona default
   useEffect(() => {
@@ -189,8 +148,7 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
   React.useLayoutEffect(() => {
     console.log('🎯 useLayoutEffect triggered - setting navigation options', {
       personaName: currentPersona?.display_name,
-      currentModel,
-      renderCount: renderCount.current
+      currentModel
     });
     
     navigation.setOptions({
@@ -227,8 +185,11 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
   }, [currentPersona?.display_name, currentModel, navigation, theme.colors.textPrimary, theme.colors.brand]);
 
   const loadConversation = useCallback(async (conversationId: string) => {
+    console.log('🔄 loadConversation called with ID:', conversationId);
+    
     try {
-      // Load conversation details
+      // First, fetch the conversation details
+      console.log('📞 Fetching conversation details...');
       const { data: conversation, error: convError } = await supabase
         .from('conversations')
         .select(`
@@ -239,11 +200,22 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         .single();
 
       if (convError) {
-        console.error('Error loading conversation:', convError);
+        console.error('❌ Error fetching conversation:', convError);
         return;
       }
 
-      // Load messages
+      console.log('✅ Conversation fetched:', {
+        id: conversation.id,
+        title: conversation.title,
+        created_at: conversation.created_at,
+        message_count: conversation.message_count,
+        current_model: conversation.current_model,
+        persona_id: conversation.persona_id,
+        has_persona: !!conversation.personas
+      });
+
+      // Now fetch the messages
+      console.log('📞 Fetching messages for conversation...');
       const { data: messagesData, error: messagesError } = await supabase
         .from('messages')
         .select('*')
@@ -251,47 +223,115 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         .order('created_at', { ascending: true });
 
       if (messagesError) {
-        console.error('Error loading messages:', messagesError);
+        console.error('❌ Error fetching messages:', messagesError);
         return;
       }
 
-      // Set state
-      setCurrentConversationId(conversationId);
-      setConversationTitle(conversation.title);
-      
-      // Always set persona from conversation data to ensure consistency
-      if (conversation.personas) {
-        console.log('Setting persona from conversation:', conversation.personas.display_name);
-        setCurrentPersona(conversation.personas);
-        setCurrentModel(conversation.personas.default_model);
+      console.log('📨 Messages fetched:', {
+        count: messagesData?.length || 0,
+        messages: messagesData?.map(m => ({
+          id: m.id,
+          role: m.role,
+          content_length: m.content?.length || 0,
+          created_at: m.created_at
+        }))
+      });
+
+      if (!messagesData || messagesData.length === 0) {
+        console.log('⚠️ No messages found for conversation:', conversationId);
+        setMessages([]);
+      } else {
+        // Convert messages to UI format
+        const uiMessages: Message[] = messagesData
+          .filter(msg => {
+            const keep = msg.role !== 'system';
+            if (!keep) {
+              console.log('🔇 Filtering out system message:', msg.id);
+            }
+            return keep;
+          })
+          .map(msg => {
+            const uiMessage = {
+              id: msg.id,
+              role: msg.role as 'user' | 'assistant',
+              text: msg.content,
+              createdAt: msg.created_at,
+            };
+            console.log('🔄 Converting message:', {
+              id: msg.id,
+              role: msg.role,
+              text_length: msg.content?.length || 0,
+              created_at: msg.created_at
+            });
+            return uiMessage;
+          });
+
+        console.log('✅ Setting UI messages:', {
+          count: uiMessages.length,
+          messages: uiMessages.map(m => ({
+            id: m.id,
+            role: m.role,
+            text_preview: m.text?.substring(0, 50) + '...',
+            createdAt: m.createdAt
+          }))
+        });
+
+        setMessages(uiMessages);
       }
 
-      // Convert messages to UI format
-      const uiMessages: Message[] = messagesData
-        .filter(msg => msg.role !== 'system') // Don't show system messages in UI
-        .map(msg => ({
-          id: msg.id,
-          role: msg.role as 'user' | 'assistant',
-          text: msg.content,
-          createdAt: msg.created_at,
-        }));
+      // Set the conversation state
+      setCurrentConversationId(conversationId);
+      setConversationTitle(conversation.title || '');
 
-      setMessages(uiMessages);
+      // Set model from conversation if available
+      if (conversation.current_model) {
+        console.log('🔧 Setting model from conversation:', conversation.current_model);
+        setCurrentModel(conversation.current_model);
+      }
+
+      // Always set persona from conversation data to ensure consistency
+      if (conversation.personas) {
+        console.log('👤 Setting persona from conversation:', conversation.personas.display_name);
+        setCurrentPersona(conversation.personas);
+        if (!conversation.current_model) {
+          setCurrentModel(conversation.personas.default_model);
+        }
+      }
+      
+      // Scroll to bottom after messages are loaded
+      setTimeout(() => {
+        console.log('📜 Scrolling to bottom after loading messages');
+        scrollToBottom(false);
+      }, 100);
+
     } catch (error) {
-      console.error('Error loading conversation:', error);
+      console.error('❌ Unexpected error in loadConversation:', error);
     }
-  }, [setCurrentPersona]); // Only depend on setCurrentPersona to avoid unnecessary re-creation
+  }, [setCurrentPersona, scrollToBottom]); // Only depend on setCurrentPersona to avoid unnecessary re-creation
 
   // Load conversation on mount (only for existing conversations)
   useEffect(() => {
     const conversationId = route?.params?.conversationId;
     
-    console.log('ChatScreen useEffect triggered - conversationId:', conversationId);
-    console.log('Current conversation ID:', currentConversationId);
+    console.log('🎯 ChatScreen useEffect triggered:', {
+      conversationId,
+      currentConversationId,
+      routeParamsStr: JSON.stringify(route?.params),
+      timestamp: Date.now()
+    });
     
-    if (conversationId && conversationId !== currentConversationId) {
-      console.log('Loading conversation:', conversationId);
-      loadConversation(conversationId);
+    if (conversationId) {
+      if (conversationId !== currentConversationId) {
+        console.log('🚀 Loading conversation (ID mismatch):', {
+          new: conversationId,
+          current: currentConversationId
+        });
+        loadConversation(conversationId);
+      } else {
+        console.log('⏭️ Skipping load - conversation already loaded:', conversationId);
+      }
+    } else {
+      console.log('🆕 No conversationId in route - this is a new conversation');
     }
     // For new conversations, persona is already set by PersonaPickerScreen
   }, [route?.params?.conversationId, currentConversationId, loadConversation]);
@@ -391,8 +431,13 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         ));
         setStreamingMessageId(null);
 
+        // ⚠️ IMPORTANT: Check if assistant message saving is disabled/commented out
+        console.log('🤔 ASSISTANT MESSAGE SAVING: Is this being called?');
+        console.log('🤔 STREAMING TEXT TO SAVE:', streamingText?.substring(0, 200) + '...');
+        
         // Server now saves the assistant message automatically
-        console.log('✅ Assistant message should be saved by server');
+        console.log('✅ Assistant message should be saved by server automatically');
+        console.log('✅ No manual saving needed for assistant messages');
       } else {
         console.log('⚠️ onComplete called but missing streamingMessageId');
       }
@@ -453,27 +498,51 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
   };
 
   const saveMessage = async (role: 'user' | 'assistant', content: string, messageId?: string) => {
-    console.log(`💾 Saving ${role} message (${content.length} chars)${messageId ? ` with ID ${messageId}` : ''}`);
+    console.log(`💾 SAVE MESSAGE START - ${role} message (${content.length} chars)${messageId ? ` with ID ${messageId}` : ''}`);
+    console.log(`💾 SAVE MESSAGE DETAILS:`, {
+      role,
+      contentPreview: content.substring(0, 100) + '...',
+      messageId,
+      currentConversationId,
+      currentModel
+    });
     
     try {
       let conversationId = currentConversationId;
 
       // Create conversation if it doesn't exist
       if (!conversationId) {
+        console.log('🆕 No current conversation - creating new one');
         const title = content.length > 50 ? content.substring(0, 50) + '...' : content;
-        const { data: { user } } = await supabase.auth.getUser();
         
-        console.log(`📝 Creating new conversation: "${title}"`);
+        console.log('🔐 Getting current user...');
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        
+        if (userError) {
+          console.error('❌ Error getting user:', userError);
+          throw userError;
+        }
+        
+        if (!user) {
+          console.error('❌ No authenticated user found');
+          throw new Error('No authenticated user');
+        }
+        
+        console.log('✅ User authenticated:', user.id);
+        
+        const conversationData = {
+          user_id: user.id,
+          persona_id: currentPersona?.id || null,
+          title,
+          last_message_preview: role === 'user' ? content : null,
+          message_count: 0,
+          current_model: currentModel, // Save the current model
+        };
+        
+        console.log(`📝 Creating new conversation with data:`, conversationData);
         const { data: newConv, error: convError } = await supabase
           .from('conversations')
-          .insert({
-            user_id: user?.id,
-            persona_id: currentPersona?.id || null,
-            title,
-            last_message_preview: role === 'user' ? content : null,
-            message_count: 0,
-            current_model: currentModel, // Save the current model
-          })
+          .insert(conversationData)
           .select('id')
           .single();
 
@@ -482,10 +551,17 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
           throw convError;
         }
 
+        if (!newConv) {
+          console.error('❌ No conversation data returned');
+          throw new Error('No conversation created');
+        }
+
         conversationId = newConv.id;
         setCurrentConversationId(conversationId);
         setConversationTitle(title);
         console.log(`✅ Created conversation: ${conversationId}`);
+      } else {
+        console.log('📝 Using existing conversation:', conversationId);
       }
 
       // Save message
@@ -496,10 +572,12 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         model_used: role === 'assistant' ? currentModel : null,
       };
 
+      console.log(`💾 MESSAGE DATA TO SAVE:`, messageData);
+
       let result;
       if (messageId) {
         // Update existing message (for streaming completion)
-        console.log(`🔄 Updating existing message ${messageId}`);
+        console.log(`🔄 Updating existing message ${messageId} in conversation ${conversationId}`);
         result = await supabase
           .from('messages')
           .update(messageData)
@@ -507,59 +585,73 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
           .select();
       } else {
         // Insert new message
-        console.log(`➕ Inserting new ${role} message`);
+        console.log(`➕ Inserting new ${role} message in conversation ${conversationId}`);
         result = await supabase
           .from('messages')
           .insert(messageData)
           .select();
       }
 
+      console.log(`💾 SUPABASE RESULT:`, {
+        error: result.error,
+        dataCount: result.data?.length,
+        data: result.data
+      });
+
       if (result.error) {
         console.error(`❌ Database error saving ${role} message:`, result.error);
+        console.error(`❌ Error details:`, {
+          code: result.error.code,
+          message: result.error.message,
+          details: result.error.details,
+          hint: result.error.hint
+        });
         throw result.error;
       }
 
-      console.log(`✅ Successfully saved ${role} message to database`);
+      if (!result.data || result.data.length === 0) {
+        console.error('❌ No data returned from message save');
+        throw new Error('No message data returned');
+      }
+
+      console.log(`✅ Successfully saved ${role} message to database - result:`, result.data);
       
     } catch (error) {
       console.error(`❌ Error saving ${role} message:`, error);
+      console.error(`❌ Full error object:`, {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
       throw error; // Re-throw so calling code can handle it
     }
   };
 
   const handleSend = useCallback(async () => {
-    if (inputText.trim().length === 0 || isStreaming) return;
+    console.log('🚀 HANDLE SEND CALLED');
+    
+    if (inputText.trim().length === 0 || isStreaming) {
+      console.log('❌ SEND BLOCKED:', {
+        inputEmpty: inputText.trim().length === 0,
+        isStreaming
+      });
+      return;
+    }
     
     animateSendButton();
 
-    // Debug logging to understand why paywall is triggered
-    console.log('🔍 SEND DEBUG:', {
-      currentModel,
-      remainingTokens,
-      isSubscriber,
-      hasCustomKey,
-      inputText: inputText.substring(0, 50) + '...'
-    });
-
-    // Check if user has access to the selected model
-    const isModelPremium = currentModel !== 'gpt-3.5' && currentModel !== 'gemini-pro';
-    const hasAccess = isModelPremium ? (isSubscriber || hasCustomKey) : true;
+    // Check if user has access to the selected model using unified logic
+    const modelIsPremium = isModelPremium(currentModel);
     
-    console.log('🔍 ACCESS CHECK:', {
-      isModelPremium,
-      hasAccess,
-      willGoToPaywall: !hasAccess
-    });
-    
-    if (!hasAccess) {
-      console.log('❌ PAYWALL: No access to premium model');
+    // For free models, check token balance first
+    if (!modelIsPremium && remainingTokens <= 0) {
       navigation.navigate('Paywall');
       return;
     }
-
-    // For free models, check token balance
-    if (!isModelPremium && remainingTokens <= 0) {
-      console.log('❌ PAYWALL: No tokens remaining for free model');
+    
+    // For premium models, check subscription or custom key
+    if (modelIsPremium && !isSubscriber && !hasCustomKey) {
+      console.log('❌ PAYWALL: No access to premium model');
       navigation.navigate('Paywall');
       return;
     }
@@ -583,6 +675,12 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
       isStreaming: true,
     };
 
+    console.log('📝 ADDING MESSAGES TO UI:', {
+      userMessageId: userMessage.id,
+      assistantMessageId,
+      messageText: userMessage.text.substring(0, 50) + '...'
+    });
+
     setMessages(prev => [...prev, userMessage, assistantMessage]);
     setStreamingMessageId(assistantMessageId);
     
@@ -590,7 +688,14 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
     setInputText('');
 
     // Save user message to database
-    await saveMessage('user', messageText);
+    console.log('💾 CALLING saveMessage for user message:', messageText.substring(0, 50) + '...');
+    try {
+      await saveMessage('user', messageText);
+      console.log('✅ User message saved successfully');
+    } catch (error) {
+      console.error('❌ Failed to save user message:', error);
+      // Don't return here - still try to send the message to the AI
+    }
 
     // Auto-scroll to bottom
     setTimeout(() => {
@@ -614,6 +719,12 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
     // Add current user message
     streamMessages.push({ role: 'user', content: messageText });
 
+    console.log('🎯 STARTING STREAM with messages:', {
+      count: streamMessages.length,
+      hasSystemPrompt: streamMessages.some(m => m.role === 'system'),
+      model: currentModel
+    });
+
     try {
       await startStream({
         model: currentModel,
@@ -621,8 +732,9 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         customApiKey: hasCustomKey ? undefined : undefined, // TODO: Get from user settings
         conversationId: currentConversationId,
       });
+      console.log('✅ Stream started successfully');
     } catch (error) {
-      console.error('Failed to start stream:', error);
+      console.error('❌ Failed to start stream:', error);
     }
   }, [inputText, currentModel, isSubscriber, hasCustomKey, remainingTokens, navigation, messages, isStreaming, startStream, streamingMessageId, currentConversationId, currentPersona, saveMessage]);
 
@@ -887,18 +999,10 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
 
 // Wrap with React.memo to prevent unnecessary re-renders
 export const ChatScreenMemo = React.memo(ChatScreenComponent, (prevProps, nextProps) => {
-  console.log('🔍 React.memo comparison:', {
-    navigationChanged: prevProps.navigation !== nextProps.navigation,
-    routeChanged: prevProps.route !== nextProps.route,
-    routeParamsChanged: JSON.stringify(prevProps.route?.params) !== JSON.stringify(nextProps.route?.params)
-  });
-  
   // Return true if props are equal (should NOT re-render)
   // Return false if props are different (should re-render)
   const areEqual = prevProps.navigation === nextProps.navigation && 
                    JSON.stringify(prevProps.route?.params) === JSON.stringify(nextProps.route?.params);
-  
-  console.log('🔍 React.memo decision:', areEqual ? 'SKIP re-render' : 'ALLOW re-render');
   
   return areEqual;
 });
