@@ -497,7 +497,7 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
     ]).start();
   };
 
-  const saveMessage = async (role: 'user' | 'assistant', content: string, messageId?: string) => {
+  const saveMessage = async (role: 'user' | 'assistant', content: string, messageId?: string): Promise<string> => {
     console.log(`💾 SAVE MESSAGE START - ${role} message (${content.length} chars)${messageId ? ` with ID ${messageId}` : ''}`);
     console.log(`💾 SAVE MESSAGE DETAILS:`, {
       role,
@@ -616,6 +616,9 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
 
       console.log(`✅ Successfully saved ${role} message to database - result:`, result.data);
       
+      // Return the conversation ID for use in streaming
+      return conversationId;
+      
     } catch (error) {
       console.error(`❌ Error saving ${role} message:`, error);
       console.error(`❌ Full error object:`, {
@@ -687,14 +690,17 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
     const messageText = inputText.trim();
     setInputText('');
 
-    // Save user message to database
+    // Save user message to database and get the conversation ID
     console.log('💾 CALLING saveMessage for user message:', messageText.substring(0, 50) + '...');
+    let actualConversationId: string;
     try {
-      await saveMessage('user', messageText);
-      console.log('✅ User message saved successfully');
+      actualConversationId = await saveMessage('user', messageText);
+      console.log('✅ User message saved successfully, conversation ID:', actualConversationId);
     } catch (error) {
       console.error('❌ Failed to save user message:', error);
       // Don't return here - still try to send the message to the AI
+      // Fall back to currentConversationId if save failed
+      actualConversationId = currentConversationId || '';
     }
 
     // Auto-scroll to bottom
@@ -722,7 +728,8 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
     console.log('🎯 STARTING STREAM with messages:', {
       count: streamMessages.length,
       hasSystemPrompt: streamMessages.some(m => m.role === 'system'),
-      model: currentModel
+      model: currentModel,
+      conversationId: actualConversationId
     });
 
     try {
@@ -730,7 +737,7 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         model: currentModel,
         messages: streamMessages,
         customApiKey: hasCustomKey ? undefined : undefined, // TODO: Get from user settings
-        conversationId: currentConversationId,
+        conversationId: actualConversationId,
       });
       console.log('✅ Stream started successfully');
     } catch (error) {

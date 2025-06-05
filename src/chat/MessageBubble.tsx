@@ -59,7 +59,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const getBubbleStyle = (): ViewStyle => {
     const baseStyle: ViewStyle = {
       marginBottom: 16,
-      maxWidth: '85%',
+      maxWidth: '92%',
       minWidth: 80,
     };
 
@@ -67,12 +67,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       ? {
           ...baseStyle,
           alignSelf: 'flex-end',
-          marginLeft: '15%',
+          marginLeft: '8%',
         }
       : {
           ...baseStyle,
           alignSelf: 'flex-start',
-          marginRight: '15%',
+          marginRight: '8%',
         };
   };
 
