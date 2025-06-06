@@ -7,8 +7,11 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
+  Animated,
+  Dimensions,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useTheme } from '../components/ThemeProvider';
 import { usePersona } from '../context/PersonaContext';
 import { Typography, Surface, PrimaryButton } from '../ui/atoms';
@@ -33,6 +36,94 @@ interface ConversationItemProps {
   onPress: () => void;
   onDelete: () => void;
 }
+
+const { width: screenWidth } = Dimensions.get('window');
+const SWIPE_THRESHOLD = screenWidth * 0.25; // 25% of screen width
+
+const SwipeableConversationItem = ({ conversation, onPress, onDelete }: ConversationItemProps) => {
+  const translateX = new Animated.Value(0);
+  const { theme } = useTheme();
+
+  const handleGestureEvent = Animated.event(
+    [{ nativeEvent: { translationX: translateX } }],
+    { useNativeDriver: true }
+  );
+
+  const handleStateChange = (event: any) => {
+    if (event.nativeEvent.state === State.END) {
+      const { translationX, velocityX } = event.nativeEvent;
+      
+      // If swiped far enough or with enough velocity, trigger delete
+      if (Math.abs(translationX) > SWIPE_THRESHOLD || Math.abs(velocityX) > 500) {
+        // Animate to fully swiped state
+        Animated.timing(translateX, {
+          toValue: translationX > 0 ? screenWidth : -screenWidth,
+          duration: 200,
+          useNativeDriver: true,
+        }).start(() => {
+          // Show delete confirmation
+          Alert.alert(
+            'Delete Conversation',
+            'Are you sure you want to delete this conversation? This action cannot be undone.',
+            [
+              { 
+                text: 'Cancel', 
+                style: 'cancel',
+                onPress: () => {
+                  // Reset position
+                  Animated.spring(translateX, {
+                    toValue: 0,
+                    useNativeDriver: true,
+                  }).start();
+                }
+              },
+              { 
+                text: 'Delete', 
+                style: 'destructive', 
+                onPress: () => {
+                  onDelete();
+                  // Reset for next render
+                  translateX.setValue(0);
+                }
+              },
+            ]
+          );
+        });
+      } else {
+        // Snap back to original position
+        Animated.spring(translateX, {
+          toValue: 0,
+          useNativeDriver: true,
+        }).start();
+      }
+    }
+  };
+
+  return (
+    <View style={styles.swipeContainer}>
+      {/* Delete background */}
+      <View style={[styles.deleteBackground, { backgroundColor: theme.colors.danger['500'] }]}>
+        <Typography variant="bodyMd" color="#FFFFFF" weight="semibold">
+          🗑️ Delete
+        </Typography>
+      </View>
+      
+      <PanGestureHandler
+        onGestureEvent={handleGestureEvent}
+        onHandlerStateChange={handleStateChange}
+        activeOffsetX={[-10, 10]}
+      >
+        <Animated.View style={[styles.swipeableItem, { transform: [{ translateX }] }]}>
+          <ConversationItem
+            conversation={conversation}
+            onPress={onPress}
+            onDelete={onDelete}
+          />
+        </Animated.View>
+      </PanGestureHandler>
+    </View>
+  );
+};
 
 const ConversationItem = ({ conversation, onPress, onDelete }: ConversationItemProps) => {
   const { theme } = useTheme();
@@ -217,7 +308,7 @@ export const ConversationListScreen = ({ navigation }: any) => {
   };
 
   const renderConversation = ({ item }: { item: Conversation }) => (
-    <ConversationItem
+    <SwipeableConversationItem
       conversation={item}
       onPress={() => handleConversationPress(item)}
       onDelete={() => handleDeleteConversation(item.id)}
@@ -306,8 +397,25 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
   },
-  conversationItem: {
+  swipeContainer: {
     marginBottom: 12,
+    position: 'relative',
+  },
+  deleteBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 12,
+  },
+  swipeableItem: {
+    backgroundColor: 'transparent',
+  },
+  conversationItem: {
+    // marginBottom: 12, // moved to swipeContainer
   },
   conversationSurface: {
     borderRadius: 12,

@@ -40,7 +40,9 @@
           }
         },
         "ITSAppUsesNonExemptEncryption": false,
-        "LSApplicationQueriesSchemes": ["itms-apps"]
+        "LSApplicationQueriesSchemes": ["itms-apps"],
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to let you select and upload a custom profile picture.",
+        "NSCameraUsageDescription": "This app needs access to your camera to let you take a photo for your profile picture."
       }
     },
     "android": {
@@ -48,7 +50,12 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
-      "package": "org.name.pockett3"
+      "package": "org.name.pockett3",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -62,7 +69,14 @@
           "organization": "originx"
         }
       ],
-      "react-native-iap"
+      "react-native-iap",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "This app needs access to your photo library to let you select and upload a custom profile picture.",
+          "cameraPermission": "This app needs access to your camera to let you take a photo for your profile picture."
+        }
+      ]
     ],
     "extra": {
       "sentry": {},

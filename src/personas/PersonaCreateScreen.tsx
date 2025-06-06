@@ -13,6 +13,7 @@ import {
 import { useTheme } from '../components/ThemeProvider';
 import { usePersona, PersonaCategory } from '../context/PersonaContext';
 import { Typography, Surface } from '../ui/atoms';
+import { ToolSelector } from '../components/ToolSelector';
 import { supabase } from '../lib/supabase';
 
 interface PersonaTemplate {
@@ -91,13 +92,16 @@ export const PersonaCreateScreen = ({ navigation, route }: any) => {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [categoryId, setCategoryId] = useState('lifestyle');
   const [defaultModel, setDefaultModel] = useState('gpt-3.5-turbo');
+  const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [step, setStep] = useState<'template' | 'details' | 'prompt'>('template');
+  const [step, setStep] = useState<'template' | 'details' | 'tools' | 'prompt'>('template');
 
   const scrollViewRef = useRef<ScrollView>(null);
 
   const handleBack = () => {
     if (step === 'prompt') {
+      setStep('tools');
+    } else if (step === 'tools') {
       setStep('details');
     } else if (step === 'details') {
       setStep('template');
@@ -127,6 +131,7 @@ export const PersonaCreateScreen = ({ navigation, route }: any) => {
     setSystemPrompt(template.system_prompt);
     setCategoryId(template.category_id);
     setDefaultModel(template.default_model);
+    setSelectedTools([]);
     setStep('details');
   };
 
@@ -136,6 +141,9 @@ export const PersonaCreateScreen = ({ navigation, route }: any) => {
         Alert.alert('Error', 'Please enter a name for your persona');
         return;
       }
+      setStep('tools');
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    } else if (step === 'tools') {
       setStep('prompt');
       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
     }
@@ -174,6 +182,7 @@ export const PersonaCreateScreen = ({ navigation, route }: any) => {
           tags: [],
           usage_count: 0,
           is_featured: false,
+          tool_ids: selectedTools.length > 0 ? selectedTools : null,
         });
 
       if (error) {
@@ -271,13 +280,13 @@ export const PersonaCreateScreen = ({ navigation, route }: any) => {
 
         {/* Progress Indicator */}
         <View style={styles.progressContainer}>
-          {['template', 'details', 'prompt'].map((stepName, index) => (
+          {['template', 'details', 'tools', 'prompt'].map((stepName, index) => (
             <View key={stepName} style={styles.progressItem}>
               <View
                 style={[
                   styles.progressDot,
                   {
-                    backgroundColor: step === stepName || index < ['template', 'details', 'prompt'].indexOf(step)
+                    backgroundColor: step === stepName || index < ['template', 'details', 'tools', 'prompt'].indexOf(step)
                       ? theme.colors.brand['500']
                       : theme.colors.border,
                   }
@@ -288,7 +297,9 @@ export const PersonaCreateScreen = ({ navigation, route }: any) => {
                 color={step === stepName ? theme.colors.brand['500'] : theme.colors.textSecondary}
                 style={styles.progressLabel}
               >
-                {stepName === 'template' ? 'Template' : stepName === 'details' ? 'Details' : 'Prompt'}
+                {stepName === 'template' ? 'Template' : 
+                 stepName === 'details' ? 'Details' : 
+                 stepName === 'tools' ? 'Tools' : 'Prompt'}
               </Typography>
             </View>
           ))}
@@ -526,6 +537,32 @@ export const PersonaCreateScreen = ({ navigation, route }: any) => {
             </View>
           )}
 
+          {step === 'tools' && (
+            <View>
+              <Typography
+                variant="h6"
+                weight="semibold"
+                color={theme.colors.textPrimary}
+                style={styles.stepTitle}
+              >
+                Tools & Capabilities
+              </Typography>
+              <Typography
+                variant="bodyMd"
+                color={theme.colors.textSecondary}
+                style={styles.stepDescription}
+              >
+                Choose which tools your persona can access during conversations. Tools allow your persona to search the web, get weather information, and more.
+              </Typography>
+
+              <ToolSelector
+                selectedTools={selectedTools}
+                onToolsChange={setSelectedTools}
+                disabled={loading}
+              />
+            </View>
+          )}
+
           {step === 'prompt' && (
             <View>
               <Typography
@@ -542,6 +579,9 @@ export const PersonaCreateScreen = ({ navigation, route }: any) => {
                 style={styles.stepDescription}
               >
                 Define how your persona should behave and respond. This is the most important part!
+                {selectedTools.length > 0 && (
+                  `\n\n💡 Your persona has ${selectedTools.length} tool${selectedTools.length === 1 ? '' : 's'} available. Consider mentioning how they should use these capabilities in your prompt.`
+                )}
               </Typography>
 
               <View style={styles.fieldContainer}>
@@ -625,6 +665,18 @@ export const PersonaCreateScreen = ({ navigation, route }: any) => {
               disabled={!displayName.trim()}
             >
               <Typography variant="bodyMd" weight="semibold" color="#FFFFFF">
+                Continue to Tools
+              </Typography>
+            </TouchableOpacity>
+          ) : step === 'tools' ? (
+            <TouchableOpacity
+              style={[
+                styles.continueButton,
+                { backgroundColor: theme.colors.brand['500'] }
+              ]}
+              onPress={handleNext}
+            >
+              <Typography variant="bodyMd" weight="semibold" color="#FFFFFF">
                 Continue to Prompt
               </Typography>
             </TouchableOpacity>
@@ -674,7 +726,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     justifyContent: 'center',
-    gap: 40,
+    gap: 30,
   },
   progressItem: {
     alignItems: 'center',

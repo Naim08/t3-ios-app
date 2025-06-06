@@ -3,8 +3,10 @@ import { supabase } from '../lib/supabase';
 import { fetch } from 'expo/fetch';
 
 export interface StreamMessage {
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
+  tool_call_id?: string;
+  name?: string;
 }
 
 interface StreamRequest {
@@ -12,12 +14,17 @@ interface StreamRequest {
   messages: StreamMessage[];
   customApiKey?: string;
   conversationId?: string;
+  personaId?: string;
 }
 
 interface StreamChunk {
   token?: string;
   error?: string;
   done?: boolean;
+  role?: 'tool';
+  tool_call_id?: string;
+  name?: string;
+  content?: string;
   usage?: {
     prompt_tokens: number;
     completion_tokens: number;
@@ -29,6 +36,7 @@ interface UseStreamOptions {
   onTokenSpent?: (tokens: number) => void;
   onError?: (error: string) => void;
   onComplete?: (usage?: StreamChunk['usage']) => void;
+  onToolResult?: (toolResult: { tool_call_id: string; name: string; content: string }) => void;
 }
 
 interface UseStreamResult {
@@ -80,6 +88,16 @@ export function useStream(options: UseStreamOptions = {}): UseStreamResult {
           throw new Error(data.error);
         }
         
+        // Handle tool results
+        if (data.role === 'tool' && data.tool_call_id && data.name && data.content) {
+          options.onToolResult?.({
+            tool_call_id: data.tool_call_id,
+            name: data.name,
+            content: data.content
+          });
+          return { shouldStop: false };
+        }
+        
         if (data.token && typeof data.token === 'string') {
           // Only add non-empty tokens
           if (data.token.length > 0) {
@@ -129,6 +147,13 @@ export function useStream(options: UseStreamOptions = {}): UseStreamResult {
       // Call gateway to initiate stream
       const gatewayUrl = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/gateway`;
       
+      console.log('🚀 CALLING GATEWAY:', {
+        url: gatewayUrl,
+        personaId: request.personaId,
+        model: request.model,
+        messageCount: request.messages?.length
+      });
+      
       const response = await fetch(gatewayUrl, {
         method: 'POST',
         headers: {
@@ -138,6 +163,12 @@ export function useStream(options: UseStreamOptions = {}): UseStreamResult {
         },
         body: JSON.stringify(request),
         signal: abortControllerRef.current.signal,
+      });
+      
+      console.log('🚀 GATEWAY RESPONSE:', {
+        status: response.status,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
       });
 
       if (!response.ok) {

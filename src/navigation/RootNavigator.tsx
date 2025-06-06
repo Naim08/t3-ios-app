@@ -9,13 +9,14 @@ import { ChatScreen } from '../chat';
 import { PaywallScreen } from '../paywall/PaywallScreen';
 import { CreditsPurchaseScreen } from '../credits/CreditsPurchaseScreen';
 import { IAPDebugScreen } from '../debug/IAPDebugScreen';
+import { ToolsDebugScreen } from '../debug/ToolsDebugScreen';
 import { PersonaPickerScreen } from '../personas/PersonaPickerScreen';
 import { PersonaCreateScreen } from '../personas/PersonaCreateScreen';
 import { ConversationListScreen } from '../conversations/ConversationListScreen';
 import { useTheme } from '../components/ThemeProvider';
 import { AuthGate } from '../auth/AuthGate';
 import { PersonaProvider } from '../context/PersonaContext';
-import { Typography } from '../ui/atoms';
+import { IconButton, Typography } from '../ui/atoms';
 
 const Stack = createNativeStackNavigator();
 
@@ -47,31 +48,29 @@ export const RootNavigator = () => {
     <PersonaProvider>
       <NavigationContainer theme={navigationTheme}>
         <AuthGate>
-          <Stack.Navigator>
+          <Stack.Navigator
+            id={undefined}
+          >
             <Stack.Screen
               name="ConversationList"
               component={ConversationListScreen}
               options={({ navigation }) => ({
                 title: 'Chats',
                 headerLeft: () => (
-                  <TouchableOpacity 
+                  <IconButton
+                    icon="settings"
                     onPress={() => navigation.navigate('Settings')}
+                    variant="gradient"
                     style={{ marginLeft: 10 }}
-                  >
-                    <Typography variant="h3" color="#007AFF">
-                      ⚙️
-                    </Typography>
-                  </TouchableOpacity>
+                  />
                 ),
                 headerRight: () => (
-                  <TouchableOpacity 
+                  <IconButton
+                    icon="plus"
                     onPress={() => navigation.navigate('PersonaPicker')}
+                    variant="gradient"
                     style={{ marginRight: 10 }}
-                  >
-                    <Typography variant="h3" color="#007AFF">
-                      +
-                    </Typography>
-                  </TouchableOpacity>
+                  />
                 ),
               })}
             />
@@ -93,15 +92,24 @@ export const RootNavigator = () => {
                   // This will be updated dynamically by the ChatScreen component
                   return null;
                 },
+                headerLeft: () => (
+                  <IconButton
+                    icon="chevron-left"
+                    onPress={() => navigation.goBack()}
+                    variant="ghost"
+                    style={{ marginLeft: 10 }}
+                  />
+                ),
                 headerRight: () => (
-                  <TouchableOpacity 
-                    onPress={() => navigation.navigate('CreditsPurchase')}
+                  <IconButton
+                    icon="settings"
+                    onPress={() => {
+                      // The ChatScreen will handle opening the settings modal
+                      // This is a placeholder that will be overridden by the screen
+                    }}
+                    variant="ghost"
                     style={{ marginRight: 10 }}
-                  >
-                    <Typography variant="bodySm" color="#007AFF">
-                      Credits
-                    </Typography>
-                  </TouchableOpacity>
+                  />
                 ),
                 title: 'Chat',
                 // Prevent screen from remounting when navigating with different params
@@ -137,6 +145,11 @@ export const RootNavigator = () => {
               name="IAPDebug"
               component={IAPDebugScreen}
               options={{ title: 'IAP Debug' }}
+            />
+            <Stack.Screen
+              name="ToolsDebug"
+              component={ToolsDebugScreen}
+              options={{ title: 'Tools Debug' }}
             />
           </Stack.Navigator>
         </AuthGate>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -9,6 +9,7 @@ import {
   ScrollView,
   TextInput,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../components/ThemeProvider';
 import { usePersona, Persona, PersonaCategory } from '../context/PersonaContext';
 import { useEntitlements } from '../hooks/useEntitlements';
@@ -119,11 +120,7 @@ export const PersonaPickerScreen = ({ navigation }: any) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showFavorites, setShowFavorites] = useState(false);
 
-  useEffect(() => {
-    fetchPersonas();
-  }, []);
-
-  const fetchPersonas = async () => {
+  const fetchPersonas = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('personas')
@@ -142,7 +139,18 @@ export const PersonaPickerScreen = ({ navigation }: any) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchPersonas();
+  }, [fetchPersonas]);
+
+  // Refresh personas when screen comes into focus (e.g., after creating a new persona)
+  useFocusEffect(
+    useCallback(() => {
+      fetchPersonas();
+    }, [fetchPersonas])
+  );
 
   const handlePersonaPress = (persona: Persona) => {
     const personaRequiresPremium = persona.requires_premium && !isSubscriber && !hasCustomKey;

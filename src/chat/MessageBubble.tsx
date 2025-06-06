@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, ViewStyle, Animated, Platform } from 'react-native';
+import { View, StyleSheet, ViewStyle, Animated, Platform, Image } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 // Conditional imports for gradients
 let LinearGradient, BlurView;
@@ -15,7 +15,7 @@ try {
   BlurView = ({ children, style, ...props }) => React.createElement(View, { style, ...props }, children);
 }
 import { useTheme } from '../components/ThemeProvider';
-import { Surface, Typography } from '../ui/atoms';
+import { Surface, Typography, Avatar } from '../ui/atoms';
 import { Message } from './types';
 
 export interface MessageBubbleProps {
@@ -23,7 +23,7 @@ export interface MessageBubbleProps {
   style?: ViewStyle;
 }
 
-export const MessageBubble: React.FC<MessageBubbleProps> = ({
+const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
   message,
   style,
 }) => {
@@ -59,7 +59,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const getBubbleStyle = (): ViewStyle => {
     const baseStyle: ViewStyle = {
       marginBottom: 16,
-      maxWidth: '92%',
+      maxWidth: '80%', // Reduced to account for avatars
       minWidth: 80,
     };
 
@@ -67,12 +67,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       ? {
           ...baseStyle,
           alignSelf: 'flex-end',
-          marginLeft: '8%',
+          marginLeft: '15%', // Increased for avatar space
         }
       : {
           ...baseStyle,
           alignSelf: 'flex-start',
-          marginRight: '8%',
+          marginRight: '15%', // Increased for avatar space
         };
   };
 
@@ -88,6 +88,23 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           borderWidth: 1,
           borderColor: theme.colors.border,
         };
+  };
+
+  // Custom render rules to fix the key prop issue
+  const renderRules = {
+    image: (node: any, children: any, parent: any, styles: any) => {
+      const { src, alt } = node.attributes;
+      return (
+        <Image
+          key={node.key}
+          source={{ uri: src }}
+          style={styles.image}
+          accessible={true}
+          accessibilityLabel={alt || 'Image'}
+          resizeMode="contain"
+        />
+      );
+    },
   };
 
   const getMarkdownStyles = () => ({
@@ -155,6 +172,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       fontSize: theme.typography.scale.bodyMd.fontSize,
       lineHeight: theme.typography.scale.bodyMd.lineHeight,
     },
+    image: {
+      maxWidth: '100%',
+      height: 200,
+      borderRadius: 8,
+      marginVertical: theme.spacing.xs,
+    },
   });
 
   return (
@@ -167,32 +190,35 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           opacity: fadeAnim,
           transform: [{ translateY: slideAnim }],
         },
-      ]}
+      ] as any}
     >
       <View style={styles.messageRow}>
         {!isUser && (
           <View style={styles.avatarContainer}>
-            <LinearGradient
-              colors={[
-                theme.colors.accent['400'],
-                theme.colors.accent['600'],
-              ]}
-              style={styles.avatar}
-            >
-              <Typography
-                variant="bodySm"
-                weight="bold"
-                color="#FFFFFF"
-                align="center"
+            <View style={styles.aiAvatar}>
+              <LinearGradient
+                colors={[
+                  theme.colors.accent['400'],
+                  theme.colors.accent['600'],
+                ]}
+                style={[styles.avatar, { width: 32, height: 32, borderRadius: 16 }]}
               >
-                AI
-              </Typography>
-            </LinearGradient>
+                <Typography
+                  variant="bodySm"
+                  weight="bold"
+                  color="#FFFFFF"
+                  align="center"
+                >
+                  AI
+                </Typography>
+              </LinearGradient>
+            </View>
           </View>
         )}
         
         {isUser ? (
-          <LinearGradient
+          <View style={styles.userMessageContainer}>
+            <LinearGradient
             colors={[
               theme.colors.brand['400'],
               theme.colors.brand['600'],
@@ -206,7 +232,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             end={{ x: 1, y: 1 }}
           >
             <View style={styles.markdownContainer}>
-              <Markdown style={getMarkdownStyles()}>
+              <Markdown style={getMarkdownStyles()} rules={renderRules}>
                 {message.text}
               </Markdown>
             </View>
@@ -221,7 +247,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 {timestamp}
               </Typography>
             )}
-          </LinearGradient>
+            </LinearGradient>
+            <View style={[styles.avatarContainer, { marginLeft: 10 }]}>
+              <Avatar
+                size={32}
+                showBorder={true}
+                accessibilityLabel="Your profile picture"
+              />
+            </View>
+          </View>
         ) : (
           <Surface
             elevation={1}
@@ -230,7 +264,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               styles.aiBubble,
               getSurfaceStyle(),
               isStreaming && styles.streamingBubble,
-            ]}
+            ] as any}
           >
             {isStreaming && message.text === '' && (
               <View style={styles.typingIndicator}>
@@ -240,7 +274,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               </View>
             )}
             <View style={styles.markdownContainer}>
-              <Markdown style={getMarkdownStyles()}>
+              <Markdown style={getMarkdownStyles()} rules={renderRules}>
                 {message.text || ' '}
               </Markdown>
             </View>
@@ -262,6 +296,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   );
 };
 
+// Memoize MessageBubble to prevent unnecessary re-renders that cause layout jumps
+export const MessageBubble = React.memo(MessageBubbleComponent, (prevProps, nextProps) => {
+  // Only re-render if message content or streaming state changed
+  return (
+    prevProps.message.id === nextProps.message.id &&
+    prevProps.message.text === nextProps.message.text &&
+    prevProps.message.isStreaming === nextProps.message.isStreaming &&
+    prevProps.message.role === nextProps.message.role
+  );
+});
+
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 12,
@@ -275,8 +320,18 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
   },
   avatarContainer: {
-    marginRight: 10,
     marginBottom: 4,
+  },
+  userMessageContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    flex: 1,
+    justifyContent: 'flex-end',
+    maxWidth: '85%',
+    marginLeft: 'auto',
+  },
+  aiAvatar: {
+    marginRight: 10,
   },
   avatar: {
     width: 36,
@@ -302,6 +357,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     flexShrink: 1,
     maxWidth: '100%',
+    flex: 1, // Allow bubble to take remaining space
     overflow: 'hidden' as const,
   },
   userBubble: {

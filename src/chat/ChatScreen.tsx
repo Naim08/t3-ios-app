@@ -26,12 +26,12 @@ try {
   BlurView = ({ children, style, ...props }) => React.createElement(View, { style, ...props }, children);
 }
 import { useTheme } from '../components/ThemeProvider';
-import { Typography, TextField, Surface } from '../ui/atoms';
+import { Typography, TextField, Surface, IconButton } from '../ui/atoms';
 import { MessageBubble } from './MessageBubble';
 import { EmptyState } from './EmptyState';
 import { Message, mockMessages } from './types';
-import { SimpleModelPicker } from '../models/SimpleModelPicker';
 import { CreditsDisplay } from '../credits/CreditsDisplay';
+import { ChatSettingsModal, ChatSettingsModalRef } from './ChatSettingsModal';
 import { useEntitlements } from '../hooks/useEntitlements';
 import { useStream, StreamMessage } from './useStream';
 import { useTranslation } from 'react-i18next';
@@ -47,6 +47,7 @@ interface ChatScreenProps {
   navigation: {
     navigate: (screen: string) => void;
     setOptions: (options: any) => void;
+    goBack: () => void;
   };
   route?: {
     params?: {
@@ -66,7 +67,6 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
   const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
-  const [isModelPickerVisible, setIsModelPickerVisible] = useState(false);
   const [currentModel, setCurrentModel] = useState<string>('gpt-3.5'); // Will be loaded from storage
 
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
@@ -77,6 +77,7 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
   const scrollY = useRef(new Animated.Value(0)).current;
   const typingAnimation = useRef(new Animated.Value(0)).current;
   const sendButtonScale = useRef(new Animated.Value(1)).current;
+  const chatSettingsModalRef = useRef<ChatSettingsModalRef>(null);
 
   // Component mount/unmount tracking
   useEffect(() => {
@@ -144,23 +145,18 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
     }
   }, [messages.length]);
 
-  // Update navigation title when persona or model changes
+  // Update navigation title when persona changes
   React.useLayoutEffect(() => {
     console.log('🎯 useLayoutEffect triggered - setting navigation options', {
-      personaName: currentPersona?.display_name,
-      currentModel
+      personaName: currentPersona?.display_name
     });
     
     navigation.setOptions({
       headerTitle: () => (
-        <TouchableOpacity 
-          onPress={() => setIsModelPickerVisible(true)}
-          style={styles.headerTitleContainer}
-          activeOpacity={0.7}
-        >
+        <View style={styles.headerTitleContainer}>
           <View style={styles.headerTitleContent}>
             {currentPersona && (
-              <Typography variant="bodyLg" style={{ marginRight: 6 }}>
+              <Typography variant="bodyLg" style={{ marginRight: 3 }}>
                 {currentPersona.icon}
               </Typography>
             )}
@@ -168,21 +164,24 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
               variant="bodyLg"
               weight="semibold"
               color={theme.colors.textPrimary}
+              numberOfLines={1}
+              style={styles.headerTitleText}
             >
               {currentPersona?.display_name || 'Chat'}
             </Typography>
-            <Typography
-              variant="bodySm"
-              color={theme.colors.brand['500']}
-              style={{ marginLeft: 6 }}
-            >
-              ⚙️
-            </Typography>
           </View>
-        </TouchableOpacity>
+        </View>
+      ),
+      headerRight: () => (
+        <IconButton
+          icon="settings"
+          onPress={() => chatSettingsModalRef.current?.present()}
+          variant="gradient"
+          style={{ marginRight: 10 }}
+        />
       )
     });
-  }, [currentPersona?.display_name, currentModel, navigation, theme.colors.textPrimary, theme.colors.brand]);
+  }, [currentPersona?.display_name, navigation, theme.colors.textPrimary, theme.colors.brand]);
 
   const loadConversation = useCallback(async (conversationId: string) => {
     console.log('🔄 loadConversation called with ID:', conversationId);
@@ -448,14 +447,22 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
 
   // Update streaming message text in real-time
   React.useEffect(() => {
-    if (streamingMessageId && streamingText) {
+    console.log('🔄 STREAMING TEXT UPDATE:', {
+      streamingMessageId,
+      streamingTextLength: streamingText?.length,
+      streamingTextPreview: streamingText?.substring(0, 50) + '...',
+      isStreaming
+    });
+    
+    // Only update the message text if we're actively streaming and have a streaming message
+    if (streamingMessageId && isStreaming) {
       setMessages(prev => prev.map(m => 
         m.id === streamingMessageId 
-          ? { ...m, text: streamingText }
+          ? { ...m, text: streamingText || '' }
           : m
       ));
     }
-  }, [streamingMessageId, streamingText]);
+  }, [streamingMessageId, streamingText, isStreaming]);
 
   // Typing indicator animation
   React.useEffect(() => {
@@ -684,6 +691,16 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
       messageText: userMessage.text.substring(0, 50) + '...'
     });
 
+    // Clear any existing streaming state before adding new messages
+    if (streamingMessageId) {
+      setMessages(prev => prev.map(m => 
+        m.id === streamingMessageId 
+          ? { ...m, isStreaming: false }
+          : m
+      ));
+      setStreamingMessageId(null);
+    }
+
     setMessages(prev => [...prev, userMessage, assistantMessage]);
     setStreamingMessageId(assistantMessageId);
     
@@ -729,7 +746,9 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
       count: streamMessages.length,
       hasSystemPrompt: streamMessages.some(m => m.role === 'system'),
       model: currentModel,
-      conversationId: actualConversationId
+      conversationId: actualConversationId,
+      currentStreamingText: streamingText,
+      assistantMessageId
     });
 
     try {
@@ -738,6 +757,7 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         messages: streamMessages,
         customApiKey: hasCustomKey ? undefined : undefined, // TODO: Get from user settings
         conversationId: actualConversationId,
+        personaId: currentPersona?.id,
       });
       console.log('✅ Stream started successfully');
     } catch (error) {
@@ -787,12 +807,15 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
     navigation.navigate('Paywall');
   };
 
-  // Debug model selection state
-  React.useEffect(() => {
-    console.log(`ModelPicker visibility: ${isModelPickerVisible}`);
-    console.log(`Current model: ${currentModel}`);
-  }, [isModelPickerVisible, currentModel]);
+  const handleNavigateToCredits = () => {
+    chatSettingsModalRef.current?.dismiss();
+    navigation.navigate('CreditsScreen');
+  };
 
+  const handleDeleteConversation = () => {
+    chatSettingsModalRef.current?.dismiss();
+    navigation.goBack();
+  };
 
   // Prevent rendering until persona is loaded for new conversations
   const isNewConversation = !route?.params?.conversationId;
@@ -865,9 +888,19 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
           scrollEventThrottle={16}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
+          // Performance optimizations to prevent jumping
           removeClippedSubviews={false}
           windowSize={10}
           maxToRenderPerBatch={10}
+          initialNumToRender={20}
+          updateCellsBatchingPeriod={50}
+          getItemLayout={null} // Let FlatList calculate automatically
+          // Prevent layout jumps during typing
+          inverted={false}
+          // Keep content stable during updates
+          extraData={streamingMessageId}
+          // Reduce layout recalculations
+          disableVirtualization={messages.length < 50}
         />
 
         {/* Input Bar */}
@@ -925,13 +958,11 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
                   placeholder={isStreaming ? "AI is typing..." : "Type your message..."}
                   multiline
                   numberOfLines={3}
-                  style={[
-                    styles.textInput,
-                    {
-                      backgroundColor: theme.colors.gray['50'],
-                      borderColor: inputText ? theme.colors.brand['300'] : theme.colors.border,
-                    } as any,
-                  ]}
+                  style={{
+                    ...styles.textInput,
+                    backgroundColor: theme.colors.gray['50'],
+                    borderColor: inputText ? theme.colors.brand['300'] : theme.colors.border,
+                  }}
                   inputStyle={styles.textInputStyle}
                   editable={!isStreaming}
                   autoFocus={false}
@@ -940,9 +971,6 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
                       scrollToBottom(true);
                     }, 300);
                   }}
-                  blurOnSubmit={false}
-                  returnKeyType="send"
-                  onSubmitEditing={handleSend}
                 />
                 
                 <Animated.View style={{ transform: [{ scale: sendButtonScale }] }}>
@@ -984,22 +1012,13 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         </BlurView>
       </KeyboardAvoidingView>
       
-      {/* ModelPickerSheet rendered outside of KeyboardAvoidingView */}
-      {isModelPickerVisible && (
-        <SimpleModelPicker
-          isVisible={true}
-          onClose={() => {
-            console.log('Closing model picker...');
-            setIsModelPickerVisible(false);
-          }}
-          onSelect={(modelId: string) => {
-            console.log(`Selected model: ${modelId}`);
-            handleModelSelect(modelId);
-          }}
-          onNavigateToPaywall={handleNavigateToPaywall}
-          remainingTokens={remainingTokens}
-        />
-      )}
+      {/* Chat Settings Modal */}
+      <ChatSettingsModal
+        ref={chatSettingsModalRef}
+        conversationId={currentConversationId || undefined}
+        onDeleteConversation={handleDeleteConversation}
+        onNavigateToCredits={handleNavigateToCredits}
+      />
     </View>
   );
 };
@@ -1027,11 +1046,18 @@ const styles = StyleSheet.create({
   headerTitleContainer: {
     paddingHorizontal: 8,
     paddingVertical: 4,
+    maxWidth: '100%',
+    width: '100%',
   },
   headerTitleContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    maxWidth: '100%',
+  },
+  headerTitleText: {
+    flexShrink: 1,
+    textAlign: 'center',
   },
   messagesList: {
     flex: 1,
@@ -1039,13 +1065,12 @@ const styles = StyleSheet.create({
   messagesContent: {
     flexGrow: 1,
     paddingTop: 12,
-    paddingBottom: 120, // Extra space for input bar
+    paddingBottom: 20, // Reduced padding for better spacing
     paddingHorizontal: 8,
   },
   emptyContent: {
-    flex: 1,
-    justifyContent: 'center',
-    minHeight: 400,
+    flexGrow: 1,
+    paddingVertical: 20,
   },
   inputBarBlur: {
     // Remove absolute positioning to work with KeyboardAvoidingView

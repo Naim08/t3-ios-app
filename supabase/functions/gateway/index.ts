@@ -7,6 +7,7 @@ import { HumanMessage } from "npm:@langchain/core/messages"
 import { TokenSpendingMiddleware } from "./middleware.ts"
 import { getProviderConfig, isModelPremium } from "./providers.ts"
 import { calculateTokenCost } from "./costs.ts"
+import { ToolsRouter } from "./toolsRouter.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,11 +18,12 @@ const corsHeaders = {
 
 interface StreamRequest {
   model: string
-  messages: Array<{ role: string; content: string }>
+  messages: Array<{ role: string; content: string; tool_call_id?: string; name?: string }>
   stream?: boolean
   customApiKey?: string
   hasCustomKey?: boolean
   conversationId?: string
+  personaId?: string
 }
 
 async function authenticateUser(authHeader: string): Promise<{ userId: string; isSubscriber: boolean; hasCustomKey: boolean, userToken: string }> {
@@ -60,7 +62,7 @@ async function authenticateUser(authHeader: string): Promise<{ userId: string; i
   }
 }
 
-function createLLMInstance(modelId: string, config: any) {
+function createLLMInstance(modelId: string, config: any, tools?: any[]) {
   // Validate config
   if (!config) {
     throw new Error(`Configuration is missing for model: ${modelId}`)
@@ -70,41 +72,73 @@ function createLLMInstance(modelId: string, config: any) {
     throw new Error(`API key is missing for model: ${modelId}`)
   }
 
+  // Convert tools to OpenAI format for function calling
+  const openAITools = tools?.map(tool => ({
+    type: 'function',
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.json_schema
+    }
+  }))
+
+  // Debug: tools loaded successfully
+
   if (modelId.startsWith('gpt-') || modelId.includes('openai')) {
-    return new ChatOpenAI({
+    const chatOpenAI = new ChatOpenAI({
       openAIApiKey: config.apiKey,
       modelName: config.model,
       temperature: config.temperature,
       maxTokens: config.maxTokens,
       streaming: true,
     })
+    
+    // Add tools if available
+    if (openAITools && openAITools.length > 0) {
+      return chatOpenAI.bind({ tools: openAITools })
+    }
+    return chatOpenAI
   } else if (modelId.startsWith('claude-')) {
-    return new ChatAnthropic({
+    const chatAnthropic = new ChatAnthropic({
       anthropicApiKey: config.apiKey,
       modelName: config.model,
       temperature: config.temperature,
       maxTokens: config.maxTokens,
       streaming: true,
     })
+    
+    // Anthropic uses a different format - bind tools if available
+    if (openAITools && openAITools.length > 0) {
+      return chatAnthropic.bind({ tools: openAITools })
+    }
+    return chatAnthropic
   } else if (modelId.startsWith('gemini-') || modelId === 'gemini-pro') {
     // Additional validation for Google AI
     if (typeof config.apiKey !== 'string' || config.apiKey.trim() === '') {
       throw new Error(`Invalid Google API key for model: ${modelId}`)
     }
     
-    return new ChatGoogleGenerativeAI({
+    const gemini = new ChatGoogleGenerativeAI({
       apiKey: config.apiKey.trim(),
       model: config.model, // Use the correct model name from config
       temperature: config.temperature,
       maxOutputTokens: config.maxTokens,
       streaming: true,
     })
+    
+    // Google AI also supports function calling
+    if (openAITools && openAITools.length > 0) {
+      return gemini.bind({ tools: openAITools })
+    }
+    return gemini
   }
   
   throw new Error(`Unsupported model: ${modelId}`)
 }
 
 Deno.serve(async (req: Request) => {
+  // Gateway function called
+
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -130,7 +164,7 @@ Deno.serve(async (req: Request) => {
     const { userId, isSubscriber, hasCustomKey, userToken } = await authenticateUser(authHeader)
     
     // Parse request
-    const { model, messages, customApiKey, conversationId }: StreamRequest = await req.json()
+    const { model, messages, customApiKey, conversationId, personaId }: StreamRequest = await req.json()
     
     if (!model || !messages || !Array.isArray(messages)) {
       return new Response(
@@ -146,6 +180,65 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({ error: 'Premium model requires subscription or custom API key' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
+    }
+
+    // Fetch available tools for persona
+    let availableTools: any[] = []
+    
+    if (personaId) {
+      try {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+        const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!
+        
+        // Get persona tools
+        const personaResponse = await fetch(`${supabaseUrl}/rest/v1/personas?id=eq.${encodeURIComponent(personaId)}&select=tool_ids`, {
+          headers: {
+            'Authorization': `Bearer ${userToken}`,
+            'apikey': supabaseKey,
+            'Content-Type': 'application/json'
+          }
+        })
+        
+        
+        if (personaResponse.ok) {
+          const personas = await personaResponse.json()
+          
+          if (personas && personas.length > 0 && personas[0].tool_ids) {
+            const toolIds = personas[0].tool_ids
+            
+            if (toolIds.length > 0) {
+              // Fetch tool definitions
+              const toolsQuery = toolIds.map((id: string) => `id.eq.${encodeURIComponent(id)}`).join(',')
+              
+              const toolsResponse = await fetch(`${supabaseUrl}/rest/v1/tools?or=(${toolsQuery})&select=*`, {
+                headers: {
+                  'Authorization': `Bearer ${userToken}`,
+                  'apikey': supabaseKey,
+                  'Content-Type': 'application/json'
+                }
+              })
+              
+              
+              if (toolsResponse.ok) {
+                const tools = await toolsResponse.json()
+                
+                // Filter out premium tools if user doesn't have access
+                availableTools = tools.filter((tool: any) => 
+                  !tool.requires_premium || isSubscriber || hasCustomKey
+                )
+              } else {
+              }
+            } else {
+            }
+          } else {
+          }
+        } else {
+        }
+      } catch (error) {
+        console.error('🔧 TOOL DEBUG: Error fetching persona tools:', error)
+        // Continue without tools if there's an error
+      }
+    } else {
     }
 
     // Get provider configuration
@@ -165,8 +258,21 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // Create LLM instance
-    const llm = createLLMInstance(model, config)
+    // Create LLM instance with tools
+      toolCount: availableTools.length,
+      toolNames: availableTools.map(t => t.name)
+    })
+    const llm = createLLMInstance(model, config, availableTools)
+    
+    // Initialize ToolsRouter for tool execution
+    const toolsRouter = new ToolsRouter(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      userToken,
+      userId,
+      isSubscriber,
+      hasCustomKey
+    )
     
     // Set up token spending middleware (only for non-premium models or users without subscription)
     let tokenMiddleware: TokenSpendingMiddleware | null = null
@@ -237,7 +343,107 @@ Deno.serve(async (req: Request) => {
                     })
                   }
                 },
-                async handleLLMEnd() {
+                async handleLLMEnd(output: any) {
+                  
+                  // Extract tool calls from LangChain response structure
+                  // Try multiple paths as LangChain structure can vary
+                  const message = output?.generations?.[0]?.[0]?.message
+                  const toolCalls = message?.additional_kwargs?.tool_calls || 
+                                   message?.kwargs?.additional_kwargs?.tool_calls ||
+                                   message?.tool_calls
+                  
+                  
+                  // Check if the output contains tool calls
+                  if (toolCalls && Array.isArray(toolCalls) && toolCalls.length > 0) {
+                    try {
+                      // additional_kwargs.tool_calls is already in the correct format for ToolsRouter
+                      
+                      // Execute tool calls
+                      const { results, totalTokens } = await toolsRouter.processToolCalls(toolCalls)
+                      
+                      // Stream tool results back
+                      for (const result of results) {
+                        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                          role: 'tool',
+                          tool_call_id: result.tool_call_id,
+                          name: result.name,
+                          content: result.content
+                        })}\n\n`))
+                      }
+                      
+                      // Add tool token costs
+                      completionTokens += totalTokens
+                      
+                      // Continue the conversation with tool results
+                      
+                      // For now, we'll just stream a message indicating the tool was executed
+                      // The client should handle the tool results and display them appropriately
+                      const toolSummary = results.map(r => {
+                        try {
+                          const content = JSON.parse(r.content)
+                          if (r.name === 'weather' && content.success) {
+                            const data = content.data
+                            return `\n\nWeather in ${data.location}:\n- Current: ${data.current.temperature}°C, ${data.current.condition}\n- Humidity: ${data.current.humidity}%\n- Wind: ${data.current.wind_speed} km/h\n\nForecast:\n${data.forecast.map((f: any) => `- ${f.date}: ${f.low}°C - ${f.high}°C, ${f.condition}`).join('\n')}`
+                          }
+                          
+                          if (r.name === 'wiki' && content.success) {
+                            const data = content.data
+                            
+                            if (data.results && data.results.length > 0) {
+                              let wikiText = '\n\n**Wikipedia Results:**\n'
+                              data.results.forEach((result: any, index: number) => {
+                                wikiText += `\n${index + 1}. **${result.title}**\n`
+                                
+                                // Add image if available
+                                if (result.thumbnail) {
+                                  wikiText += `![${result.title}](${result.thumbnail})\n\n`
+                                }
+                                
+                                wikiText += `${result.extract}\n`
+                                
+                                if (result.url) {
+                                  wikiText += `\n[Read full article on Wikipedia](${result.url})\n`
+                                }
+                              })
+                              return wikiText
+                            } else {
+                              return `\n\nNo Wikipedia results found for "${data.query}".`
+                            }
+                          }
+                          
+                          return `\n\nTool ${r.name} executed successfully.`
+                        } catch {
+                          return `\n\nTool ${r.name} result: ${r.content}`
+                        }
+                      }).join('')
+                      
+                      // Add tool summary to complete response
+                      completeResponse += toolSummary
+                      
+                      // Stream the tool results in smaller chunks to avoid cutoff
+                      const chunkSize = 500 // characters per chunk
+                      for (let i = 0; i < toolSummary.length; i += chunkSize) {
+                        const chunk = toolSummary.slice(i, i + chunkSize)
+                        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ token: chunk })}\n\n`))
+                        // Small delay between chunks to ensure proper transmission
+                        await new Promise(resolve => setTimeout(resolve, 10))
+                      }
+                      
+                      // Ensure the stream is flushed before continuing
+                      await new Promise(resolve => setTimeout(resolve, 200))
+                      
+                    } catch (error) {
+                      console.error('Tool execution error:', error)
+                      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
+                        error: 'Tool execution failed' 
+                      })}\n\n`))
+                    }
+                  } else {
+                  }
+                  
+                  // Wait longer before sending the final completion event to ensure all chunks are transmitted
+                  await new Promise(resolve => setTimeout(resolve, 500))
+                  
                   // Calculate final token cost
                   const totalCost = calculateTokenCost(model, promptTokens, completionTokens)
                   
@@ -303,13 +509,14 @@ Deno.serve(async (req: Request) => {
           })
 
           // Process the stream (this will trigger the callbacks)
-          for await (const chunk of streamResponse) {
+          for await (const _chunk of streamResponse) {
             // The actual streaming is handled by the callbacks above
           }
           
         } catch (error) {
           console.error('Streaming error:', error)
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: error.message })}\n\n`))
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: errorMessage })}\n\n`))
           controller.close()
         }
       }

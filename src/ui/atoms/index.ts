@@ -9,3 +9,9 @@ export type { TextFieldProps } from './TextField';
 
 export { Surface } from './Surface';
 export type { SurfaceProps } from './Surface';
+
+export { IconButton } from './IconButton';
+export type { IconButtonProps } from './IconButton';
+
+export { Avatar } from './Avatar';
+export type { AvatarProps } from './Avatar';

@@ -209,9 +209,11 @@ const EmptyStateComponent: React.FC<EmptyStateProps> = ({ onSuggestionPress }) =
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'center',
     paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 40,
   },
   backgroundDecoration: {
     position: 'absolute',

@@ -28,6 +28,18 @@ export interface PersonaCategory {
   sort_order: number;
 }
 
+export interface Tool {
+  id: string;
+  name: string;
+  description: string;
+  json_schema: any;
+  endpoint: string;
+  cost_tokens: number;
+  requires_premium: boolean;
+  created_at: string;
+  updated_at?: string;
+}
+
 export interface PersonaUsageStats {
   user_id: string;
   persona_id: string;

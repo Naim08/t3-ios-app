@@ -9,10 +9,13 @@ import {
   Switch,
   ScrollView,
   Linking,
+  Modal,
 } from 'react-native';
 import { useTheme } from '../components/ThemeProvider';
-import { Typography, Surface } from '../ui/atoms';
+import { Typography, Surface, Avatar } from '../ui/atoms';
 import { useAuth } from '../providers/AuthProvider';
+import { useProfile } from '../hooks/useProfile';
+import { AvatarPicker } from '../components/AvatarPicker';
 import { useState, useEffect } from 'react';
 
 interface SettingsScreenProps {
@@ -120,8 +123,11 @@ const SettingSection = ({
 export const SettingsScreen = ({ navigation }: SettingsScreenProps) => {
   const { theme, colorScheme, toggleTheme } = useTheme();
   const { user, signOut, loading } = useAuth();
+  const { profile, getAvatarUrl, refetch } = useProfile();
   const [appVersion, setAppVersion] = useState<string>('');
   const [notifications, setNotifications] = useState(true);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [avatarRefreshKey, setAvatarRefreshKey] = useState(0);
 
   // Get app version on mount
   useEffect(() => {
@@ -203,6 +209,16 @@ export const SettingsScreen = ({ navigation }: SettingsScreenProps) => {
             icon="👤"
             title="Profile"
             subtitle={user?.email || 'Unknown user'}
+            onPress={() => setShowAvatarPicker(true)}
+            rightElement={
+              <Avatar
+                key={`${profile?.avatar_url || profile?.default_avatar_id || 'default'}-${avatarRefreshKey}`}
+                size={40}
+                showBorder={true}
+                accessibilityLabel="Current profile picture"
+              />
+            }
+            showChevron
           />
           <SettingRow
             icon="💳"
@@ -293,6 +309,13 @@ export const SettingsScreen = ({ navigation }: SettingsScreenProps) => {
               showChevron
             />
             <SettingRow
+              icon="🛠️"
+              title="Tools Debug"
+              subtitle="View available AI tools"
+              onPress={() => navigation.navigate('ToolsDebug')}
+              showChevron
+            />
+            <SettingRow
               icon="🏥"
               title="Database Diagnostics"
               subtitle="Check database health"
@@ -331,6 +354,25 @@ export const SettingsScreen = ({ navigation }: SettingsScreenProps) => {
           </Typography>
         </View>
       </ScrollView>
+
+      {/* Avatar Picker Modal */}
+      <Modal
+        visible={showAvatarPicker}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowAvatarPicker(false)}
+      >
+        <AvatarPicker 
+          onClose={() => {
+            setShowAvatarPicker(false);
+            // Refresh profile data and force avatar re-render
+            setTimeout(() => {
+              refetch();
+              setAvatarRefreshKey(prev => prev + 1);
+            }, 100);
+          }} 
+        />
+      </Modal>
     </SafeAreaView>
   );
 };
