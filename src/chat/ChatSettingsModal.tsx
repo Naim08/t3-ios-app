@@ -5,13 +5,7 @@ import { useTheme } from '../components/ThemeProvider';
 import { Typography, Surface } from '../ui/atoms';
 import { CreditsDisplay } from '../credits/CreditsDisplay';
 import { supabase } from '../lib/supabase';
-
-const AI_MODELS = [
-  { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: 'Fast and efficient' },
-  { id: 'gpt-4o', name: 'GPT-4o', description: 'Most capable (Premium)' },
-  { id: 'claude-3-sonnet', name: 'Claude 3 Sonnet', description: 'Creative and analytical' },
-  { id: 'gemini-pro', name: 'Gemini Pro', description: 'Multimodal capabilities' },
-];
+import { AI_MODELS } from '../config/models';
 
 interface ChatSettingsModalProps {
   conversationId?: string;

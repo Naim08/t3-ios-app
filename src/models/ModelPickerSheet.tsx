@@ -13,14 +13,7 @@ import { PremiumBadge } from './PremiumBadge';
 import { useEntitlements } from '../hooks/useEntitlements';
 import { useTranslation } from 'react-i18next';
 import { usePersona } from '../context/PersonaContext';
-
-export interface ModelOption {
-  id: string;
-  name: string;
-  description: string;
-  isPremium: boolean;
-  icon?: string;
-}
+import { AI_MODELS, ModelOption } from '../config/models';
 
 export interface ModelPickerSheetProps {
   isVisible: boolean;
@@ -30,33 +23,6 @@ export interface ModelPickerSheetProps {
   remainingTokens: number;
   currentModelId?: string;
 }
-
-const models: ModelOption[] = [
-  {
-    id: 'gpt-3.5',
-    name: 'GPT-3.5',
-    description: 'Fast and reliable for everyday tasks',
-    isPremium: false,
-  },
-  {
-    id: 'gpt-4o',
-    name: 'GPT-4o',
-    description: 'Latest model with enhanced reasoning',
-    isPremium: true,
-  },
-  {
-    id: 'claude-sonnet',
-    name: 'Claude Sonnet',
-    description: 'Advanced reasoning and analysis',
-    isPremium: true,
-  },
-  {
-    id: 'gemini-pro',
-    name: 'Gemini Pro',
-    description: 'Google\'s advanced multimodal model',
-    isPremium: false,
-  },
-];
 
 export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
   isVisible,
@@ -291,7 +257,7 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
         </View>
 
         <View style={styles.modelsList}>
-          {models.map(renderModelCard)}
+          {AI_MODELS.map(renderModelCard)}
         </View>
       </View>
     </BottomSheet>

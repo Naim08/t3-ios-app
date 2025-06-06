@@ -1,3 +1,12 @@
+import { 
+  AI_MODELS, 
+  ModelOption, 
+  getFreeModels as getFreModelsFromConfig, 
+  getPremiumModels, 
+  getModelById, 
+  isModelPremium as isModelPremiumFromConfig 
+} from '../config/models';
+
 /**
  * Model utility functions for classification and validation
  * This mirrors the backend logic in supabase/functions/gateway/providers.ts
@@ -9,7 +18,7 @@
  * @returns true if the model is premium, false if free
  */
 export function isModelPremium(modelId: string): boolean {
-    return !getFreeModels().includes(modelId);
+    return isModelPremiumFromConfig(modelId);
 }
 
 /**
@@ -17,17 +26,24 @@ export function isModelPremium(modelId: string): boolean {
  * @returns Array of free model IDs
  */
 export function getFreeModels(): string[] {
-  return [
-    'gpt-3.5-turbo',
-    'gpt-3.5',
-    'gemini-pro',
-    'gemini-1.5-pro',
-    'gemini-flash',
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-8b',
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-lite'
-  ];
+  return getFreModelsFromConfig();
+}
+
+/**
+ * Get all available models
+ * @returns Array of all model options
+ */
+export function getAllModels(): ModelOption[] {
+  return AI_MODELS;
+}
+
+/**
+ * Get model details by ID
+ * @param modelId - The model identifier
+ * @returns Model option object or undefined if not found
+ */
+export function getModelDetails(modelId: string): ModelOption | undefined {
+  return getModelById(modelId);
 }
 
 /**

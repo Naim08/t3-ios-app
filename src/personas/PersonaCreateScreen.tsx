@@ -15,6 +15,7 @@ import { usePersona, PersonaCategory } from '../context/PersonaContext';
 import { Typography, Surface } from '../ui/atoms';
 import { ToolSelector } from '../components/ToolSelector';
 import { supabase } from '../lib/supabase';
+import { AI_MODELS } from '../config/models';
 
 interface PersonaTemplate {
   id: string;
@@ -69,13 +70,6 @@ const EMOJI_SUGGESTIONS = [
   '🤖', '🎯', '💡', '📚', '🎨', '💼', '🏋️', '🍳', '🌟', '⚡',
   '🧠', '💻', '🎭', '🔬', '📈', '🎵', '🏃', '✍️', '🔧', '🎪',
   '👨‍💼', '👩‍🏫', '👨‍⚕️', '👩‍🍳', '👨‍🎨', '👩‍💻', '🧙‍♂️', '🦸‍♀️'
-];
-
-const AI_MODELS = [
-  { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: 'Fast and efficient' },
-  { id: 'gpt-4o', name: 'GPT-4o', description: 'Most capable (Premium)' },
-  { id: 'claude-3-sonnet', name: 'Claude 3 Sonnet', description: 'Creative and analytical' },
-  { id: 'gemini-pro', name: 'Gemini Pro', description: 'Multimodal capabilities' },
 ];
 
 export const PersonaCreateScreen = ({ navigation, route }: any) => {

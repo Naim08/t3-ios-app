@@ -59,21 +59,9 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
   const getBubbleStyle = (): ViewStyle => {
     const baseStyle: ViewStyle = {
       marginBottom: 16,
-      maxWidth: '80%', // Reduced to account for avatars
-      minWidth: 80,
     };
 
-    return isUser
-      ? {
-          ...baseStyle,
-          alignSelf: 'flex-end',
-          marginLeft: '15%', // Increased for avatar space
-        }
-      : {
-          ...baseStyle,
-          alignSelf: 'flex-start',
-          marginRight: '15%', // Increased for avatar space
-        };
+    return baseStyle;
   };
 
   const getSurfaceStyle = (): ViewStyle => {
@@ -173,10 +161,12 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
       lineHeight: theme.typography.scale.bodyMd.lineHeight,
     },
     image: {
-      maxWidth: '100%',
+      width: undefined,
+      maxWidth: undefined, 
       height: 200,
       borderRadius: 8,
       marginVertical: theme.spacing.xs,
+      resizeMode: 'contain' as any,
     },
   });
 
@@ -192,7 +182,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
         },
       ] as any}
     >
-      <View style={styles.messageRow}>
+      <View style={[styles.messageRow, { justifyContent: isUser ? 'flex-end' : 'flex-start' }]}>
         {!isUser && (
           <View style={styles.avatarContainer}>
             <View style={styles.aiAvatar}>
@@ -219,18 +209,18 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
         {isUser ? (
           <View style={styles.userMessageContainer}>
             <LinearGradient
-            colors={[
-              theme.colors.brand['400'],
-              theme.colors.brand['600'],
-            ]}
-            style={[
-              styles.bubble,
-              styles.userBubble,
-              isStreaming && styles.streamingBubble,
-            ]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
+              colors={[
+                theme.colors.brand['400'],
+                theme.colors.brand['600'],
+              ]}
+              style={[
+                styles.bubble,
+                styles.userBubble,
+                isStreaming && styles.streamingBubble,
+              ]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
             <View style={styles.markdownContainer}>
               <Markdown style={getMarkdownStyles()} rules={renderRules}>
                 {message.text}
@@ -257,39 +247,41 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
             </View>
           </View>
         ) : (
-          <Surface
-            elevation={1}
-            style={[
-              styles.bubble,
-              styles.aiBubble,
-              getSurfaceStyle(),
-              isStreaming && styles.streamingBubble,
-            ] as any}
-          >
-            {isStreaming && message.text === '' && (
-              <View style={styles.typingIndicator}>
-                <View style={[styles.typingDot, { backgroundColor: theme.colors.brand['400'] }]} />
-                <View style={[styles.typingDot, { backgroundColor: theme.colors.brand['500'], marginLeft: 4 }]} />
-                <View style={[styles.typingDot, { backgroundColor: theme.colors.brand['600'], marginLeft: 4 }]} />
+          <View style={styles.aiMessageContainer}>
+            <Surface
+              elevation={1}
+              style={[
+                styles.bubble,
+                styles.aiBubble,
+                getSurfaceStyle(),
+                isStreaming && styles.streamingBubble,
+              ] as any}
+            >
+              {isStreaming && message.text === '' && (
+                <View style={styles.typingIndicator}>
+                  <View style={[styles.typingDot, { backgroundColor: theme.colors.brand['400'] }]} />
+                  <View style={[styles.typingDot, { backgroundColor: theme.colors.brand['500'], marginLeft: 4 }]} />
+                  <View style={[styles.typingDot, { backgroundColor: theme.colors.brand['600'], marginLeft: 4 }]} />
+                </View>
+              )}
+              <View style={styles.markdownContainer}>
+                <Markdown style={getMarkdownStyles()} rules={renderRules}>
+                  {message.text || ' '}
+                </Markdown>
               </View>
-            )}
-            <View style={styles.markdownContainer}>
-              <Markdown style={getMarkdownStyles()} rules={renderRules}>
-                {message.text || ' '}
-              </Markdown>
-            </View>
-            
-            {!isStreaming && (
-              <Typography
-                variant="caption"
-                color={theme.colors.textSecondary}
-                align="left"
-                style={styles.timestamp}
-              >
-                {timestamp}
-              </Typography>
-            )}
-          </Surface>
+              
+              {!isStreaming && (
+                <Typography
+                  variant="caption"
+                  color={theme.colors.textSecondary}
+                  align="left"
+                  style={styles.timestamp}
+                >
+                  {timestamp}
+                </Typography>
+              )}
+            </Surface>
+          </View>
         )}
       </View>
     </Animated.View>
@@ -316,8 +308,7 @@ const styles = StyleSheet.create({
   messageRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    flexShrink: 1,
-    maxWidth: '100%',
+    width: '100%',
   },
   avatarContainer: {
     marginBottom: 4,
@@ -325,10 +316,12 @@ const styles = StyleSheet.create({
   userMessageContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    flex: 1,
-    justifyContent: 'flex-end',
     maxWidth: '85%',
-    marginLeft: 'auto',
+  },
+  aiMessageContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    maxWidth: '75%',
   },
   aiAvatar: {
     marginRight: 10,
@@ -355,10 +348,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 20,
-    flexShrink: 1,
+    minWidth: 50,
     maxWidth: '100%',
-    flex: 1, // Allow bubble to take remaining space
-    overflow: 'hidden' as const,
+    flexShrink: 1,
   },
   userBubble: {
     borderTopRightRadius: 4,
@@ -392,9 +384,9 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   markdownContainer: {
-    flexShrink: 1,
+    flex: 1,
     maxWidth: '100%',
-    overflow: 'hidden' as const,
+    minWidth: 0, // Allows flex items to shrink below their content size
   },
   timestamp: {
     marginTop: 6,

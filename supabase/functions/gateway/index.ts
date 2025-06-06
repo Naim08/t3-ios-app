@@ -199,7 +199,6 @@ Deno.serve(async (req: Request) => {
           }
         })
         
-        
         if (personaResponse.ok) {
           const personas = await personaResponse.json()
           
@@ -218,7 +217,6 @@ Deno.serve(async (req: Request) => {
                 }
               })
               
-              
               if (toolsResponse.ok) {
                 const tools = await toolsResponse.json()
                 
@@ -226,19 +224,14 @@ Deno.serve(async (req: Request) => {
                 availableTools = tools.filter((tool: any) => 
                   !tool.requires_premium || isSubscriber || hasCustomKey
                 )
-              } else {
               }
-            } else {
             }
-          } else {
           }
-        } else {
         }
       } catch (error) {
-        console.error('🔧 TOOL DEBUG: Error fetching persona tools:', error)
+        console.error('Error fetching persona tools:', error)
         // Continue without tools if there's an error
       }
-    } else {
     }
 
     // Get provider configuration
@@ -259,9 +252,6 @@ Deno.serve(async (req: Request) => {
     }
 
     // Create LLM instance with tools
-      toolCount: availableTools.length,
-      toolNames: availableTools.map(t => t.name)
-    })
     const llm = createLLMInstance(model, config, availableTools)
     
     // Initialize ToolsRouter for tool execution
@@ -344,14 +334,12 @@ Deno.serve(async (req: Request) => {
                   }
                 },
                 async handleLLMEnd(output: any) {
-                  
                   // Extract tool calls from LangChain response structure
                   // Try multiple paths as LangChain structure can vary
                   const message = output?.generations?.[0]?.[0]?.message
                   const toolCalls = message?.additional_kwargs?.tool_calls || 
                                    message?.kwargs?.additional_kwargs?.tool_calls ||
                                    message?.tool_calls
-                  
                   
                   // Check if the output contains tool calls
                   if (toolCalls && Array.isArray(toolCalls) && toolCalls.length > 0) {
@@ -438,7 +426,6 @@ Deno.serve(async (req: Request) => {
                         error: 'Tool execution failed' 
                       })}\n\n`))
                     }
-                  } else {
                   }
                   
                   // Wait longer before sending the final completion event to ensure all chunks are transmitted
@@ -471,8 +458,6 @@ Deno.serve(async (req: Request) => {
                       
                       if (!saveResponse.ok) {
                         console.error('Failed to save assistant message:', await saveResponse.text())
-                      } else {
-                        console.log('✅ Assistant message saved to database')
                       }
                     } catch (error) {
                       console.error('Error saving assistant message:', error)

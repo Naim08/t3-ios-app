@@ -13,14 +13,7 @@ import { Typography, Surface } from '../ui/atoms';
 import { PremiumBadge } from './PremiumBadge';
 import { useEntitlements } from '../hooks/useEntitlements';
 import { useTranslation } from 'react-i18next';
-
-export interface ModelOption {
-  id: string;
-  name: string;
-  description: string;
-  isPremium: boolean;
-  icon?: string;
-}
+import { AI_MODELS, ModelOption } from '../config/models';
 
 export interface SimpleModelPickerProps {
   isVisible: boolean;
@@ -29,33 +22,6 @@ export interface SimpleModelPickerProps {
   onNavigateToPaywall: () => void;
   remainingTokens: number;
 }
-
-const models: ModelOption[] = [
-  {
-    id: 'gpt-3.5',
-    name: 'GPT-3.5',
-    description: 'Fast and reliable for everyday tasks',
-    isPremium: false,
-  },
-  {
-    id: 'gpt-4o',
-    name: 'GPT-4o',
-    description: 'Latest model with enhanced reasoning',
-    isPremium: true,
-  },
-  {
-    id: 'claude-sonnet',
-    name: 'Claude Sonnet',
-    description: 'Advanced reasoning and analysis',
-    isPremium: true,
-  },
-  {
-    id: 'gemini-pro',
-    name: 'Gemini Pro',
-    description: 'Google\'s advanced multimodal model',
-    isPremium: false,
-  },
-];
 
 export const SimpleModelPicker: React.FC<SimpleModelPickerProps> = ({
   isVisible,
@@ -206,7 +172,7 @@ export const SimpleModelPicker: React.FC<SimpleModelPickerProps> = ({
 
                 <ScrollView>
                   <View style={styles.modelsList}>
-                    {models.map(renderModelCard)}
+                    {AI_MODELS.map(renderModelCard)}
                   </View>
                 </ScrollView>
               </SafeAreaView>

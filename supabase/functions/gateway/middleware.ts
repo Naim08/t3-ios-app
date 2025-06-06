@@ -80,7 +80,6 @@ export class TokenSpendingMiddleware {
     }
 
     try {
-      console.log(`Spending ${costToSpend.toFixed(3)} credits for user ${this.userId}`);
       
       // Generate idempotency key based on user, model, session, and timestamp
       const idempotencyKey = `${this.userId}-${this.modelId}-${this.sessionId}-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
@@ -132,8 +131,6 @@ export class TokenSpendingMiddleware {
       const actualCost = calculateStreamingCost(this.modelId, this.promptTokens, this.accumulatedText);
       const completionTokens = Math.ceil(this.accumulatedText.length / 4);
       
-      console.log(`Final cost calculation: ${actualCost} credits for ${this.accumulatedText.length} characters`);
-      console.log(`Session ${this.sessionId}: ${this.promptTokens} prompt tokens + ${completionTokens} completion tokens`);
       
       // Create final transaction with accurate costs
       const finalIdempotencyKey = `${this.userId}-${this.modelId}-${this.sessionId}-final`;

@@ -45,15 +45,12 @@ export class ToolsRouter {
   }
 
   async processToolCalls(toolCalls: ToolCall[]): Promise<{ results: any[], totalTokens: number }> {
-    console.log('🔧 TOOLSROUTER: processToolCalls called with:', JSON.stringify(toolCalls, null, 2))
     const results = []
     let totalTokens = 0
 
     for (const toolCall of toolCalls) {
-      console.log('🔧 TOOLSROUTER: Processing tool call:', toolCall.id, toolCall.function.name)
       try {
         const result = await this.executeToolCall(toolCall)
-        console.log('🔧 TOOLSROUTER: Tool execution successful:', result)
         results.push({
           role: 'tool',
           tool_call_id: toolCall.id,
@@ -72,26 +69,22 @@ export class ToolsRouter {
       }
     }
 
-    console.log('🔧 TOOLSROUTER: Returning results:', results)
     return { results, totalTokens }
   }
 
   private async executeToolCall(toolCall: ToolCall): Promise<any> {
     const { name, arguments: argsString } = toolCall.function
-    console.log('🔧 TOOLSROUTER: executeToolCall - name:', name, 'args:', argsString)
     
     // Parse arguments
     let args
     try {
       args = JSON.parse(argsString)
-      console.log('🔧 TOOLSROUTER: Parsed arguments:', args)
     } catch (error) {
       console.error('🔧 TOOLSROUTER: Failed to parse arguments:', error)
       throw new Error('Invalid tool arguments')
     }
 
     // Look up tool in database
-    console.log('🔧 TOOLSROUTER: Looking up tool in database...')
     const toolResponse = await fetch(`${this.supabaseUrl}/rest/v1/tools?name=eq.${encodeURIComponent(name)}&select=*`, {
       headers: {
         'Authorization': `Bearer ${this.userToken}`,
@@ -134,7 +127,6 @@ export class ToolsRouter {
     if (logResponse.ok) {
       const existingCalls = await logResponse.json()
       if (existingCalls && existingCalls.length > 0) {
-        console.log(`Tool call ${toolCall.id} already executed, returning cached result`)
         return existingCalls[0].result
       }
     }
@@ -161,7 +153,6 @@ export class ToolsRouter {
       }
       
       const spendResult = await spendResponse.json()
-      console.log('🔧 TOOLSROUTER: Token spending successful:', spendResult)
     }
 
     // Execute the tool
@@ -227,7 +218,6 @@ export class ToolsRouter {
   }
 
   private async callToolEndpoint(tool: Tool, args: any): Promise<any> {
-    console.log('🔧 TOOLSROUTER: callToolEndpoint - tool.endpoint:', tool.endpoint)
     
     // If it's a relative path (e.g., "/tools/weather"), extract tool name and call tools function
     if (tool.endpoint.startsWith('/')) {
@@ -235,7 +225,6 @@ export class ToolsRouter {
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!
       const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!
       
-      console.log('🔧 TOOLSROUTER: Calling relative endpoint via tools function for:', functionName)
       
       const response = await fetch(`${supabaseUrl}/functions/v1/tools`, {
         method: 'POST',
@@ -260,7 +249,6 @@ export class ToolsRouter {
     
     // If it's a full URL, call external endpoint
     if (tool.endpoint.startsWith('http')) {
-      console.log('🔧 TOOLSROUTER: Calling external endpoint:', tool.endpoint)
       
       const response = await fetch(tool.endpoint, {
         method: 'POST',
@@ -284,13 +272,11 @@ export class ToolsRouter {
       const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!
       
       // Call the tools edge function and pass the tool name in the request body
-      console.log('🔧 TOOLSROUTER: Calling tools function for:', functionName)
       
       const requestBody = {
         tool_name: functionName,
         ...args
       }
-      console.log('🔧 TOOLSROUTER: Sending request body:', JSON.stringify(requestBody, null, 2))
       
       const response = await fetch(`${supabaseUrl}/functions/v1/tools`, {
         method: 'POST',
