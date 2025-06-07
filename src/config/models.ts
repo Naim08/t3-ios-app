@@ -5,7 +5,7 @@ export interface ModelOption {
   isPremium: boolean;
   icon?: string;
   provider?: 'openai' | 'anthropic' | 'google';
-  category?: 'fast' | 'balanced' | 'advanced';
+  category?: 'fast' | 'balanced' | 'advanced' | Array<'fast' | 'balanced' | 'advanced'>;
 }
 
 export const AI_MODELS: ModelOption[] = [
@@ -33,6 +33,7 @@ export const AI_MODELS: ModelOption[] = [
     provider: 'anthropic',
     category: 'advanced',
   },
+  // Free Gemini models
   {
     id: 'gemini-pro',
     name: 'Gemini Pro',
@@ -42,17 +43,58 @@ export const AI_MODELS: ModelOption[] = [
     category: 'balanced',
   },
   {
-    id: 'gemini-1.5-pro',
-    name: 'Gemini 1.5 Pro',
-    description: 'Enhanced Gemini with larger context',
+    id: 'text-embedding-004',
+    name: 'Text Embedding 004',
+    description: 'Google\'s free text embedding model',
+    isPremium: false,
+    provider: 'google',
+    category: 'fast',
+  },
+  {
+    id: 'gemma-3',
+    name: 'Gemma 3',
+    description: 'Free open-source model by Google',
+    isPremium: false,
+    provider: 'google',
+    category: 'fast',
+  },
+  {
+    id: 'gemma-3n',
+    name: 'Gemma 3n',
+    description: 'Free compact model by Google',
+    isPremium: false,
+    provider: 'google',
+    category: 'fast',
+  },
+  // Additional Gemini models (keeping them free as requested)
+  {
+    id: 'gemini-2.5-flash-preview',
+    name: 'Gemini 2.5 Flash Preview',
+    description: 'Latest preview model with enhanced capabilities',
+    isPremium: false,
+    provider: 'google',
+    category: 'advanced',
+  },
+  {
+    id: 'gemini-2.5-pro-preview',
+    name: 'Gemini 2.5 Pro Preview',
+    description: 'Most advanced Gemini model preview',
+    isPremium: false,
+    provider: 'google',
+    category: 'advanced',
+  },
+  {
+    id: 'gemini-2.0-flash',
+    name: 'Gemini 2.0 Flash',
+    description: 'Next-generation fast model with image generation',
     isPremium: false,
     provider: 'google',
     category: 'balanced',
   },
   {
-    id: 'gemini-flash',
-    name: 'Gemini Flash',
-    description: 'Fast and lightweight responses',
+    id: 'gemini-2.0-flash-lite',
+    name: 'Gemini 2.0 Flash Lite',
+    description: 'Lightweight version of Gemini 2.0 Flash',
     isPremium: false,
     provider: 'google',
     category: 'fast',
@@ -74,20 +116,12 @@ export const AI_MODELS: ModelOption[] = [
     category: 'fast',
   },
   {
-    id: 'gemini-2.0-flash',
-    name: 'Gemini 2.0 Flash',
-    description: 'Next-generation fast model',
+    id: 'gemini-1.5-pro',
+    name: 'Gemini 1.5 Pro',
+    description: 'Enhanced Gemini with larger context',
     isPremium: false,
     provider: 'google',
-    category: 'fast',
-  },
-  {
-    id: 'gemini-2.0-flash-lite',
-    name: 'Gemini 2.0 Flash Lite',
-    description: 'Ultra-lightweight for instant responses',
-    isPremium: false,
-    provider: 'google',
-    category: 'fast',
+    category: 'advanced',
   },
 ];
 
@@ -109,7 +143,12 @@ export const getModelsByProvider = (provider: string): ModelOption[] => {
 };
 
 export const getModelsByCategory = (category: string): ModelOption[] => {
-  return AI_MODELS.filter(model => model.category === category);
+  return AI_MODELS.filter(model => {
+    if (Array.isArray(model.category)) {
+      return model.category.includes(category as 'fast' | 'balanced' | 'advanced');
+    }
+    return model.category === category;
+  });
 };
 
 export const isModelPremium = (modelId: string): boolean => {

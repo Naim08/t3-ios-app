@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, ViewStyle, Animated, Platform, Image } from 'react-native';
 import Markdown from 'react-native-markdown-display';
@@ -17,6 +16,7 @@ try {
 import { useTheme } from '../components/ThemeProvider';
 import { Surface, Typography, Avatar, AILoadingAnimation } from '../ui/atoms';
 import { Message } from './types';
+import TripPlannerTool from './components/TripPlannerTool';
 
 export interface MessageBubbleProps {
   message: Message;
@@ -268,6 +268,13 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                 </Markdown>
               </View>
               
+              {/* Tool Response Content */}
+              {message.toolResponse && message.toolResponse.type === 'tripplanner' && (
+                <View style={styles.toolResponseContainer}>
+                  <TripPlannerTool tripPlan={message.toolResponse.data} />
+                </View>
+              )}
+              
               {!isStreaming && (
                 <Typography
                   variant="caption"
@@ -395,5 +402,8 @@ const styles = StyleSheet.create({
   timestamp: {
     marginTop: 6,
     fontSize: 11,
+  },
+  toolResponseContainer: {
+    marginTop: 12,
   },
 });

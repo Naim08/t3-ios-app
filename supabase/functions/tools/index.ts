@@ -1,6 +1,13 @@
 // Tools router - routes to individual tool implementations
 import { getWeatherData } from './weather.ts'
 import { searchWikipedia } from './wiki.ts'
+import { planTrip } from './tripplanner.ts'
+import { getNutritionData } from './nutrition.ts'
+import { convertUnits } from './convert.ts'
+import { searchFlights } from './flights.ts'
+import { summariseContent } from './summarise.ts'
+import { convertMarkdownToSlides } from './md2slides.ts'
+import { getMoodMusic } from './moodmusic.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,12 +17,12 @@ const corsHeaders = {
 
 interface ToolRequest {
   tool: string
-  [key: string]: any
+  [key: string]: unknown
 }
 
 Deno.serve(async (req: Request) => {
   console.log('🔧 TOOLS: Function called with method:', req.method, 'URL:', req.url)
-  
+   
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -85,6 +92,83 @@ Deno.serve(async (req: Request) => {
           console.log('🔧 TOOLS: Wiki result:', JSON.stringify(result, null, 2))
         } catch (error) {
           console.error('🔧 TOOLS: Wiki function error:', error)
+          throw error
+        }
+        break
+        
+      case 'tripplanner':
+        console.log('🔧 TOOLS: Calling planTrip with params:', requestData)
+        try {
+          result = await planTrip(requestData)
+          console.log('🔧 TOOLS: Trip Planner result:', JSON.stringify(result, null, 2))
+        } catch (error) {
+          console.error('🔧 TOOLS: Trip Planner function error:', error)
+          throw error
+        }
+        break
+        
+      case 'nutrition':
+        console.log('🔧 TOOLS: Calling getNutritionData with food_query:', requestData.food_query, 'serving_size:', requestData.serving_size)
+        try {
+          result = await getNutritionData(requestData.food_query, requestData.serving_size)
+          console.log('🔧 TOOLS: Nutrition result:', JSON.stringify(result, null, 2))
+        } catch (error) {
+          console.error('🔧 TOOLS: Nutrition function error:', error)
+          throw error
+        }
+        break
+        
+      case 'convert':
+        console.log('🔧 TOOLS: Calling convertUnits with amount:', requestData.amount, 'from:', requestData.from, 'to:', requestData.to, 'type:', requestData.type)
+        try {
+          result = await convertUnits(requestData.amount, requestData.from, requestData.to, requestData.type)
+          console.log('🔧 TOOLS: Convert result:', JSON.stringify(result, null, 2))
+        } catch (error) {
+          console.error('🔧 TOOLS: Convert function error:', error)
+          throw error
+        }
+        break
+        
+      case 'flights':
+        console.log('🔧 TOOLS: Calling searchFlights with params:', requestData)
+        try {
+          result = await searchFlights(requestData)
+          console.log('🔧 TOOLS: Flights result:', JSON.stringify(result, null, 2))
+        } catch (error) {
+          console.error('🔧 TOOLS: Flights function error:', error)
+          throw error
+        }
+        break
+        
+      case 'summarise':
+        console.log('🔧 TOOLS: Calling summariseContent with url:', requestData.url, 'summary_length:', requestData.summary_length)
+        try {
+          result = await summariseContent(requestData.url, requestData.summary_length, requestData.focus_topics)
+          console.log('🔧 TOOLS: Summarise result:', JSON.stringify(result, null, 2))
+        } catch (error) {
+          console.error('🔧 TOOLS: Summarise function error:', error)
+          throw error
+        }
+        break
+        
+      case 'md2slides':
+        console.log('🔧 TOOLS: Calling convertMarkdownToSlides with params:', requestData)
+        try {
+          result = await convertMarkdownToSlides(requestData)
+          console.log('🔧 TOOLS: MD2Slides result:', JSON.stringify(result, null, 2))
+        } catch (error) {
+          console.error('🔧 TOOLS: MD2Slides function error:', error)
+          throw error
+        }
+        break
+        
+      case 'moodmusic':
+        console.log('🔧 TOOLS: Calling getMoodMusic with mood:', requestData.mood, 'activity:', requestData.activity)
+        try {
+          result = await getMoodMusic(requestData)
+          console.log('🔧 TOOLS: MoodMusic result:', JSON.stringify(result, null, 2))
+        } catch (error) {
+          console.error('🔧 TOOLS: MoodMusic function error:', error)
           throw error
         }
         break

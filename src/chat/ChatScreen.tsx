@@ -29,8 +29,7 @@ import { useTheme } from '../components/ThemeProvider';
 import { Typography, TextField, Surface, IconButton, AILoadingAnimation } from '../ui/atoms';
 import { MessageBubble } from './MessageBubble';
 import { EmptyState } from './EmptyState';
-import { Message, mockMessages } from './types';
-import { CreditsDisplay } from '../credits/CreditsDisplay';
+import { Message } from './types';
 import { ChatSettingsModal, ChatSettingsModalRef } from './ChatSettingsModal';
 import { useEntitlements } from '../hooks/useEntitlements';
 import { useStream, StreamMessage } from './useStream';
@@ -228,7 +227,13 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
 
       // Always set persona from conversation data to ensure consistency
       if (conversation.personas) {
-        setCurrentPersona(conversation.personas);
+        // Convert the conversation persona data to match the full Persona interface
+        const fullPersona = {
+          ...conversation.personas,
+          tool_ids: [], // Default empty array since conversation data doesn't include tools
+          created_at: new Date().toISOString(), // Default to current time
+        };
+        setCurrentPersona(fullPersona);
         if (!conversation.current_model) {
           setCurrentModel(conversation.personas.default_model);
         }

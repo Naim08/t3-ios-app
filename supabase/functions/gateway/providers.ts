@@ -150,6 +150,7 @@ export function getProviderConfig(modelId: string, hasCustomKey: boolean, custom
       };
 
     case 'gemini-2.5-flash-preview-05-20':
+    case 'gemini-2.5-flash-preview': {
       const google25FlashApiKey = hasCustomKey && customApiKey ? customApiKey : Deno.env.get('GOOGLE_API_KEY_SERVER');
       
       if (!google25FlashApiKey) {
@@ -160,8 +161,71 @@ export function getProviderConfig(modelId: string, hasCustomKey: boolean, custom
         ...baseConfig,
         baseURL: 'https://generativelanguage.googleapis.com/v1beta',
         apiKey: google25FlashApiKey,
-        model: 'gemini-2.5-flash-preview-05-20',
+        model: modelId === 'gemini-2.5-flash-preview' ? 'gemini-2.5-flash' : 'gemini-2.5-flash-preview-05-20',
       };
+    }
+
+    case 'gemini-2.5-pro-preview': {
+      const google25ProApiKey = hasCustomKey && customApiKey ? customApiKey : Deno.env.get('GOOGLE_API_KEY_SERVER');
+      
+      if (!google25ProApiKey) {
+        throw new Error('Google API key is required for Gemini models. Please set GOOGLE_API_KEY_SERVER environment variable or provide a custom API key.');
+      }
+      
+      return {
+        ...baseConfig,
+        baseURL: 'https://generativelanguage.googleapis.com/v1beta',
+        apiKey: google25ProApiKey,
+        model: 'gemini-2.5-pro',
+        maxTokens: 8000,
+      };
+    }
+
+    case 'text-embedding-004': {
+      const googleEmbeddingApiKey = hasCustomKey && customApiKey ? customApiKey : Deno.env.get('GOOGLE_API_KEY_SERVER');
+      
+      if (!googleEmbeddingApiKey) {
+        throw new Error('Google API key is required for Gemini models. Please set GOOGLE_API_KEY_SERVER environment variable or provide a custom API key.');
+      }
+      
+      return {
+        ...baseConfig,
+        baseURL: 'https://generativelanguage.googleapis.com/v1beta',
+        apiKey: googleEmbeddingApiKey,
+        model: 'text-embedding-004',
+        streaming: false, // Embedding models don't support streaming
+      };
+    }
+
+    case 'gemma-3': {
+      const gemma3ApiKey = hasCustomKey && customApiKey ? customApiKey : Deno.env.get('GOOGLE_API_KEY_SERVER');
+      
+      if (!gemma3ApiKey) {
+        throw new Error('Google API key is required for Gemini models. Please set GOOGLE_API_KEY_SERVER environment variable or provide a custom API key.');
+      }
+      
+      return {
+        ...baseConfig,
+        baseURL: 'https://generativelanguage.googleapis.com/v1beta',
+        apiKey: gemma3ApiKey,
+        model: 'gemma-2-27b-it', // Using the actual API model name
+      };
+    }
+
+    case 'gemma-3n': {
+      const gemma3nApiKey = hasCustomKey && customApiKey ? customApiKey : Deno.env.get('GOOGLE_API_KEY_SERVER');
+      
+      if (!gemma3nApiKey) {
+        throw new Error('Google API key is required for Gemini models. Please set GOOGLE_API_KEY_SERVER environment variable or provide a custom API key.');
+      }
+      
+      return {
+        ...baseConfig,
+        baseURL: 'https://generativelanguage.googleapis.com/v1beta',
+        apiKey: gemma3nApiKey,
+        model: 'gemma-2-9b-it', // Using the actual API model name
+      };
+    }
 
     default:
       return null;
@@ -178,7 +242,12 @@ export function isModelPremium(modelId: string): boolean {
     'gemini-1.5-flash',
     'gemini-1.5-flash-8b',
     'gemini-2.0-flash',
-    'gemini-2.0-flash-lite'
+    'gemini-2.0-flash-lite',
+    'gemini-2.5-flash-preview',
+    'gemini-2.5-pro-preview',
+    'text-embedding-004',
+    'gemma-3',
+    'gemma-3n'
   ];
   return !freeModels.includes(modelId);
 }

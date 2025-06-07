@@ -21,3 +21,4 @@ web-build/
 .vscode
 yarn.lock
 credentials.json
+reference-maps-planner/*
