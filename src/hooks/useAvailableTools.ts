@@ -20,8 +20,6 @@ export const useAvailableTools = (): UseAvailableToolsResult => {
     try {
       setLoading(true);
       setError(null);
-
-      console.log('🔧 Fetching available tools...');
       
       // Fetch all tools from database
       const { data: allTools, error: fetchError } = await supabase
@@ -34,24 +32,15 @@ export const useAvailableTools = (): UseAvailableToolsResult => {
       }
 
       if (!allTools) {
-        console.log('⚠️ No tools found in database');
         setTools([]);
         return;
       }
 
-      console.log(`📊 Found ${allTools.length} tools in database`);
-
       // Filter tools based on user subscription
       const availableTools = allTools.filter(tool => {
         const hasAccess = !tool.requires_premium || isSubscriber;
-        if (!hasAccess) {
-          console.log(`🔒 Tool "${tool.name}" requires premium subscription`);
-        }
         return hasAccess;
       });
-
-      console.log(`✅ ${availableTools.length} tools available to user`);
-      console.log('Available tools:', availableTools.map(t => `${t.name} (${t.cost_tokens} tokens)`));
 
       setTools(availableTools);
     } catch (err) {

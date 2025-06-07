@@ -15,3 +15,5 @@ export type { IconButtonProps } from './IconButton';
 
 export { Avatar } from './Avatar';
 export type { AvatarProps } from './Avatar';
+
+export { AILoadingAnimation } from './AILoadingAnimation';

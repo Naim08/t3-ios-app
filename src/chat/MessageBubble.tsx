@@ -15,7 +15,7 @@ try {
   BlurView = ({ children, style, ...props }) => React.createElement(View, { style, ...props }, children);
 }
 import { useTheme } from '../components/ThemeProvider';
-import { Surface, Typography, Avatar } from '../ui/atoms';
+import { Surface, Typography, Avatar, AILoadingAnimation } from '../ui/atoms';
 import { Message } from './types';
 
 export interface MessageBubbleProps {
@@ -258,10 +258,8 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
               ] as any}
             >
               {isStreaming && message.text === '' && (
-                <View style={styles.typingIndicator}>
-                  <View style={[styles.typingDot, { backgroundColor: theme.colors.brand['400'] }]} />
-                  <View style={[styles.typingDot, { backgroundColor: theme.colors.brand['500'], marginLeft: 4 }]} />
-                  <View style={[styles.typingDot, { backgroundColor: theme.colors.brand['600'], marginLeft: 4 }]} />
+                <View style={styles.aiLoadingContainer}>
+                  <AILoadingAnimation size={24} />
                 </View>
               )}
               <View style={styles.markdownContainer}>
@@ -371,6 +369,12 @@ const styles = StyleSheet.create({
   },
   streamingBubble: {
     minHeight: 40,
+  },
+  aiLoadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
   },
   typingIndicator: {
     flexDirection: 'row',

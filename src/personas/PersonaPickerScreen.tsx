@@ -13,7 +13,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../components/ThemeProvider';
 import { usePersona, Persona, PersonaCategory } from '../context/PersonaContext';
 import { useEntitlements } from '../hooks/useEntitlements';
-import { Typography, Surface } from '../ui/atoms';
+import { Typography, Surface, AILoadingAnimation } from '../ui/atoms';
 import { supabase } from '../lib/supabase';
 import { isModelPremium } from '../utils/modelUtils';
 
@@ -160,40 +160,24 @@ export const PersonaPickerScreen = ({ navigation }: any) => {
     // Check if user has tokens for free models
     const hasTokensForFreeModel = !modelIsPremium && remainingTokens > 0;
     
-    console.log('🔍 PERSONA ACCESS CHECK:', {
-      personaName: persona.display_name,
-      defaultModel: persona.default_model,
-      personaRequiresPremium,
-      modelIsPremium,
-      modelRequiresPremium,
-      remainingTokens,
-      hasTokensForFreeModel,
-      isSubscriber,
-      hasCustomKey
-    });
-
     // Block access if persona requires premium
     if (personaRequiresPremium) {
-      console.log('❌ PAYWALL: Persona requires premium');
       navigation.navigate('Paywall');
       return;
     }
     
     // Block access if model requires premium
     if (modelRequiresPremium) {
-      console.log('❌ PAYWALL: Model requires premium');
       navigation.navigate('Paywall');
       return;
     }
     
     // Block access if using free model but no tokens
     if (!modelIsPremium && remainingTokens <= 0) {
-      console.log('❌ PAYWALL: No tokens for free model');
       navigation.navigate('Paywall');
       return;
     }
 
-    console.log('✅ ACCESS GRANTED: Proceeding to chat with persona');
     setCurrentPersona(persona);
     navigation.navigate('Chat', { persona });
   };
@@ -265,7 +249,8 @@ export const PersonaPickerScreen = ({ navigation }: any) => {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <View style={styles.loadingContainer}>
-          <Typography variant="bodyLg" color={theme.colors.textSecondary}>
+          <AILoadingAnimation size={100} />
+          <Typography variant="bodyLg" color={theme.colors.textSecondary} style={{ marginTop: 16 }}>
             Loading personas...
           </Typography>
         </View>

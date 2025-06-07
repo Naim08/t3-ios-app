@@ -51,13 +51,10 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
 
   const handleModelPress = useCallback(
     (model: ModelOption) => {
-      console.log(`Model pressed: ${model.id}`);
       if (isModelUnlocked(model)) {
-        console.log(`Model ${model.id} is unlocked, selecting`);
         onSelect(model.id);
         onClose();
       } else {
-        console.log(`Model ${model.id} is locked, navigating to paywall`);
         onNavigateToPaywall();
       }
     },
@@ -211,17 +208,13 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
   );
 
   if (!isVisible) {
-    console.log('ModelPickerSheet not visible, returning null');
     return null;
   }
-
-  console.log('ModelPickerSheet rendering with visibility:', isVisible);
   
   return (
     <BottomSheet
       snapPoints={snapPoints}
       onClose={() => {
-        console.log('BottomSheet onClose triggered');
         onClose();
       }}
       enablePanDownToClose

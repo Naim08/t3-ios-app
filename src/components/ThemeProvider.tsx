@@ -31,15 +31,9 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     (Appearance.getColorScheme() as ColorScheme) || 'light',
   );
 
-  console.log(`🎨 ThemeProvider render #${renderCount.current}`, {
-    colorScheme
-  });
-  
-  console.log('🔥🔥🔥 THEME PROVIDER IS RENDERING 🔥🔥🔥');
 
   useEffect(() => {
     const subscription = Appearance.addChangeListener(({ colorScheme }) => {
-      console.log('🎨 ThemeProvider: Appearance changed to', colorScheme);
       setColorScheme((colorScheme as ColorScheme) || 'light');
     });
 
@@ -48,7 +42,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
   // MEMOIZE the theme to prevent unnecessary re-renders
   const theme = useMemo(() => {
-    console.log('🎨 ThemeProvider: Creating new theme object for', colorScheme);
     return createTheme(colorScheme);
   }, [colorScheme]);
 
@@ -58,7 +51,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
   // MEMOIZE the context value to prevent unnecessary re-renders
   const contextValue = useMemo(() => {
-    console.log('🎨 ThemeProvider: Creating new context value');
     return { theme, colorScheme, toggleTheme, setColorScheme };
   }, [theme, colorScheme]);
 

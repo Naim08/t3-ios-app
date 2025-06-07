@@ -28,7 +28,6 @@ export const usePremium = (): UsePremiumReturn => {
         throw funcError;
       }
 
-      console.log('Premium subscription granted:', data);
     } catch (err) {
       console.error('Error granting premium subscription:', err);
       setError(err instanceof Error ? err.message : 'Failed to grant premium subscription');

@@ -25,11 +25,6 @@ export const RootNavigator = () => {
   const renderCount = useRef(0);
   renderCount.current += 1;
 
-  console.log(`🗂️ RootNavigator render #${renderCount.current}`, {
-    colorScheme,
-    backgroundTheme: theme.colors.background
-  });
-
   // MEMOIZE the navigation theme to prevent unnecessary re-renders
   const navigationTheme = useMemo(() => ({
     ...(colorScheme === 'dark' ? DarkTheme : DefaultTheme),

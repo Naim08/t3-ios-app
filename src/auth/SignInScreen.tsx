@@ -23,7 +23,7 @@ try {
   BlurView = ({ children, style, ...props }) => React.createElement(View, { style, ...props }, children);
 }
 import { useTheme } from '../components/ThemeProvider';
-import { Typography, PrimaryButton, Surface } from '../ui/atoms';
+import { Typography, PrimaryButton, Surface, AILoadingAnimation } from '../ui/atoms';
 import { useAuth } from '../providers/AuthProvider';
 import { EmailOTPModal } from './EmailOTPModal';
 
@@ -76,9 +76,7 @@ export const SignInScreen = () => {
           end={{ x: 1, y: 1 }}
         >
           <View style={styles.loadingContainer}>
-            <View style={styles.loadingIconWrapper}>
-              <ActivityIndicator size="large" color={theme.colors.brand['500']} />
-            </View>
+            <AILoadingAnimation size={120} />
             <Typography 
               variant="bodyMd" 
               color={theme.colors.textSecondary}

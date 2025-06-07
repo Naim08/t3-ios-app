@@ -14,22 +14,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useTheme } from '../components/ThemeProvider';
 import { usePersona } from '../context/PersonaContext';
-import { Typography, Surface, PrimaryButton } from '../ui/atoms';
-import { supabase } from '../lib/supabase';
+import { Typography, Surface, PrimaryButton, AILoadingAnimation } from '../ui/atoms';
+import { ConversationService, ConversationWithPersona } from '../services/conversationService';
 
-export interface Conversation {
-  id: string;
-  persona_id: string | null;
-  title: string;
-  last_message_preview: string | null;
-  message_count: number;
-  created_at: string;
-  updated_at: string;
-  personas?: {
-    display_name: string;
-    icon: string;
-  };
-}
+// Use the centralized Conversation interface
+export type Conversation = ConversationWithPersona;
 
 interface ConversationItemProps {
   conversation: Conversation;
@@ -230,23 +219,14 @@ export const ConversationListScreen = ({ navigation }: any) => {
 
   const fetchConversations = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('conversations')
-        .select(`
-          *,
-          personas (
-            display_name,
-            icon
-          )
-        `)
-        .order('updated_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching conversations:', error);
+      const result = await ConversationService.fetchConversations();
+      
+      if (result.error) {
+        ConversationService.handleError(result.error, 'loading conversations');
         return;
       }
 
-      setConversations(data || []);
+      setConversations(result.data || []);
     } catch (error) {
       console.error('Error fetching conversations:', error);
     } finally {
@@ -287,23 +267,13 @@ export const ConversationListScreen = ({ navigation }: any) => {
   };
 
   const handleDeleteConversation = async (conversationId: string) => {
-    try {
-      const { error } = await supabase
-        .from('conversations')
-        .delete()
-        .eq('id', conversationId);
-
-      if (error) {
-        console.error('Error deleting conversation:', error);
-        Alert.alert('Error', 'Failed to delete conversation');
-        return;
-      }
-
+    const result = await ConversationService.deleteConversation(conversationId);
+    
+    if (result.success) {
       // Remove from local state
       setConversations(prev => prev.filter(c => c.id !== conversationId));
-    } catch (error) {
-      console.error('Error deleting conversation:', error);
-      Alert.alert('Error', 'Failed to delete conversation');
+    } else if (result.error) {
+      ConversationService.handleError(result.error, 'deleting conversation');
     }
   };
 
@@ -344,7 +314,8 @@ export const ConversationListScreen = ({ navigation }: any) => {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <View style={styles.loadingContainer}>
-          <Typography variant="bodyLg" color={theme.colors.textSecondary}>
+          <AILoadingAnimation size={100} />
+          <Typography variant="bodyLg" color={theme.colors.textSecondary} style={{ marginTop: 16 }}>
             Loading conversations...
           </Typography>
         </View>

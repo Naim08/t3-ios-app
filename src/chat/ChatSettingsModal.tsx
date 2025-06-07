@@ -4,8 +4,8 @@ import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom
 import { useTheme } from '../components/ThemeProvider';
 import { Typography, Surface } from '../ui/atoms';
 import { CreditsDisplay } from '../credits/CreditsDisplay';
-import { supabase } from '../lib/supabase';
 import { AI_MODELS } from '../config/models';
+import { ConversationService } from '../services/conversationService';
 
 interface ChatSettingsModalProps {
   conversationId?: string;
@@ -33,36 +33,12 @@ export const ChatSettingsModal = forwardRef<ChatSettingsModalRef, ChatSettingsMo
     const handleDeleteConversation = useCallback(async () => {
       if (!conversationId) return;
 
-      Alert.alert(
-        'Delete Conversation',
-        'Are you sure you want to delete this conversation? This action cannot be undone.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Delete',
-            style: 'destructive',
-            onPress: async () => {
-              try {
-                const { error } = await supabase
-                  .from('conversations')
-                  .delete()
-                  .eq('id', conversationId);
-
-                if (error) {
-                  console.error('Error deleting conversation:', error);
-                  Alert.alert('Error', 'Failed to delete conversation');
-                  return;
-                }
-
-                bottomSheetRef.current?.close();
-                onDeleteConversation?.();
-              } catch (error) {
-                console.error('Error deleting conversation:', error);
-                Alert.alert('Error', 'Failed to delete conversation');
-              }
-            },
-          },
-        ]
+      ConversationService.deleteConversationWithConfirmation(
+        conversationId,
+        () => {
+          bottomSheetRef.current?.close();
+          onDeleteConversation?.();
+        }
       );
     }, [conversationId, onDeleteConversation]);
 

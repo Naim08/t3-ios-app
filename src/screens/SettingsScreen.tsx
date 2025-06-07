@@ -16,6 +16,7 @@ import { Typography, Surface, Avatar } from '../ui/atoms';
 import { useAuth } from '../providers/AuthProvider';
 import { useProfile } from '../hooks/useProfile';
 import { AvatarPicker } from '../components/AvatarPicker';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { useState, useEffect } from 'react';
 
 interface SettingsScreenProps {
@@ -190,15 +191,7 @@ export const SettingsScreen = ({ navigation }: SettingsScreenProps) => {
             title="Theme"
             subtitle={colorScheme === 'light' ? 'Light mode' : 'Dark mode'}
             rightElement={
-              <Switch
-                value={colorScheme === 'dark'}
-                onValueChange={toggleTheme}
-                trackColor={{ 
-                  false: theme.colors.gray[300], 
-                  true: theme.colors.brand[500] 
-                }}
-                thumbColor={theme.colors.gray[50]}
-              />
+              <ThemeToggle size={56} />
             }
           />
         </SettingSection>
