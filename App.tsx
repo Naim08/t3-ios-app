@@ -8,6 +8,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Toast from 'react-native-toast-message';
 import { ThemeProvider } from './src/components/ThemeProvider';
 import { AuthProvider } from './src/providers/AuthProvider';
+import { ProfileProvider } from './src/providers/ProfileProvider';
 import { EntitlementsProvider } from './src/context/EntitlementsProvider';
 import { PurchaseProvider } from './src/purchases';
 import { RootNavigator } from './src/navigation/RootNavigator';
@@ -70,13 +71,15 @@ const AppContent = () => {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
         <AuthProvider>
-          <PurchaseProvider>
-            <EntitlementsProvider>
-              <StatusBar style="auto" />
-              <RootNavigator />
-              <Toast />
-            </EntitlementsProvider>
-          </PurchaseProvider>
+          <ProfileProvider>
+            <PurchaseProvider>
+              <EntitlementsProvider>
+                <StatusBar style="auto" />
+                <RootNavigator />
+                <Toast />
+              </EntitlementsProvider>
+            </PurchaseProvider>
+          </ProfileProvider>
         </AuthProvider>
       </ThemeProvider>
     </GestureHandlerRootView>

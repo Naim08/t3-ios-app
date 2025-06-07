@@ -10,7 +10,7 @@ export interface AvatarProps extends AccessibilityProps {
   userId?: string; // For future feature to display other users' avatars
 }
 
-export const Avatar: React.FC<AvatarProps> = ({ 
+export const Avatar: React.FC<AvatarProps> = React.memo(({ 
   size = 40, 
   showBorder = true, 
   onPress,
@@ -21,9 +21,9 @@ export const Avatar: React.FC<AvatarProps> = ({
   ...accessibilityProps
 }) => {
   const { theme } = useTheme();
-  const { getAvatarUrl, profile } = useProfile();
+  const { getAvatarUrl } = useProfile();
 
-  const avatarUrl = getAvatarUrl(size);
+  const avatarUrl = React.useMemo(() => getAvatarUrl(size), [getAvatarUrl, size]);
 
   const containerStyle = [
     styles.container,
@@ -72,7 +72,7 @@ export const Avatar: React.FC<AvatarProps> = ({
       )}
     </Component>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
