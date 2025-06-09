@@ -1,7 +1,9 @@
+/* eslint-disable react-native/no-inline-styles */
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useTheme } from './ThemeProvider';
 import { Typography, Surface } from '../ui/atoms';
+import { Check } from 'lucide-react-native';
 import { useAvailableTools } from '../hooks/useAvailableTools';
 import { Tool } from '../context/PersonaContext';
 
@@ -28,7 +30,7 @@ const ToolCard = ({ tool, isSelected, onToggle, disabled }: ToolCardProps) => {
       activeOpacity={0.7}
     >
       <Surface
-        style={[
+        style={StyleSheet.flatten([
           styles.toolCard,
           isSelected && {
             borderColor: theme.colors.brand['500'],
@@ -36,15 +38,23 @@ const ToolCard = ({ tool, isSelected, onToggle, disabled }: ToolCardProps) => {
             backgroundColor: theme.colors.brand['50'],
           },
           disabled && styles.disabledCard,
-        ]}
+        ])}
       >
         <View style={styles.toolCardHeader}>
           <View style={styles.toolCardTitle}>
-            <View style={styles.checkbox}>
+            <View style={[
+              styles.checkbox,
+              isSelected && { 
+                borderColor: theme.colors.brand['500'],
+                backgroundColor: theme.colors.brand['500']
+              }
+            ]}>
               {isSelected && (
-                <Typography variant="bodySm" color={theme.colors.brand['500']}>
-                  ✓
-                </Typography>
+                <Check 
+                  size={14} 
+                  color="#FFFFFF" 
+                  strokeWidth={3}
+                />
               )}
             </View>
             <Typography

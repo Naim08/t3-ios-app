@@ -3,7 +3,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { ChatOpenAI } from "npm:@langchain/openai"
 import { ChatAnthropic } from "npm:@langchain/anthropic"
 import { ChatGoogleGenerativeAI } from "npm:@langchain/google-genai"
-import { HumanMessage } from "npm:@langchain/core/messages"
+import { HumanMessage, AIMessage, SystemMessage } from "npm:@langchain/core/messages"
 import { TokenSpendingMiddleware } from "./middleware.ts"
 import { getProviderConfig, isModelPremium } from "./providers.ts"
 import { calculateTokenCost } from "./costs.ts"
@@ -22,7 +22,6 @@ interface StreamRequest {
   stream?: boolean
   customApiKey?: string
   hasCustomKey?: boolean
-  conversationId?: string
   personaId?: string
 }
 
@@ -83,6 +82,8 @@ function createLLMInstance(modelId: string, config: any, tools?: any[]) {
   }))
 
   // Debug: tools loaded successfully
+  console.log('🔧 GATEWAY: Tool data for model', modelId, ':', JSON.stringify(tools, null, 2))
+  console.log('🔧 GATEWAY: Converted tools:', JSON.stringify(openAITools, null, 2))
 
   if (modelId.startsWith('gpt-') || modelId.includes('openai')) {
     const chatOpenAI = new ChatOpenAI({
@@ -93,9 +94,11 @@ function createLLMInstance(modelId: string, config: any, tools?: any[]) {
       streaming: true,
     })
     
-    // Add tools if available
+    // Add tools if available using proper bindTools syntax
     if (openAITools && openAITools.length > 0) {
-      return chatOpenAI.bind({ tools: openAITools })
+      return chatOpenAI.bindTools(openAITools, {
+        tool_choice: "auto" // Let the model decide when to use tools
+      })
     }
     return chatOpenAI
   } else if (modelId.startsWith('claude-')) {
@@ -107,9 +110,11 @@ function createLLMInstance(modelId: string, config: any, tools?: any[]) {
       streaming: true,
     })
     
-    // Anthropic uses a different format - bind tools if available
+    // Anthropic also supports tool binding with bindTools
     if (openAITools && openAITools.length > 0) {
-      return chatAnthropic.bind({ tools: openAITools })
+      return chatAnthropic.bindTools(openAITools, {
+        tool_choice: "auto"
+      })
     }
     return chatAnthropic
   } else if (modelId.startsWith('gemini-') || modelId === 'gemini-pro') {
@@ -126,9 +131,11 @@ function createLLMInstance(modelId: string, config: any, tools?: any[]) {
       streaming: true,
     })
     
-    // Google AI also supports function calling
+    // Google AI also supports function calling with bindTools
     if (openAITools && openAITools.length > 0) {
-      return gemini.bind({ tools: openAITools })
+      return gemini.bindTools(openAITools, {
+        tool_choice: "auto"
+      })
     }
     return gemini
   }
@@ -164,7 +171,7 @@ Deno.serve(async (req: Request) => {
     const { userId, isSubscriber, hasCustomKey, userToken } = await authenticateUser(authHeader)
     
     // Parse request
-    const { model, messages, customApiKey, conversationId, personaId }: StreamRequest = await req.json()
+    const { model, messages, customApiKey, personaId }: StreamRequest = await req.json()
     
     if (!model || !messages || !Array.isArray(messages)) {
       return new Response(
@@ -185,6 +192,9 @@ Deno.serve(async (req: Request) => {
     // Fetch available tools for persona
     let availableTools: any[] = []
     
+    console.log('🔧 GATEWAY: personaId:', personaId, 'type:', typeof personaId)
+    console.log('🔧 GATEWAY: Starting tool fetch process...')
+    
     if (personaId) {
       try {
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -199,11 +209,15 @@ Deno.serve(async (req: Request) => {
           }
         })
         
+        console.log('🔧 GATEWAY: Persona fetch response status:', personaResponse.status)
+        
         if (personaResponse.ok) {
           const personas = await personaResponse.json()
+          console.log('🔧 GATEWAY: Personas fetched:', JSON.stringify(personas, null, 2))
           
           if (personas && personas.length > 0 && personas[0].tool_ids) {
             const toolIds = personas[0].tool_ids
+            console.log('🔧 GATEWAY: Tool IDs from persona:', toolIds)
             
             if (toolIds.length > 0) {
               // Fetch tool definitions
@@ -224,14 +238,35 @@ Deno.serve(async (req: Request) => {
                 availableTools = tools.filter((tool: any) => 
                   !tool.requires_premium || isSubscriber || hasCustomKey
                 )
+                
+                console.log('🔧 GATEWAY: Found', availableTools.length, 'available tools:', availableTools.map(t => t.name))
+              } else {
+                console.log('🔧 GATEWAY: Tools fetch failed with status:', toolsResponse.status)
               }
+            } else {
+              console.log('🔧 GATEWAY: No tool IDs found in persona')
             }
+          } else {
+            console.log('🔧 GATEWAY: No valid persona found or no tool_ids field')
           }
+        } else {
+          console.log('🔧 GATEWAY: Persona fetch failed with status:', personaResponse.status)
         }
       } catch (error) {
         console.error('Error fetching persona tools:', error)
         // Continue without tools if there's an error
       }
+    } else {
+      console.log('🔧 GATEWAY: No personaId provided, skipping tool fetch')
+    }
+    
+    console.log('🔧 GATEWAY: Final availableTools count:', availableTools.length)
+    if (availableTools.length > 0) {
+      console.log('🔧 GATEWAY: Available tools:', availableTools.map(t => ({ name: t.name, description: t.description })))
+    } else {
+      console.log('🔧 GATEWAY: ❌ NO TOOLS FOUND! This is why the LLM is not making tool calls.')
+      console.log('🔧 GATEWAY: personaId was:', personaId)
+      console.log('🔧 GATEWAY: isSubscriber:', isSubscriber, 'hasCustomKey:', hasCustomKey)
     }
 
     // Get provider configuration
@@ -252,6 +287,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // Create LLM instance with tools
+    console.log('🔧 GATEWAY: Creating LLM with', availableTools.length, 'tools')
     const llm = createLLMInstance(model, config, availableTools)
     
     // Initialize ToolsRouter for tool execution
@@ -273,10 +309,66 @@ Deno.serve(async (req: Request) => {
       // tokenMiddleware = new TokenSpendingMiddleware(userId, supabaseUrl, userToken, model, promptTokens)
     }
 
-    // Convert messages to LangChain format
-    const langchainMessages = messages.map(msg => 
-      new HumanMessage(msg.content)
-    )
+    // Convert messages to LangChain format with proper role handling
+    const langchainMessages = messages
+      .filter(msg => msg.content && msg.content.trim().length > 0) // Filter out empty messages
+      .map(msg => {
+        switch (msg.role) {
+          case 'system':
+            return new SystemMessage(msg.content)
+          case 'assistant':
+            return new AIMessage(msg.content)
+          case 'user':
+          default:
+            return new HumanMessage(msg.content)
+        }
+      })
+    
+    // Add or modify system message about tool usage if tools are available
+    if (availableTools.length > 0) {
+      const hasSystemMessage = langchainMessages.some(msg => msg._getType() === 'system')
+      console.log('🔧 GATEWAY: availableTools.length:', availableTools.length)
+      console.log('🔧 GATEWAY: hasSystemMessage:', hasSystemMessage)
+      console.log('🔧 GATEWAY: Current message types:', langchainMessages.map(m => m._getType()))
+      
+      const toolNames = availableTools.map(t => t.name).join(', ')
+      const toolInstructions = `
+
+IMPORTANT TOOL USAGE: You have access to these tools: ${toolNames}.
+When a user's request can be fulfilled by one of these tools, you MUST call the appropriate tool function to get accurate, real-time data. Do not provide generic responses when a tool can give specific information.
+
+Tool usage guidelines:
+- For trip planning requests → use the tripplanner tool
+- For weather information → use the weather tool  
+- For Wikipedia searches → use the wiki tool
+- For nutrition data → use the nutrition tool
+- For currency/unit conversion → use the convert tool
+- For flight searches → use the flights tool
+- For content summarization → use the summarise tool
+- For mood-based music → use the moodmusic tool
+
+Always call the appropriate tool function rather than providing general information from your training data.`
+      
+      if (!hasSystemMessage) {
+        console.log('🔧 GATEWAY: Adding new system message with tool instructions')
+        const systemMessage = new SystemMessage(
+          `You are a helpful assistant.${toolInstructions}`
+        )
+        langchainMessages.unshift(systemMessage)
+      } else {
+        console.log('🔧 GATEWAY: Modifying existing system message to include tool instructions')
+        const systemMessageIndex = langchainMessages.findIndex(msg => msg._getType() === 'system')
+        const existingSystemMessage = langchainMessages[systemMessageIndex]
+        console.log('🔧 GATEWAY: Original system message:', existingSystemMessage.content)
+        
+        // Append tool instructions to existing system message
+        const enhancedContent = existingSystemMessage.content + toolInstructions
+        langchainMessages[systemMessageIndex] = new SystemMessage(enhancedContent)
+        console.log('🔧 GATEWAY: Enhanced system message:', enhancedContent)
+      }
+    }
+    
+    console.log('🔧 GATEWAY: Messages being sent to LLM:', JSON.stringify(langchainMessages.map(m => ({ role: m._getType(), content: m.content })), null, 2))
 
     // Create streaming response
     const encoder = new TextEncoder()
@@ -334,12 +426,46 @@ Deno.serve(async (req: Request) => {
                   }
                 },
                 async handleLLMEnd(output: any) {
+                  console.log('🔧 GATEWAY: handleLLMEnd output structure:', JSON.stringify(output, null, 2))
+                  
                   // Extract tool calls from LangChain response structure
                   // Try multiple paths as LangChain structure can vary
                   const message = output?.generations?.[0]?.[0]?.message
-                  const toolCalls = message?.additional_kwargs?.tool_calls || 
-                                   message?.kwargs?.additional_kwargs?.tool_calls ||
-                                   message?.tool_calls
+                  console.log('🔧 GATEWAY: Extracted message:', JSON.stringify(message, null, 2))
+                  
+                  let toolCalls = message?.additional_kwargs?.tool_calls || 
+                                  message?.kwargs?.additional_kwargs?.tool_calls ||
+                                  message?.tool_calls ||
+                                  (message?.function_call ? [message.function_call] : null)
+                  
+                  console.log('🔧 GATEWAY: Raw extracted tool calls:', JSON.stringify(toolCalls, null, 2))
+                  
+                  // Filter out null/undefined tool calls and normalize structure
+                  if (toolCalls && Array.isArray(toolCalls)) {
+                    toolCalls = toolCalls
+                      .filter(call => call !== null && call !== undefined)
+                      .map(call => {
+                        // Normalize tool call structure for different providers
+                        if (call.function) {
+                          // OpenAI format - keep as is
+                          return call
+                        } else if (call.name) {
+                          // Possible Gemini format - normalize to expected structure
+                          return {
+                            id: call.id || `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                            type: 'function',
+                            function: {
+                              name: call.name,
+                              arguments: JSON.stringify(call.args || call.arguments || {})
+                            }
+                          }
+                        }
+                        return call
+                      })
+                      .filter(call => call && call.function && call.function.name)
+                  }
+                  
+                  console.log('🔧 GATEWAY: Processed tool calls:', JSON.stringify(toolCalls, null, 2))
                   
                   // Check if the output contains tool calls
                   if (toolCalls && Array.isArray(toolCalls) && toolCalls.length > 0) {
@@ -369,6 +495,8 @@ Deno.serve(async (req: Request) => {
                       const toolSummary = results.map(r => {
                         try {
                           const content = JSON.parse(r.content)
+                          console.log('🔧 GATEWAY: Formatting tool result for:', r.name, 'content:', JSON.stringify(content, null, 2))
+                          
                           if (r.name === 'weather' && content.success) {
                             const data = content.data
                             return `\n\nWeather in ${data.location}:\n- Current: ${data.current.temperature}°C, ${data.current.condition}\n- Humidity: ${data.current.humidity}%\n- Wind: ${data.current.wind_speed} km/h\n\nForecast:\n${data.forecast.map((f: any) => `- ${f.date}: ${f.low}°C - ${f.high}°C, ${f.condition}`).join('\n')}`
@@ -397,6 +525,75 @@ Deno.serve(async (req: Request) => {
                             } else {
                               return `\n\nNo Wikipedia results found for "${data.query}".`
                             }
+                          }
+                          
+                          if (r.name === 'tripplanner' && content.success) {
+                            const data = content.data
+                            
+                            let tripText = '\n\n**Trip Plan:**\n'
+                            
+                            // Handle daily_itinerary (the correct field name from the tripplanner response)
+                            if (data.daily_itinerary && data.daily_itinerary.length > 0) {
+                              data.daily_itinerary.forEach((day: any, index: number) => {
+                                tripText += `\n**Day ${day.day} - ${day.date}:**\n`
+                                tripText += `📍 Location: ${day.location}\n`
+                                
+                                if (day.activities && day.activities.length > 0) {
+                                  tripText += `\n**Activities:**\n`
+                                  day.activities.forEach((activity: any, actIndex: number) => {
+                                    tripText += `${actIndex + 1}. **${activity.name}**\n`
+                                    if (activity.description) {
+                                      tripText += `   ${activity.description}\n`
+                                    }
+                                    if (activity.location) {
+                                      tripText += `   📍 ${activity.location}\n`
+                                    }
+                                    if (activity.duration) {
+                                      tripText += `   ⏱️ Duration: ${activity.duration}\n`
+                                    }
+                                    if (activity.estimated_cost) {
+                                      tripText += `   💰 Cost: ${activity.estimated_cost.amount} ${activity.estimated_cost.currency}\n`
+                                    }
+                                    tripText += '\n'
+                                  })
+                                }
+                                
+                                tripText += '\n'
+                              })
+                            }
+                            
+                            // Add destinations info
+                            if (data.destinations && data.destinations.length > 0) {
+                              tripText += '\n**Key Destinations:**\n'
+                              data.destinations.forEach((dest: any, index: number) => {
+                                tripText += `${index + 1}. **${dest.name}** - ${dest.description || 'Great location to visit'}\n`
+                              })
+                              tripText += '\n'
+                            }
+                            
+                            // Add travel tips
+                            if (data.travel_tips && data.travel_tips.length > 0) {
+                              tripText += '\n**Travel Tips:**\n'
+                              data.travel_tips.forEach((tip: string, index: number) => {
+                                tripText += `• ${tip}\n`
+                              })
+                              tripText += '\n'
+                            }
+                            
+                            // Add budget info
+                            if (data.trip_summary && data.trip_summary.total_estimated_cost) {
+                              const cost = data.trip_summary.total_estimated_cost
+                              tripText += `\n**Estimated Total Cost:** ${cost.amount} ${cost.currency}\n`
+                              if (cost.breakdown) {
+                                tripText += `**Cost Breakdown:**\n`
+                                if (cost.breakdown.accommodations) tripText += `• Accommodation: ${cost.breakdown.accommodations} ${cost.currency}\n`
+                                if (cost.breakdown.meals) tripText += `• Meals: ${cost.breakdown.meals} ${cost.currency}\n`
+                                if (cost.breakdown.activities) tripText += `• Activities: ${cost.breakdown.activities} ${cost.currency}\n`
+                                if (cost.breakdown.transportation) tripText += `• Transportation: ${cost.breakdown.transportation} ${cost.currency}\n`
+                              }
+                            }
+                            
+                            return tripText
                           }
                           
                           return `\n\nTool ${r.name} executed successfully.`
@@ -434,35 +631,8 @@ Deno.serve(async (req: Request) => {
                   // Calculate final token cost
                   const totalCost = calculateTokenCost(model, promptTokens, completionTokens)
                   
-                  // Save assistant message to database if we have a conversation ID
-                  if (conversationId && completeResponse.trim()) {
-                    try {
-                      const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-                      const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!
-                      
-                      const saveResponse = await fetch(`${supabaseUrl}/rest/v1/messages`, {
-                        method: 'POST',
-                        headers: {
-                          'Authorization': `Bearer ${userToken}`,
-                          'apikey': supabaseKey,
-                          'Content-Type': 'application/json',
-                          'Prefer': 'return=minimal'
-                        },
-                        body: JSON.stringify({
-                          conversation_id: conversationId,
-                          role: 'assistant',
-                          content: completeResponse.trim(),
-                          model_used: model
-                        })
-                      })
-                      
-                      if (!saveResponse.ok) {
-                        console.error('Failed to save assistant message:', await saveResponse.text())
-                      }
-                    } catch (error) {
-                      console.error('Error saving assistant message:', error)
-                    }
-                  }
+                  // Assistant message saving is now handled by the client (ChatScreen.tsx)
+                  console.log('🔧 GATEWAY: Stream completed, message saving handled by client')
                   
                   // Finalize token spending
                   if (tokenMiddleware) {

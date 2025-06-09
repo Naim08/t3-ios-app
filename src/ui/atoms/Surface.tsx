@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   View,
-  StyleSheet,
   ViewStyle,
   AccessibilityProps,
 } from 'react-native';
@@ -14,6 +13,7 @@ export interface SurfaceProps extends AccessibilityProps {
   borderRadius?: number;
   backgroundColor?: string;
   style?: ViewStyle;
+  className?: string; // TailwindCSS classes
   testID?: string;
 }
 
@@ -24,58 +24,116 @@ export const Surface: React.FC<SurfaceProps> = ({
   borderRadius = 12,
   backgroundColor,
   style,
+  className,
   testID,
   ...accessibilityProps
 }) => {
-  const { theme } = useTheme();
+  const { theme, colorScheme } = useTheme();
 
-  const getElevationStyle = (): ViewStyle => {
-    if (elevation === 0) {
-      return {};
+  // If custom className is provided, use it
+  if (className) {
+    return (
+      <View
+        // @ts-ignore - NativeWind className prop
+        className={className}
+        style={style}
+        testID={testID}
+        {...accessibilityProps}
+      >
+        {children}
+      </View>
+    );
+  }
+
+  // Generate TailwindCSS classes based on props
+  const getSurfaceClasses = (): string => {
+    let classes = '';
+    
+    // Background color
+    if (backgroundColor) {
+      // Use custom background color via style prop instead
+    } else {
+      classes += colorScheme === 'dark' ? 'bg-gray-800 ' : 'bg-white ';
     }
-
-    // iOS shadow
-    const iosShadow: ViewStyle = {
-      shadowColor: '#000000',
-      shadowOffset: {
-        width: 0,
-        height: Math.min(elevation * 2, 10),
-      },
-      shadowOpacity: 0.1 + elevation * 0.05,
-      shadowRadius: Math.min(elevation * 4, 20),
-    };
-
-    // Android elevation
-    const androidElevation: ViewStyle = {
-      elevation: elevation * 2,
-    };
-
-    return {
-      ...iosShadow,
-      ...androidElevation,
-    };
-  };
-
-  const getPaddingValue = (): number | undefined => {
-    if (typeof padding === 'number') {
-      return padding;
+    
+    // Border radius
+    if (borderRadius === 0) {
+      classes += 'rounded-none ';
+    } else if (borderRadius <= 4) {
+      classes += 'rounded ';
+    } else if (borderRadius <= 8) {
+      classes += 'rounded-lg ';
+    } else if (borderRadius <= 16) {
+      classes += 'rounded-xl ';
+    } else {
+      classes += 'rounded-2xl ';
     }
+    
+    // Padding
     if (typeof padding === 'string') {
-      return theme.spacing[padding];
+      switch (padding) {
+        case 'xs':
+          classes += 'p-1 ';
+          break;
+        case 'sm':
+          classes += 'p-2 ';
+          break;
+        case 'md':
+          classes += 'p-3 ';
+          break;
+        case 'lg':
+          classes += 'p-4 ';
+          break;
+      }
+    } else if (typeof padding === 'number') {
+      // Use style prop for custom padding
     }
-    return undefined;
+    
+    // Elevation/Shadow
+    switch (elevation) {
+      case 0:
+        // No shadow
+        break;
+      case 1:
+        classes += 'shadow-sm ';
+        break;
+      case 2:
+        classes += 'shadow ';
+        break;
+      case 3:
+        classes += 'shadow-md ';
+        break;
+      case 4:
+        classes += 'shadow-lg ';
+        break;
+      case 5:
+        classes += 'shadow-xl ';
+        break;
+    }
+
+    return classes.trim();
   };
 
-  const surfaceStyle: ViewStyle = {
-    backgroundColor: backgroundColor || theme.colors.surface,
-    borderRadius,
-    padding: getPaddingValue(),
-    ...getElevationStyle(),
-  };
+  // Build additional styles for properties not covered by Tailwind
+  const additionalStyles: ViewStyle = {};
+  
+  if (backgroundColor) {
+    additionalStyles.backgroundColor = backgroundColor;
+  }
+  
+  if (typeof padding === 'number') {
+    additionalStyles.padding = padding;
+  }
+  
+  if (borderRadius && ![0, 4, 8, 12, 16, 20, 24].includes(borderRadius)) {
+    additionalStyles.borderRadius = borderRadius;
+  }
 
   return (
     <View
-      style={[styles.surface, surfaceStyle, style]}
+      // @ts-ignore - NativeWind className prop
+      className={getSurfaceClasses()}
+      style={[additionalStyles, style]}
       testID={testID}
       {...accessibilityProps}
     >
@@ -83,9 +141,3 @@ export const Surface: React.FC<SurfaceProps> = ({
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  surface: {
-    // Base styles
-  },
-});

@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
-  StyleSheet,
   SafeAreaView,
   FlatList,
   TouchableOpacity,
@@ -28,37 +27,33 @@ interface PersonaCardProps {
 }
 
 const PersonaCard = ({ persona, onPress, isPremiumLocked, isFavorite = false }: PersonaCardProps) => {
-  const { theme } = useTheme();
+  const { theme, colorScheme } = useTheme();
 
   return (
     <TouchableOpacity
-      style={[
-        styles.card,
-        { width: cardWidth },
-        isPremiumLocked && styles.lockedCard,
-      ]}
+      className={`mb-4 ${isPremiumLocked ? 'opacity-70' : ''}`}
+      style={{ width: cardWidth }}
       onPress={() => onPress(persona)}
       disabled={isPremiumLocked}
     >
       <Surface
-        elevation={2}
-        padding="lg"
-        style={{
-          ...styles.cardSurface,
-          backgroundColor: isPremiumLocked ? theme.colors.gray['100'] : theme.colors.surface,
-        }}
+        className={`rounded-2xl min-h-[180px] justify-center items-center p-4 shadow-md ${
+          isPremiumLocked
+            ? colorScheme === 'dark' ? 'bg-gray-700' : 'bg-gray-100'
+            : colorScheme === 'dark' ? 'bg-gray-800' : 'bg-white'
+        }`}
       >
-        <View style={styles.iconContainer}>
-          <Typography variant="h1" style={styles.icon}>
+        <View className="relative mb-3">
+          <Typography variant="h1" className="text-5xl leading-[56px] text-center">
             {persona.icon}
           </Typography>
           {isPremiumLocked && (
-            <Typography variant="bodyMd" style={styles.lockIcon}>
+            <Typography variant="bodyMd" className="absolute -top-2 -right-2 text-base">
               🔒
             </Typography>
           )}
           {isFavorite && !isPremiumLocked && (
-            <Typography variant="bodyMd" style={styles.favoriteIcon}>
+            <Typography variant="bodyMd" className="absolute -top-2 -left-2 text-base">
               ❤️
             </Typography>
           )}
@@ -67,9 +62,11 @@ const PersonaCard = ({ persona, onPress, isPremiumLocked, isFavorite = false }: 
         <Typography
           variant="h6"
           weight="semibold"
-          color={isPremiumLocked ? theme.colors.textSecondary : theme.colors.textPrimary}
-          align="center"
-          style={styles.cardTitle}
+          className={`text-center mb-2 ${
+            isPremiumLocked
+              ? colorScheme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+              : colorScheme === 'dark' ? 'text-white' : 'text-gray-900'
+          }`}
         >
           {persona.display_name}
         </Typography>
@@ -77,10 +74,10 @@ const PersonaCard = ({ persona, onPress, isPremiumLocked, isFavorite = false }: 
         {persona.description && (
           <Typography
             variant="caption"
-            color={theme.colors.textSecondary}
-            align="center"
+            className={`text-center mt-1 mb-2 ${
+              colorScheme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+            }`}
             numberOfLines={2}
-            style={styles.description}
           >
             {persona.description}
           </Typography>
@@ -88,9 +85,9 @@ const PersonaCard = ({ persona, onPress, isPremiumLocked, isFavorite = false }: 
         
         <Typography
           variant="bodySm"
-          color={theme.colors.textSecondary}
-          align="center"
-          style={styles.model}
+          className={`text-center mt-1 ${
+            colorScheme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+          }`}
         >
           {persona.default_model}
         </Typography>
@@ -98,9 +95,7 @@ const PersonaCard = ({ persona, onPress, isPremiumLocked, isFavorite = false }: 
         {isPremiumLocked && (
           <Typography
             variant="bodySm"
-            color={theme.colors.brand['500']}
-            align="center"
-            style={styles.premiumText}
+            className="text-brand-500 text-center mt-1 font-semibold"
           >
             Premium
           </Typography>
@@ -111,7 +106,7 @@ const PersonaCard = ({ persona, onPress, isPremiumLocked, isFavorite = false }: 
 };
 
 export const PersonaPickerScreen = ({ navigation }: any) => {
-  const { theme } = useTheme();
+  const { theme, colorScheme } = useTheme();
   const { setCurrentPersona, favorites, recentPersonas, categories } = usePersona();
   const { isSubscriber, hasCustomKey, remainingTokens } = useEntitlements();
   const [personas, setPersonas] = useState<Persona[]>([]);
@@ -212,28 +207,24 @@ export const PersonaPickerScreen = ({ navigation }: any) => {
   const renderCategoryTab = (category: PersonaCategory | { id: string, name: string, icon: string }) => (
     <TouchableOpacity
       key={category.id}
-      style={[
-        styles.categoryTab,
-        {
-          backgroundColor: selectedCategory === category.id 
-            ? theme.colors.brand['500'] 
-            : theme.colors.surface,
-          borderColor: selectedCategory === category.id 
-            ? theme.colors.brand['500'] 
-            : theme.colors.border,
-        }
-      ]}
+      className={`flex-row items-center px-4 py-2 rounded-full border min-h-[40px] mr-2 shadow-sm ${
+        selectedCategory === category.id
+          ? 'bg-brand-500 border-brand-500'
+          : colorScheme === 'dark'
+            ? 'bg-gray-800 border-gray-700'
+            : 'bg-white border-gray-200'
+      }`}
       onPress={() => setSelectedCategory(category.id)}
     >
-      <Typography variant="bodyMd" style={styles.categoryIcon}>
+      <Typography variant="bodyMd" className="text-base mr-2">
         {category.icon}
       </Typography>
       <Typography
         variant="bodySm"
         weight="medium"
-        color={selectedCategory === category.id 
-          ? '#FFFFFF' 
-          : theme.colors.textPrimary}
+        className={selectedCategory === category.id 
+          ? 'text-white' 
+          : colorScheme === 'dark' ? 'text-white' : 'text-gray-900'}
       >
         {category.name}
       </Typography>
@@ -247,10 +238,17 @@ export const PersonaPickerScreen = ({ navigation }: any) => {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <View style={styles.loadingContainer}>
+      <SafeAreaView className={`flex-1 ${
+        colorScheme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'
+      }`}>
+        <View className="flex-1 justify-center items-center">
           <AILoadingAnimation size={100} />
-          <Typography variant="bodyLg" color={theme.colors.textSecondary} style={{ marginTop: 16 }}>
+          <Typography 
+            variant="bodyLg" 
+            className={`mt-4 ${
+              colorScheme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+            }`}
+          >
             Loading personas...
           </Typography>
         </View>
@@ -259,49 +257,57 @@ export const PersonaPickerScreen = ({ navigation }: any) => {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={styles.content}>
+    <SafeAreaView className={`flex-1 ${
+      colorScheme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'
+    }`}>
+      <View className="flex-1 p-4 pb-0">
         {/* Search Bar */}
-        <View style={[styles.searchContainer, { borderColor: theme.colors.border }]}>
-          <Typography variant="bodyLg" style={styles.searchIcon}>🔍</Typography>
+        <View className={`flex-row items-center border rounded-xl px-4 py-3 mb-4 mt-2 ${
+          colorScheme === 'dark' ? 'border-gray-700' : 'border-gray-200'
+        }`}>
+          <Typography variant="bodyLg" className="mr-2">🔍</Typography>
           <TextInput
-            style={[styles.searchInput, { color: theme.colors.textPrimary }]}
+            className={`flex-1 text-base ${
+              colorScheme === 'dark' ? 'text-white' : 'text-gray-900'
+            }`}
             placeholder="Search personas..."
-            placeholderTextColor={theme.colors.textSecondary}
+            placeholderTextColor={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
         </View>
 
         {/* Quick Actions */}
-        <View style={styles.quickActions}>
+        <View className="flex-row gap-3 mb-5">
           <TouchableOpacity
-            style={[styles.createButton, { backgroundColor: theme.colors.brand['500'] }]}
+            className="flex-1 flex-row items-center justify-center py-3 px-4 bg-brand-500 rounded-xl"
             onPress={handleCreatePersona}
           >
-            <Typography variant="bodyMd" style={styles.createIcon}>✨</Typography>
-            <Typography variant="bodyMd" weight="semibold" color="#FFFFFF">
+            <Typography variant="bodyMd" className="text-base mr-1.5">✨</Typography>
+            <Typography variant="bodyMd" weight="semibold" className="text-white">
               Create Custom
             </Typography>
           </TouchableOpacity>
           
           <TouchableOpacity
-            style={[
-              styles.favoritesButton,
-              {
-                backgroundColor: showFavorites ? theme.colors.brand['100'] : theme.colors.surface,
-                borderColor: showFavorites ? theme.colors.brand['500'] : theme.colors.border,
-              }
-            ]}
+            className={`flex-1 flex-row items-center justify-center py-3 px-4 rounded-xl border ${
+              showFavorites
+                ? 'bg-brand-100 border-brand-500'
+                : colorScheme === 'dark'
+                  ? 'bg-gray-800 border-gray-700'
+                  : 'bg-white border-gray-200'
+            }`}
             onPress={() => setShowFavorites(!showFavorites)}
           >
-            <Typography variant="bodyMd" style={styles.favoritesIcon}>
+            <Typography variant="bodyMd" className="text-base mr-1.5">
               {showFavorites ? '❤️' : '🤍'}
             </Typography>
             <Typography
               variant="bodyMd"
               weight="medium"
-              color={showFavorites ? theme.colors.brand['500'] : theme.colors.textPrimary}
+              className={showFavorites 
+                ? 'text-brand-500' 
+                : colorScheme === 'dark' ? 'text-white' : 'text-gray-900'}
             >
               Favorites
             </Typography>
@@ -312,41 +318,46 @@ export const PersonaPickerScreen = ({ navigation }: any) => {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          style={styles.categoriesContainer}
-          contentContainerStyle={styles.categoriesContent}
+          className="mb-6 max-h-[60px]"
+          contentContainerClassName="px-1 py-2 items-center"
         >
           {allCategories.map(renderCategoryTab)}
         </ScrollView>
 
         {/* Recent Personas (only show if not searching and on 'all' category) */}
         {!searchQuery && selectedCategory === 'all' && recentPersonas.length > 0 && (
-          <View style={styles.sectionContainer}>
+          <View className="mb-5">
             <Typography
               variant="h6"
               weight="semibold"
-              color={theme.colors.textPrimary}
-              style={styles.sectionTitle}
+              className={`mb-3 ${
+                colorScheme === 'dark' ? 'text-white' : 'text-gray-900'
+              }`}
             >
               Recently Used
             </Typography>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.recentContainer}
+              contentContainerClassName="px-0 gap-3"
             >
               {recentPersonas.slice(0, 5).map((persona) => (
                 <TouchableOpacity
                   key={persona.id}
-                  style={[styles.recentCard, { backgroundColor: theme.colors.surface }]}
+                  className={`p-3 rounded-xl items-center w-20 ${
+                    colorScheme === 'dark' ? 'bg-gray-800' : 'bg-white'
+                  }`}
                   onPress={() => handlePersonaPress(persona)}
                 >
-                  <Typography variant="h4" style={styles.recentIcon}>
+                  <Typography variant="h4" className="text-2xl mb-1.5">
                     {persona.icon}
                   </Typography>
                   <Typography
                     variant="caption"
                     weight="medium"
-                    color={theme.colors.textPrimary}
+                    className={`text-center ${
+                      colorScheme === 'dark' ? 'text-white' : 'text-gray-900'
+                    }`}
                     numberOfLines={1}
                   >
                     {persona.display_name}
@@ -363,19 +374,20 @@ export const PersonaPickerScreen = ({ navigation }: any) => {
           renderItem={renderPersonaCard}
           keyExtractor={(item) => item.id}
           numColumns={2}
-          contentContainerStyle={styles.grid}
-          columnWrapperStyle={styles.row}
+          contentContainerClassName="pb-10 pt-1"
+          columnWrapperClassName="justify-between mb-4"
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Typography variant="h1" style={styles.emptyIcon}>
+            <View className="items-center py-12 px-6">
+              <Typography variant="h1" className="text-6xl mb-4">
                 {showFavorites ? '🤍' : '🔍'}
               </Typography>
               <Typography
                 variant="h6"
                 weight="semibold"
-                color={theme.colors.textPrimary}
-                style={styles.emptyTitle}
+                className={`mb-2 text-center ${
+                  colorScheme === 'dark' ? 'text-white' : 'text-gray-900'
+                }`}
               >
                 {showFavorites 
                   ? 'No favorites yet' 
@@ -385,9 +397,9 @@ export const PersonaPickerScreen = ({ navigation }: any) => {
               </Typography>
               <Typography
                 variant="bodyMd"
-                color={theme.colors.textSecondary}
-                align="center"
-                style={styles.emptySubtitle}
+                className={`text-center mb-6 ${
+                  colorScheme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                }`}
               >
                 {showFavorites 
                   ? 'Star personas to add them to favorites' 
@@ -397,11 +409,11 @@ export const PersonaPickerScreen = ({ navigation }: any) => {
               </Typography>
               {!showFavorites && (
                 <TouchableOpacity
-                  style={[styles.createButton, { backgroundColor: theme.colors.brand['500'] }]}
+                  className="flex-row items-center justify-center py-3 px-4 bg-brand-500 rounded-xl"
                   onPress={handleCreatePersona}
                 >
-                  <Typography variant="bodyMd" style={styles.createIcon}>✨</Typography>
-                  <Typography variant="bodyMd" weight="semibold" color="#FFFFFF">
+                  <Typography variant="bodyMd" className="text-base mr-1.5">✨</Typography>
+                  <Typography variant="bodyMd" weight="semibold" className="text-white">
                     Create Custom Persona
                   </Typography>
                 </TouchableOpacity>
@@ -414,189 +426,4 @@ export const PersonaPickerScreen = ({ navigation }: any) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-    paddingBottom: 0, // Remove bottom padding since FlatList handles its own
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 16,
-    marginTop: 8, // Add top margin for proper spacing from navigation
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-  },
-  quickActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 20, // Increased margin for better separation
-  },
-  createButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    gap: 6,
-  },
-  createIcon: {
-    fontSize: 16,
-  },
-  favoritesButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    gap: 6,
-  },
-  favoritesIcon: {
-    fontSize: 16,
-  },
-  categoriesContainer: {
-    marginBottom: 24, // Reduced margin for better spacing
-    maxHeight: 60, // Set a fixed height to prevent overlap
-  },
-  categoriesContent: {
-    paddingHorizontal: 4,
-    paddingVertical: 8, // Slightly increased padding
-    alignItems: 'center',
-  },
-  categoryTab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10, // Slightly reduced padding
-    borderRadius: 25,
-    borderWidth: 1,
-    gap: 8,
-    minHeight: 40, // Reduced height to prevent overlap
-    marginRight: 8,
-    // Add shadow for better visibility
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  categoryIcon: {
-    fontSize: 16, // Slightly smaller icon
-  },
-  sectionContainer: {
-    marginBottom: 20, // Reduced margin
-  },
-  sectionTitle: {
-    marginBottom: 12,
-  },
-  recentContainer: {
-    paddingHorizontal: 0,
-    gap: 12,
-  },
-  recentCard: {
-    padding: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-    width: 80,
-    gap: 6,
-  },
-  recentIcon: {
-    fontSize: 24,
-  },
-  grid: {
-    paddingBottom: 40,
-    paddingTop: 4, // Reduced top padding
-  },
-  row: {
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  card: {
-    marginBottom: 16,
-  },
-  cardSurface: {
-    borderRadius: 16,
-    minHeight: 180,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  lockedCard: {
-    opacity: 0.7,
-  },
-  iconContainer: {
-    position: 'relative',
-    marginBottom: 12,
-  },
-  icon: {
-    fontSize: 48,
-    lineHeight: 56,
-  },
-  lockIcon: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    fontSize: 16,
-  },
-  favoriteIcon: {
-    position: 'absolute',
-    top: -8,
-    left: -8,
-    fontSize: 16,
-  },
-  description: {
-    marginTop: 4,
-    marginBottom: 8,
-  },
-  model: {
-    marginTop: 4,
-  },
-  premiumText: {
-    marginTop: 4,
-    fontWeight: '600',
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 48,
-    paddingHorizontal: 24,
-  },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  cardTitle: {
-    marginBottom: 8,
-  },
-  emptyTitle: {
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-});
+// Styles are now handled by TailwindCSS

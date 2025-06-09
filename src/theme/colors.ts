@@ -113,3 +113,130 @@ export const colors = {
 
 export type ColorScheme = keyof typeof colors;
 export type ColorTokens = typeof colors.light;
+
+// TailwindCSS class utilities for theme colors
+export const tailwindColors = {
+  // Brand colors
+  brand: {
+    bg: {
+      50: 'bg-brand-50',
+      100: 'bg-brand-100',
+      200: 'bg-brand-200',
+      300: 'bg-brand-300',
+      400: 'bg-brand-400',
+      500: 'bg-brand-500',
+      600: 'bg-brand-600',
+      700: 'bg-brand-700',
+      800: 'bg-brand-800',
+      900: 'bg-brand-900',
+    },
+    text: {
+      50: 'text-brand-50',
+      100: 'text-brand-100',
+      200: 'text-brand-200',
+      300: 'text-brand-300',
+      400: 'text-brand-400',
+      500: 'text-brand-500',
+      600: 'text-brand-600',
+      700: 'text-brand-700',
+      800: 'text-brand-800',
+      900: 'text-brand-900',
+    },
+    border: {
+      50: 'border-brand-50',
+      100: 'border-brand-100',
+      200: 'border-brand-200',
+      300: 'border-brand-300',
+      400: 'border-brand-400',
+      500: 'border-brand-500',
+      600: 'border-brand-600',
+      700: 'border-brand-700',
+      800: 'border-brand-800',
+      900: 'border-brand-900',
+    }
+  },
+  // Accent colors
+  accent: {
+    bg: {
+      50: 'bg-accent-50',
+      100: 'bg-accent-100',
+      200: 'bg-accent-200',
+      300: 'bg-accent-300',
+      400: 'bg-accent-400',
+      500: 'bg-accent-500',
+      600: 'bg-accent-600',
+      700: 'bg-accent-700',
+      800: 'bg-accent-800',
+      900: 'bg-accent-900',
+    },
+    text: {
+      50: 'text-accent-50',
+      100: 'text-accent-100',
+      200: 'text-accent-200',
+      300: 'text-accent-300',
+      400: 'text-accent-400',
+      500: 'text-accent-500',
+      600: 'text-accent-600',
+      700: 'text-accent-700',
+      800: 'text-accent-800',
+      900: 'text-accent-900',
+    },
+    border: {
+      50: 'border-accent-50',
+      100: 'border-accent-100',
+      200: 'border-accent-200',
+      300: 'border-accent-300',
+      400: 'border-accent-400',
+      500: 'border-accent-500',
+      600: 'border-accent-600',
+      700: 'border-accent-700',
+      800: 'border-accent-800',
+      900: 'border-accent-900',
+    }
+  },
+  // Danger colors
+  danger: {
+    bg: {
+      50: 'bg-danger-50',
+      100: 'bg-danger-100',
+      200: 'bg-danger-200',
+      300: 'bg-danger-300',
+      400: 'bg-danger-400',
+      500: 'bg-danger-500',
+      600: 'bg-danger-600',
+      700: 'bg-danger-700',
+      800: 'bg-danger-800',
+      900: 'bg-danger-900',
+    },
+    text: {
+      50: 'text-danger-50',
+      100: 'text-danger-100',
+      200: 'text-danger-200',
+      300: 'text-danger-300',
+      400: 'text-danger-400',
+      500: 'text-danger-500',
+      600: 'text-danger-600',
+      700: 'text-danger-700',
+      800: 'text-danger-800',
+      900: 'text-danger-900',
+    },
+    border: {
+      50: 'border-danger-50',
+      100: 'border-danger-100',
+      200: 'border-danger-200',
+      300: 'border-danger-300',
+      400: 'border-danger-400',
+      500: 'border-danger-500',
+      600: 'border-danger-600',
+      700: 'border-danger-700',
+      800: 'border-danger-800',
+      900: 'border-danger-900',
+    }
+  }
+} as const;
+
+// Utility function to get Tailwind class for theme-aware colors
+export const getThemeClass = (colorScheme: ColorScheme, property: 'bg' | 'text' | 'border', baseClass: string) => {
+  const isDark = colorScheme === 'dark';
+  return isDark ? `dark:${baseClass}` : baseClass;
+};

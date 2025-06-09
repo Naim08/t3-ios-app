@@ -14,7 +14,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useTheme } from '../components/ThemeProvider';
 import { usePersona } from '../context/PersonaContext';
-import { Typography, Surface, PrimaryButton, AILoadingAnimation } from '../ui/atoms';
+import { Typography, Surface, AILoadingAnimation } from '../ui/atoms';
 import { ConversationService, ConversationWithPersona } from '../services/conversationService';
 
 // Use the centralized Conversation interface

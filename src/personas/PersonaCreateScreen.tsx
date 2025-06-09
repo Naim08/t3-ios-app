@@ -74,7 +74,7 @@ const EMOJI_SUGGESTIONS = [
 
 export const PersonaCreateScreen = ({ navigation, route }: any) => {
   console.log('🎭 PersonaCreateScreen rendering');
-  const { theme } = useTheme();
+  const { theme, colorScheme } = useTheme();
   const { categories, refreshPersonaData } = usePersona();
   const [loading, setLoading] = useState(false);
   
@@ -209,33 +209,32 @@ export const PersonaCreateScreen = ({ navigation, route }: any) => {
   const renderTemplateCard = (template: PersonaTemplate) => (
     <TouchableOpacity
       key={template.id}
-      style={[
-        styles.templateCard,
-        {
-          backgroundColor: theme.colors.surface,
-          borderColor: selectedTemplate?.id === template.id 
-            ? theme.colors.brand['500'] 
-            : theme.colors.border,
-        }
-      ]}
+      className={`p-4 rounded-2xl border-2 mb-4 ${
+        selectedTemplate?.id === template.id
+          ? 'border-brand-500'
+          : colorScheme === 'dark'
+            ? 'border-gray-700 bg-gray-800'
+            : 'border-gray-200 bg-white'
+      }`}
       onPress={() => handleTemplateSelect(template)}
     >
-      <Typography variant="h2" style={styles.templateIcon}>
+      <Typography variant="h2" className="text-4xl text-center mb-3">
         {template.icon}
       </Typography>
       <Typography
         variant="h6"
         weight="semibold"
-        color={theme.colors.textPrimary}
-        style={styles.templateName}
+        className={`text-center mb-2 ${
+          colorScheme === 'dark' ? 'text-white' : 'text-gray-900'
+        }`}
       >
         {template.name}
       </Typography>
       <Typography
         variant="bodySm"
-        color={theme.colors.textSecondary}
-        align="center"
-        style={styles.templateDescription}
+        className={`text-center ${
+          colorScheme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+        }`}
       >
         {template.description}
       </Typography>
@@ -243,22 +242,24 @@ export const PersonaCreateScreen = ({ navigation, route }: any) => {
   );
 
   const renderEmojiPicker = () => (
-    <View style={[styles.emojiPicker, { backgroundColor: theme.colors.surface }]}>
+    <View className={`p-3 rounded-xl mt-2 ${
+      colorScheme === 'dark' ? 'bg-gray-800' : 'bg-white'
+    }`}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.emojiGrid}
+        contentContainerClassName="gap-2"
       >
         {EMOJI_SUGGESTIONS.map((emoji, index) => (
           <TouchableOpacity
             key={index}
-            style={styles.emojiButton}
+            className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700"
             onPress={() => {
               setIcon(emoji);
               setShowEmojiPicker(false);
             }}
           >
-            <Typography variant="h4">{emoji}</Typography>
+            <Typography variant="h4" className="text-2xl">{emoji}</Typography>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -266,30 +267,32 @@ export const PersonaCreateScreen = ({ navigation, route }: any) => {
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView className={`flex-1 ${
+      colorScheme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'
+    }`}>
       <KeyboardAvoidingView 
-        style={styles.container} 
+        className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
 
         {/* Progress Indicator */}
-        <View style={styles.progressContainer}>
+        <View className="flex-row justify-center items-center py-4 px-6">
           {['template', 'details', 'tools', 'prompt'].map((stepName, index) => (
-            <View key={stepName} style={styles.progressItem}>
+            <View key={stepName} className="flex-1 items-center">
               <View
-                style={[
-                  styles.progressDot,
-                  {
-                    backgroundColor: step === stepName || index < ['template', 'details', 'tools', 'prompt'].indexOf(step)
-                      ? theme.colors.brand['500']
-                      : theme.colors.border,
-                  }
-                ]}
+                className={`w-3 h-3 rounded-full ${
+                  step === stepName || index < ['template', 'details', 'tools', 'prompt'].indexOf(step)
+                    ? 'bg-brand-500'
+                    : colorScheme === 'dark' ? 'bg-gray-700' : 'bg-gray-300'
+                }`}
               />
               <Typography
                 variant="caption"
-                color={step === stepName ? theme.colors.brand['500'] : theme.colors.textSecondary}
-                style={styles.progressLabel}
+                className={`mt-1 text-center ${
+                  step === stepName 
+                    ? 'text-brand-500' 
+                    : colorScheme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                }`}
               >
                 {stepName === 'template' ? 'Template' : 
                  stepName === 'details' ? 'Details' : 

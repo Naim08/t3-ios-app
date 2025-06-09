@@ -123,6 +123,39 @@ export const AI_MODELS: ModelOption[] = [
     provider: 'google',
     category: 'advanced',
   },
+  // Additional Gemini models from official API
+  {
+    id: 'gemini-2.5-flash-preview-05-20',
+    name: 'Gemini 2.5 Flash Preview (05-20)',
+    description: 'Specific preview version of Gemini 2.5 Flash',
+    isPremium: false,
+    provider: 'google',
+    category: 'advanced',
+  },
+  {
+    id: 'gemini-2.5-pro-preview-06-05',
+    name: 'Gemini 2.5 Pro Preview (06-05)',
+    description: 'Specific preview version of Gemini 2.5 Pro',
+    isPremium: false,
+    provider: 'google',
+    category: 'advanced',
+  },
+  {
+    id: 'gemini-embedding-exp-03-07',
+    name: 'Gemini Embedding Experimental',
+    description: 'Experimental embedding model',
+    isPremium: false,
+    provider: 'google',
+    category: 'fast',
+  },
+  {
+    id: 'aqa',
+    name: 'Attributed QA',
+    description: 'Attributed Question-Answering model',
+    isPremium: false,
+    provider: 'google',
+    category: 'balanced',
+  },
 ];
 
 // Convenience functions

@@ -1,7 +1,7 @@
 // Tools router - routes to individual tool implementations
 import { getWeatherData } from './weather.ts'
 import { searchWikipedia } from './wiki.ts'
-import { planTrip } from './tripplanner.ts'
+import { createTripPlan } from './tripplanner.ts'
 import { getNutritionData } from './nutrition.ts'
 import { convertUnits } from './convert.ts'
 import { searchFlights } from './flights.ts'
@@ -97,9 +97,9 @@ Deno.serve(async (req: Request) => {
         break
         
       case 'tripplanner':
-        console.log('🔧 TOOLS: Calling planTrip with params:', requestData)
+        console.log('🔧 TOOLS: Calling createTripPlan with params:', requestData)
         try {
-          result = await planTrip(requestData)
+          result = await createTripPlan(requestData)
           console.log('🔧 TOOLS: Trip Planner result:', JSON.stringify(result, null, 2))
         } catch (error) {
           console.error('🔧 TOOLS: Trip Planner function error:', error)

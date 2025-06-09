@@ -1,12 +1,14 @@
 const { getSentryExpoConfig } = require('@sentry/react-native/metro');
 const { getDefaultConfig } = require('expo/metro-config');
+const { withNativeWind } = require('nativewind/metro');
 
-// Start with Sentry config  
-const config = getSentryExpoConfig(__dirname);
+// Start with the base default config
+const config = getDefaultConfig(__dirname);
 
-// Merge with Expo default config
-const defaultConfig = getDefaultConfig(__dirname);
-config.resolver = { ...defaultConfig.resolver, ...config.resolver };
+// Apply Sentry configuration
+const sentryConfig = getSentryExpoConfig(__dirname);
+config.transformer = { ...config.transformer, ...sentryConfig.transformer };
+config.serializer = { ...config.serializer, ...sentryConfig.serializer };
 
 // Fix for Supabase realtime-js package exports issue
 // See: https://github.com/supabase/realtime-js/issues/415
@@ -21,11 +23,6 @@ config.resolver.alias = {
 };
 
 config.resolver.platforms = ['native', 'android', 'ios', 'web'];
-
-// Hermes source map configuration for better debugging
-config.serializer = {
-  ...config.serializer,
-};
 
 // Enable source maps in production for Hermes
 if (process.env.NODE_ENV === 'production') {
@@ -44,4 +41,4 @@ if (process.env.NODE_ENV === 'production') {
   };
 }
 
-module.exports = config;
+module.exports = withNativeWind(config, { input: './global.css' });

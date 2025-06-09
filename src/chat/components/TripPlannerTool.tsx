@@ -1,560 +1,361 @@
+// src/chat/components/TripPlannerTool.tsx
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Dimensions,
-} from 'react-native';
-import MapView, { Marker, Polyline } from 'react-native-maps';
+
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
+
+import { Typography, PrimaryButton } from '../../ui/atoms';
+import { TimelineItem } from '../../ui/molecules';
 import { useTheme } from '../../components/ThemeProvider';
-import { TripPlannerResponse, Location, FlightOption, Accommodation, DaySchedule } from '../types';
+import { TripPlannerResponse } from '../types';
 
 interface TripPlannerToolProps {
-  tripPlan: TripPlannerResponse;
+  data: TripPlannerResponse;
+  onClose?: () => void;
+  compact?: boolean;
+  onFullScreenMap?: (data: TripPlannerResponse) => void;
 }
 
-const { width } = Dimensions.get('window');
-
-const TripPlannerTool: React.FC<TripPlannerToolProps> = ({ tripPlan }) => {
+export const TripPlannerTool: React.FC<TripPlannerToolProps> = ({ 
+  data, 
+  onClose, 
+  compact = false,
+  onFullScreenMap 
+}) => {
   const { theme } = useTheme();
-  const [activeTab, setActiveTab] = useState<
-    'overview' | 'itinerary' | 'flights' | 'accommodations'
-  >('overview');
+  const [selectedActivity, setSelectedActivity] = useState<any | null>(null);
+  const [selectedDay, setSelectedDay] = useState(0);
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      weekday: 'short',
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
+  // Define styles early to avoid "used before declaration" error
+  const styles = StyleSheet.create({
+    container: {
+      backgroundColor: 'transparent',
+      overflow: 'hidden',
+      marginVertical: 0,
+    },
+    header: {
+      paddingHorizontal: 0,
+      paddingVertical: 8,
+    },
+    title: {
+      fontSize: compact ? 16 : 18,
+      fontWeight: '600',
+      color: theme.colors.textPrimary,
+      marginBottom: 4,
+    },
+    subtitle: {
+      fontSize: 14,
+      color: theme.colors.textSecondary,
+      marginBottom: 8,
+    },
+    tabContainer: {
+      flexDirection: 'row',
+      marginTop: 8,
+    },
+    tab: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 20,
+      marginRight: 8,
+      backgroundColor: theme.colors.background,
+    },
+    activeTab: {
+      backgroundColor: theme.colors.brand['500'],
+    },
+    tabText: {
+      fontSize: 14,
+      color: theme.colors.textSecondary,
+      fontWeight: '500',
+    },
+    activeTabText: {
+      color: '#FFFFFF',
+    },
+    content: {
+      minHeight: 200,
+    },
+    mapContainer: {
+      height: compact ? 250 : 350,
+    },
+    scrollContent: {
+      paddingHorizontal: 0,
+      paddingVertical: 8,
+    },
+    summary: {
+      padding: 16,
+      backgroundColor: theme.colors.background,
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.border,
+    },
+    summaryRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: 4,
+    },
+    summaryLabel: {
+      fontSize: 14,
+      color: theme.colors.textSecondary,
+    },
+    summaryValue: {
+      fontSize: 14,
+      color: theme.colors.textPrimary,
+      fontWeight: '500',
+    },
+    errorText: {
+      color: theme.colors.danger['500'],
+      textAlign: 'center',
+      padding: 16,
+    },
+    daySelector: {
+      flexDirection: 'row',
+      paddingHorizontal: 0,
+      paddingVertical: 8,
+    },
+    dayButton: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 12,
+      marginRight: 8,
+      backgroundColor: theme.colors.surface,
+    },
+    activeDayButton: {
+      backgroundColor: theme.colors.brand['500'],
+    },
+    dayButtonText: {
+      fontSize: 12,
+      color: theme.colors.textSecondary,
+    },
+    activeDayButtonText: {
+      color: '#FFFFFF',
+    },
+    emptyState: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 32,
+    },
+    emptyStateText: {
+      fontSize: 14,
+      color: theme.colors.textSecondary,
+      textAlign: 'center',
+    },
+    fullScreenButton: {
+      position: 'absolute',
+      top: 12,
+      right: 12,
+      backgroundColor: theme.colors.surface,
+      borderRadius: 20,
+      width: 36,
+      height: 36,
+      justifyContent: 'center',
+      alignItems: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    fullScreenButtonText: {
+      fontSize: 16,
+      color: theme.colors.textPrimary,
+    },
+  });
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
-  };
-
-  const formatTime = (timeString: string) => {
-    return new Date(`1970-01-01T${timeString}`).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
-  };
-
-  const renderTabButton = (
-    tab: 'overview' | 'itinerary' | 'flights' | 'accommodations',
-    label: string,
-  ) => {
-    const isActive = activeTab === tab;
+  // Ensure we have valid data
+  if (!data || !data.destinations || data.destinations.length === 0) {
     return (
-      <TouchableOpacity
-        key={tab}
-        style={[
-          styles.tabButton,
-          { borderBottomColor: theme.colors.border },
-          isActive && { borderBottomColor: theme.colors.brand['500'] },
-        ]}
-        onPress={() => setActiveTab(tab)}
-      >
-        <Text
-          style={[
-            styles.tabButtonText,
-            { color: theme.colors.textSecondary },
-            isActive && { color: theme.colors.brand['500'] },
-          ]}
-        >
-          {label}
-        </Text>
-      </TouchableOpacity>
-    );
-  };
-
-  const DestinationCard: React.FC<{ destination: Location }> = ({ destination }) => {
-    return (
-      <View
-        style={[styles.card, { backgroundColor: theme.colors.surface }]}
-      >
-        <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
-          {destination.name}
-        </Text>
-        <Text
-          style={[styles.cardSubtitle, { color: theme.colors.textSecondary }]}
-        >
-          {destination.country}
-        </Text>
-        {destination.description && (
-          <Text
-            style={[styles.cardDescription, { color: theme.colors.textSecondary }]}
-          >
-            {destination.description}
-          </Text>
-        )}
+      <View style={[styles.container, { backgroundColor: theme.colors.surface, padding: 16 }]}>
+        <Typography variant="bodyMd" style={[styles.errorText as any, { color: theme.colors.danger['500'] }]}>
+          No trip data available
+        </Typography>
       </View>
     );
+  }
+
+  // Get current day's activities
+  const currentDaySchedule = data.daily_itinerary?.[selectedDay];
+  const activities = currentDaySchedule?.activities || [];
+
+  // Map activity types to match TimelineItem expectations
+  const mapActivityType = (type?: string): 'sightseeing' | 'adventure' | 'cultural' | 'entertainment' | 'dining' | 'shopping' | 'relaxation' => {
+    const typeMap: Record<string, 'sightseeing' | 'adventure' | 'cultural' | 'entertainment' | 'dining' | 'shopping' | 'relaxation'> = {
+      'sightseeing': 'sightseeing',
+      'attraction': 'sightseeing',
+      'adventure': 'adventure',
+      'cultural': 'cultural',
+      'museum': 'cultural',
+      'entertainment': 'entertainment',
+      'dining': 'dining',
+      'restaurant': 'dining',
+      'breakfast': 'dining',
+      'lunch': 'dining',
+      'dinner': 'dining',
+      'shopping': 'shopping',
+      'relaxation': 'relaxation',
+      'spa': 'relaxation',
+      'beach': 'relaxation',
+    };
+    
+    const lowerType = type?.toLowerCase() || '';
+    return typeMap[lowerType] || 'sightseeing';
   };
 
-  const FlightCard: React.FC<{ flight: FlightOption }> = ({ flight }) => {
-    return (
-      <View
-        style={[styles.card, { backgroundColor: theme.colors.surface }]}
-      >
-        <View style={styles.flightHeader}>
-          <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
-            {flight.airline}
-          </Text>
-          <Text style={[styles.priceText, { color: theme.colors.brand['500'] }]}>
-            {formatCurrency(flight.price.amount)}
-          </Text>
-        </View>
-        <View style={styles.flightRoute}>
-          <View style={styles.flightSegment}>
-            <Text style={[styles.airportCode, { color: theme.colors.textPrimary }]}>
-              {flight.departure.airport}
-            </Text>
-            <Text
-              style={[styles.timeText, { color: theme.colors.textSecondary }]}
-            >
-              {formatTime(flight.departure.time)}
-            </Text>
-          </View>
-          <View style={styles.flightArrow}>
-            <Text
-              style={[
-                styles.flightArrowText,
-                { color: theme.colors.textSecondary },
-              ]}
-            >
-              →
-            </Text>
-            <Text
-              style={[styles.durationText, { color: theme.colors.textSecondary }]}
-            >
-              {flight.duration}
-            </Text>
-          </View>
-          <View style={styles.flightSegment}>
-            <Text style={[styles.airportCode, { color: theme.colors.textPrimary }]}>
-              {flight.arrival.airport}
-            </Text>
-            <Text
-              style={[styles.timeText, { color: theme.colors.textSecondary }]}
-            >
-              {formatTime(flight.arrival.time)}
-            </Text>
-          </View>
-        </View>
-        <Text style={[styles.dateText, { color: theme.colors.textSecondary }]}>
-          {formatDate(flight.departure.date)}
-        </Text>
-      </View>
-    );
-  };
+  // Convert activities to timeline format matching the TimelineItem interface
+  const timelineActivities = activities.map((activity, index) => {
+    return {
+      name: activity.name,
+      type: mapActivityType(activity.type),
+      duration: activity.duration || '2 hours',
+      description: activity.description || '',
+      location: activity.location || data.destinations[index]?.name || '',
+      estimated_cost: activity.estimated_cost,
+    };
+  });
 
-  const AccommodationCard: React.FC<{ accommodation: Accommodation }> = ({ 
-    accommodation 
-  }) => {
-    return (
-      <View
-        style={[styles.card, { backgroundColor: theme.colors.surface }]}
-      >
-        <View style={styles.accommodationHeader}>
-          <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
-            {accommodation.name}
-          </Text>
-          <Text style={[styles.priceText, { color: theme.colors.brand['500'] }]}>
-            {formatCurrency(accommodation.price_per_night.amount)}/night
-          </Text>
-        </View>
-        <Text
-          style={[styles.cardSubtitle, { color: theme.colors.textSecondary }]}
-        >
-          {accommodation.type} • {accommodation.rating}⭐
-        </Text>
-        <Text
-          style={[styles.cardDescription, { color: theme.colors.textSecondary }]}
-        >
-          {accommodation.description}
-        </Text>
-        <Text
-          style={[styles.cardDescription, { color: theme.colors.textSecondary }]}
-        >
-          Location: {accommodation.location}
-        </Text>
-      </View>
-    );
-  };
+  // Get corresponding locations with timing  
+  const locationsWithTiming = data.destinations.map((dest, index) => ({
+    ...dest,
+    time: (dest as any).time || `${(9 + index).toString().padStart(2, '0')}:00`,
+    duration: (dest as any).duration || '1-2 hours',
+    sequence: (dest as any).sequence || index + 1,
+    category: (dest as any).category || 'attraction',
+  }));
 
-  const DayCard: React.FC<{ day: DaySchedule }> = ({ day }) => {
-    return (
-      <View
-        style={[styles.card, { backgroundColor: theme.colors.surface }]}
-      >
-        <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
-          Day {day.day}: {formatDate(day.date)}
-        </Text>
-        <Text
-          style={[styles.cardSubtitle, { color: theme.colors.textSecondary }]}
-        >
-          {day.location}
-        </Text>
-        {day.weather && (
-          <Text
-            style={[styles.weatherText, { color: theme.colors.textSecondary }]}
-          >
-            Weather: {day.weather.condition}, High: {day.weather.temperature.high}°{day.weather.temperature.unit}
-          </Text>
-        )}
-        {day.activities.map((activity, index) => (
-          <View key={index} style={styles.activityContainer}>
-            <View style={styles.activityContent}>
-              <Text style={[styles.activityTitle, { color: theme.colors.textPrimary }]}>
-                {activity.name}
-              </Text>
-              <Text
-                style={[
-                  styles.activityDescription,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                {activity.description}
-              </Text>
-              <Text
-                style={[
-                  styles.activityDuration,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                Duration: {activity.duration}
-              </Text>
-            </View>
-          </View>
-        ))}
-      </View>
-    );
-  };
 
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'overview':
-        return (
-          <View>
-            <View
-              style={[
-                styles.summaryCard,
-                { backgroundColor: theme.colors.surface },
-              ]}
-            >
-              <Text style={[styles.summaryTitle, { color: theme.colors.textPrimary }]}>
-                Trip to {tripPlan.destinations.map(d => d.name).join(', ')}
-              </Text>
-              <Text
-                style={[
-                  styles.summaryDuration,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                {tripPlan.trip_summary.duration_days} days
-              </Text>
-              <Text
-                style={[styles.summaryBudget, { color: theme.colors.brand['500'] }]}
-              >
-                Total Budget: {formatCurrency(tripPlan.trip_summary.total_estimated_cost.amount)}
-              </Text>
-            </View>
 
-            {tripPlan.destinations.length > 0 && (
-              <View style={styles.mapContainer}>
-                <MapView
-                  style={styles.map}
-                  region={{
-                    latitude: tripPlan.destinations[0].coordinates.latitude,
-                    longitude: tripPlan.destinations[0].coordinates.longitude,
-                    latitudeDelta: 0.05,
-                    longitudeDelta: 0.05,
-                  }}
-                  showsUserLocation={false}
-                  showsMyLocationButton={false}
-                >
-                  {tripPlan.destinations.map((destination, index) => (
-                    <Marker
-                      key={index}
-                      coordinate={destination.coordinates}
-                      title={destination.name}
-                      description={destination.country}
-                    />
-                  ))}
-                  {tripPlan.destinations.length > 1 && (
-                    <Polyline
-                      coordinates={tripPlan.destinations.map(d => d.coordinates)}
-                      strokeColor={theme.colors.brand['500']}
-                      strokeWidth={2}
-                    />
-                  )}
-                </MapView>
-              </View>
-            )}
-
-            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
-              Destinations
-            </Text>
-            {tripPlan.destinations.map((destination, index) => (
-              <DestinationCard key={index} destination={destination} />
-            ))}
-          </View>
-        );
-
-      case 'itinerary':
-        return (
-          <View>
-            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
-              Daily Itinerary
-            </Text>
-            {tripPlan.daily_itinerary?.map((day, index) => (
-              <DayCard key={index} day={day} />
-            )) || (
-              <Text style={[styles.cardDescription, { color: theme.colors.textSecondary }]}>
-                No itinerary available
-              </Text>
-            )}
-          </View>
-        );
-
-      case 'flights':
-        return (
-          <View>
-            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
-              Flight Information
-            </Text>
-            {tripPlan.flights?.outbound.map((flight, index) => (
-              <FlightCard key={`outbound-${index}`} flight={flight} />
-            )) || null}
-            {tripPlan.flights?.return?.map((flight, index) => (
-              <FlightCard key={`return-${index}`} flight={flight} />
-            )) || null}
-            {tripPlan.flights?.internal?.map((flight, index) => (
-              <FlightCard key={`internal-${index}`} flight={flight} />
-            )) || null}
-            {!tripPlan.flights && (
-              <Text style={[styles.cardDescription, { color: theme.colors.textSecondary }]}>
-                No flight information available
-              </Text>
-            )}
-          </View>
-        );
-
-      case 'accommodations':
-        return (
-          <View>
-            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
-              Accommodations
-            </Text>
-            {tripPlan.accommodations?.map((accommodation, index) => (
-              <AccommodationCard key={index} accommodation={accommodation} />
-            )) || (
-              <Text style={[styles.cardDescription, { color: theme.colors.textSecondary }]}>
-                No accommodation information available
-              </Text>
-            )}
-          </View>
-        );
-
-      default:
-        return null;
+  const handleFullScreenMap = () => {
+    if (onFullScreenMap) {
+      onFullScreenMap(data);
     }
   };
 
+  const handleActivityPress = (activity: any) => {
+    console.log(`🔍 TripPlanner: Clicked activity ${activity.name}`);
+    // Just toggle selection, no expansion needed since text is always visible
+    setSelectedActivity(prev => {
+      const newSelection = prev?.name === activity.name ? null : activity;
+      console.log(`🔍 TripPlanner: Selected activity changed from "${prev?.name}" to "${newSelection?.name}"`);
+      return newSelection;
+    });
+  };
+
+  const totalCost = data.trip_summary?.total_estimated_cost;
+  const displayCost = totalCost 
+    ? `${totalCost.currency} ${totalCost.amount}`
+    : 'Cost not available';
+
   return (
-    <View
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
-    >
-      <View
-        style={[
-          styles.tabContainer,
-          { borderBottomColor: theme.colors.border },
-        ]}
-      >
-        {renderTabButton('overview', 'Overview')}
-        {renderTabButton('itinerary', 'Itinerary')}
-        {renderTabButton('flights', 'Flights')}
-        {renderTabButton('accommodations', 'Hotels')}
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Typography style={styles.title}>
+          🗺️ {data.trip_summary?.duration_days === 1 ? 'Day Trip' : `${data.trip_summary?.duration_days || 1} Day Trip`}
+        </Typography>
+        <Typography style={styles.subtitle}>
+          {data.destinations.length} locations • {displayCost}
+        </Typography>
+
+
       </View>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {renderTabContent()}
-      </ScrollView>
+
+      {/* Day Selector (for multi-day trips) */}
+      {data.daily_itinerary && data.daily_itinerary.length > 1 && (
+        <View style={styles.daySelector}>
+          {data.daily_itinerary.map((day, index) => (
+            <TouchableOpacity
+              key={index}
+              style={[styles.dayButton, selectedDay === index && styles.activeDayButton]}
+              onPress={() => setSelectedDay(index)}
+            >
+              <Typography style={[styles.dayButtonText as any, selectedDay === index && styles.activeDayButtonText]}>
+                Day {day.day}
+              </Typography>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {/* Content */}
+      <View style={styles.content} onLayout={(event) => {
+        const { height } = event.nativeEvent.layout;
+        console.log(`🔍 TripPlanner content height: ${height}px`);
+      }}>
+        <View style={styles.scrollContent}>
+          {timelineActivities.length > 0 ? (
+            timelineActivities.map((activity, index) => {
+              const time = locationsWithTiming[index]?.time || `${(9 + index).toString().padStart(2, '0')}:00`;
+              return (
+                <TimelineItem
+                  key={`${activity.name}-${index}`}
+                  activity={activity}
+                  time={time}
+                  sequence={index + 1}
+                  isLast={index === timelineActivities.length - 1}
+                  onPress={handleActivityPress}
+                  showCost={true}
+                  isSelected={selectedActivity?.name === activity.name}
+                />
+              );
+            })
+          ) : (
+            <View style={styles.emptyState}>
+              <Typography style={styles.emptyStateText}>
+                No activities planned for this day
+              </Typography>
+            </View>
+          )}
+        </View>
+      </View>
+
+      {/* Trip Summary */}
+      {data.trip_summary && (
+        <View style={styles.summary}>
+          {data.trip_summary.recommended_duration && (
+            <View style={styles.summaryRow}>
+              <Typography style={styles.summaryLabel}>Duration:</Typography>
+              <Typography style={styles.summaryValue}>
+                {data.trip_summary.recommended_duration}
+              </Typography>
+            </View>
+          )}
+          <View style={styles.summaryRow}>
+            <Typography style={styles.summaryLabel}>Estimated Cost:</Typography>
+            <Typography style={styles.summaryValue}>
+              {displayCost}
+            </Typography>
+          </View>
+          {data.trip_summary.best_time_to_visit && (
+            <View style={styles.summaryRow}>
+              <Typography style={styles.summaryLabel}>Best Time:</Typography>
+              <Typography style={styles.summaryValue}>
+                {data.trip_summary.best_time_to_visit}
+              </Typography>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* View Map Button */}
+      {onFullScreenMap && (
+        <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: onClose ? 8 : 16 }}>
+          <PrimaryButton
+            onPress={handleFullScreenMap}
+            title="🗺️ View Map"
+            variant="primary"
+          />
+        </View>
+      )}
+
+      {/* Close Button (if onClose provided) */}
+      {onClose && (
+        <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
+          <PrimaryButton
+            onPress={onClose}
+            title="Close"
+            variant="secondary"
+          />
+        </View>
+      )}
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    minHeight: 600,
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    paddingTop: 16,
-  },
-  tabButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-    alignItems: 'center',
-  },
-  tabButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-  },
-  summaryCard: {
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 20,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  summaryTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  summaryDuration: {
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  summaryBudget: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  mapContainer: {
-    height: 200,
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 20,
-  },
-  map: {
-    flex: 1,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    marginTop: 8,
-  },
-  card: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  cardSubtitle: {
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  cardDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  weatherText: {
-    fontSize: 12,
-    fontStyle: 'italic',
-    marginBottom: 8,
-  },
-  flightHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  flightRoute: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  flightSegment: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  flightArrow: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  airportCode: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 2,
-  },
-  timeText: {
-    fontSize: 12,
-  },
-  flightArrowText: {
-    fontSize: 20,
-    marginBottom: 2,
-  },
-  durationText: {
-    fontSize: 10,
-  },
-  dateText: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  priceText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  accommodationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  activityContainer: {
-    flexDirection: 'row',
-    marginBottom: 12,
-    paddingTop: 8,
-  },
-  activityContent: {
-    flex: 1,
-  },
-  activityTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  activityDescription: {
-    fontSize: 12,
-    lineHeight: 16,
-    marginBottom: 2,
-  },
-  activityDuration: {
-    fontSize: 10,
-    fontStyle: 'italic',
-  },
-});
 
 export default TripPlannerTool;

@@ -1,23 +1,39 @@
 
+import React, { useState, useEffect } from 'react';
 import {
   View,
-  StyleSheet,
   SafeAreaView,
   TouchableOpacity,
-  Text,
   Alert,
   Switch,
   ScrollView,
   Linking,
   Modal,
 } from 'react-native';
+import { 
+  Palette, 
+  User, 
+  CreditCard, 
+  BarChart3, 
+  Bell, 
+  Bot,
+  Star,
+  MessageCircle,
+  Shield,
+  FileText,
+  Info,
+  Search,
+  Wrench,
+  Stethoscope,
+  LogOut,
+  ChevronRight
+} from 'lucide-react-native';
 import { useTheme } from '../components/ThemeProvider';
-import { Typography, Surface, Avatar } from '../ui/atoms';
+import { Typography, Avatar } from '../ui/atoms';
 import { useAuth } from '../providers/AuthProvider';
 import { useProfile } from '../hooks/useProfile';
 import { AvatarPicker } from '../components/AvatarPicker';
 import { ThemeToggle } from '../components/ThemeToggle';
-import { useState, useEffect } from 'react';
 
 interface SettingsScreenProps {
   navigation: {
@@ -31,7 +47,7 @@ interface SettingRowProps {
   onPress?: () => void;
   rightElement?: React.ReactNode;
   showChevron?: boolean;
-  icon?: string;
+  icon?: React.ComponentType<any>; // Lucide icon component
 }
 
 const SettingRow = ({ 
@@ -42,53 +58,49 @@ const SettingRow = ({
   showChevron = false,
   icon 
 }: SettingRowProps) => {
-  const { theme } = useTheme();
+  const { theme, colorScheme } = useTheme();
   
   return (
     <TouchableOpacity 
-      style={[
-        styles.settingRow,
-        { borderBottomColor: theme.colors.border }
-      ]} 
+      className={`border-b ${colorScheme === 'dark' ? 'border-gray-700' : 'border-gray-200'} ${!onPress ? 'opacity-60' : ''}`}
       onPress={onPress}
       disabled={!onPress}
+      activeOpacity={0.7}
     >
-      <View style={styles.settingRowContent}>
+      <View className="flex-row items-center px-4 py-4 min-h-[52px]">
         {icon && (
-          <Typography 
-            variant="bodyLg" 
-            style={styles.settingIcon}
-          >
-            {icon}
-          </Typography>
+          <View className="mr-3 w-6 items-center justify-center">
+            {React.createElement(icon, { 
+              size: 20, 
+              color: colorScheme === 'dark' ? '#E5E7EB' : theme.colors.gray['600']
+            })}
+          </View>
         )}
-        <View style={styles.settingTextContainer}>
-          <Typography variant="bodyLg" weight="medium">
+        <View className="flex-1">
+          <Typography variant="bodyLg" weight="medium" className={colorScheme === 'dark' ? 'text-white' : 'text-gray-900'}>
             {title}
           </Typography>
           {subtitle && (
             <Typography 
               variant="bodySm" 
-              color={theme.colors.textSecondary}
-              style={styles.settingSubtitle}
+              className={`${colorScheme === 'dark' ? 'text-gray-400' : 'text-gray-500'} mt-0.5`}
             >
               {subtitle}
             </Typography>
           )}
         </View>
         {rightElement && (
-          <View style={styles.settingRightElement}>
+          <View className="ml-3">
             {rightElement}
           </View>
         )}
         {showChevron && (
-          <Typography 
-            variant="bodyLg" 
-            color={theme.colors.textSecondary}
-            style={styles.chevron}
-          >
-            ›
-          </Typography>
+          <View className="ml-2">
+            <ChevronRight 
+              size={16} 
+              color={colorScheme === 'dark' ? '#D1D5DB' : theme.colors.gray['500']} 
+            />
+          </View>
         )}
       </View>
     </TouchableOpacity>
@@ -102,21 +114,20 @@ const SettingSection = ({
   title: string; 
   children: React.ReactNode; 
 }) => {
-  const { theme } = useTheme();
+  const { colorScheme } = useTheme();
   
   return (
-    <View style={styles.sectionContainer}>
+    <View className="mb-6">
       <Typography 
         variant="bodySm" 
         weight="medium"
-        color={theme.colors.textSecondary}
-        style={styles.sectionTitle}
+        className={`${colorScheme === 'dark' ? 'text-gray-400' : 'text-gray-500'} mb-2 px-1 tracking-wider`}
       >
         {title.toUpperCase()}
       </Typography>
-      <Surface elevation={1} style={styles.section}>
+      <View className={`${colorScheme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-xl overflow-hidden shadow-sm border`}>
         {children}
-      </Surface>
+      </View>
     </View>
   );
 };
@@ -168,18 +179,16 @@ export const SettingsScreen = ({ navigation }: SettingsScreenProps) => {
   };
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
-    >
+    <SafeAreaView className={`flex-1 ${colorScheme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.content}
+        className="flex-1"
+        contentContainerClassName="p-5 pb-10"
         showsVerticalScrollIndicator={false}
       >
         <Typography 
           variant="h2" 
           weight="bold"
-          style={styles.title}
+          className={`${colorScheme === 'dark' ? 'text-white' : 'text-gray-900'} mb-6 px-1`}
         >
           Settings
         </Typography>
@@ -187,7 +196,7 @@ export const SettingsScreen = ({ navigation }: SettingsScreenProps) => {
         {/* Appearance Section */}
         <SettingSection title="Appearance">
           <SettingRow
-            icon="🎨"
+            icon={Palette}
             title="Theme"
             subtitle={colorScheme === 'light' ? 'Light mode' : 'Dark mode'}
             rightElement={
@@ -199,7 +208,7 @@ export const SettingsScreen = ({ navigation }: SettingsScreenProps) => {
         {/* Account Section */}
         <SettingSection title="Account">
           <SettingRow
-            icon="👤"
+            icon={User}
             title="Profile"
             subtitle={user?.email || 'Unknown user'}
             onPress={() => setShowAvatarPicker(true)}
@@ -214,14 +223,14 @@ export const SettingsScreen = ({ navigation }: SettingsScreenProps) => {
             showChevron
           />
           <SettingRow
-            icon="💳"
+            icon={CreditCard}
             title="Subscription"
             subtitle="Manage your plan"
             onPress={() => navigation.navigate('CreditsPurchase')}
             showChevron
           />
           <SettingRow
-            icon="📊"
+            icon={BarChart3}
             title="Usage Analytics"
             subtitle="View your token usage"
             onPress={() => navigation.navigate('TokenUsageAnalytics')}
@@ -232,7 +241,7 @@ export const SettingsScreen = ({ navigation }: SettingsScreenProps) => {
         {/* Preferences Section */}
         <SettingSection title="Preferences">
           <SettingRow
-            icon="🔔"
+            icon={Bell}
             title="Notifications"
             subtitle="Push notifications"
             rightElement={
@@ -240,15 +249,16 @@ export const SettingsScreen = ({ navigation }: SettingsScreenProps) => {
                 value={notifications}
                 onValueChange={setNotifications}
                 trackColor={{ 
-                  false: theme.colors.gray[300], 
-                  true: theme.colors.brand[500] 
+                  false: '#d1d5db', 
+                  true: '#3b82f6' 
                 }}
-                thumbColor={theme.colors.gray[50]}
+                thumbColor="#ffffff"
+                ios_backgroundColor="#d1d5db"
               />
             }
           />
           <SettingRow
-            icon="🤖"
+            icon={Bot}
             title="Personas"
             subtitle="Manage AI personas"
             onPress={() => navigation.navigate('PersonaPicker')}
@@ -259,33 +269,33 @@ export const SettingsScreen = ({ navigation }: SettingsScreenProps) => {
         {/* Support & About Section */}
         <SettingSection title="Support & About">
           <SettingRow
-            icon="⭐"
+            icon={Star}
             title="Rate App"
             subtitle="Help us improve"
             onPress={handleRateApp}
             showChevron
           />
           <SettingRow
-            icon="💬"
+            icon={MessageCircle}
             title="Contact Support"
             subtitle="Get help"
             onPress={handleSupport}
             showChevron
           />
           <SettingRow
-            icon="🔒"
+            icon={Shield}
             title="Privacy Policy"
             onPress={handlePrivacyPolicy}
             showChevron
           />
           <SettingRow
-            icon="📋"
+            icon={FileText}
             title="Terms of Service"
             onPress={handleTermsOfService}
             showChevron
           />
           <SettingRow
-            icon="ℹ️"
+            icon={Info}
             title="App Version"
             subtitle={appVersion || '1.0.0'}
           />
@@ -295,21 +305,21 @@ export const SettingsScreen = ({ navigation }: SettingsScreenProps) => {
         {__DEV__ && (
           <SettingSection title="Developer">
             <SettingRow
-              icon="🔍"
+              icon={Search}
               title="IAP Debug Tool"
               subtitle="Test in-app purchases"
               onPress={() => navigation.navigate('IAPDebug')}
               showChevron
             />
             <SettingRow
-              icon="🛠️"
+              icon={Wrench}
               title="Tools Debug"
               subtitle="View available AI tools"
               onPress={() => navigation.navigate('ToolsDebug')}
               showChevron
             />
             <SettingRow
-              icon="🏥"
+              icon={Stethoscope}
               title="Database Diagnostics"
               subtitle="Check database health"
               onPress={() => navigation.navigate('DatabaseDiagnostic')}
@@ -321,14 +331,14 @@ export const SettingsScreen = ({ navigation }: SettingsScreenProps) => {
         {/* Sign Out Section */}
         <SettingSection title="Account Actions">
           <SettingRow
-            icon="🚪"
+            icon={LogOut}
             title="Sign Out"
             onPress={handleSignOut}
             rightElement={
               loading ? (
                 <Typography 
                   variant="bodySm" 
-                  color={theme.colors.textSecondary}
+                  className={colorScheme === 'dark' ? 'text-gray-400' : 'text-gray-500'}
                 >
                   Loading...
                 </Typography>
@@ -337,11 +347,10 @@ export const SettingsScreen = ({ navigation }: SettingsScreenProps) => {
           />
         </SettingSection>
 
-        <View style={styles.footer}>
+        <View className="items-center mt-8 mb-4">
           <Typography 
             variant="bodySm" 
-            color={theme.colors.textSecondary}
-            style={styles.footerText}
+            className={`${colorScheme === 'dark' ? 'text-gray-400' : 'text-gray-500'} text-center`}
           >
             Made with ❤️ using T3 Stack
           </Typography>
@@ -370,67 +379,3 @@ export const SettingsScreen = ({ navigation }: SettingsScreenProps) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  title: {
-    marginBottom: 24,
-    paddingHorizontal: 4,
-  },
-  sectionContainer: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    marginBottom: 8,
-    paddingHorizontal: 4,
-    letterSpacing: 0.5,
-  },
-  section: {
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  settingRow: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  settingRowContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    minHeight: 52,
-  },
-  settingIcon: {
-    marginRight: 12,
-    width: 24,
-    textAlign: 'center',
-  },
-  settingTextContainer: {
-    flex: 1,
-  },
-  settingSubtitle: {
-    marginTop: 2,
-  },
-  settingRightElement: {
-    marginLeft: 12,
-  },
-  chevron: {
-    marginLeft: 8,
-    fontSize: 20,
-    fontWeight: '300',
-  },
-  footer: {
-    alignItems: 'center',
-    marginTop: 32,
-    marginBottom: 16,
-  },
-  footerText: {
-    textAlign: 'center',
-  },
-});

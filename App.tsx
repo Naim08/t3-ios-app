@@ -1,5 +1,6 @@
 import 'react-native-url-polyfill/auto';
 import './src/polyfills'; // Import streaming polyfills
+import './global.css'; // Import NativeWind CSS - temporarily disabled
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import * as Sentry from '@sentry/react-native';

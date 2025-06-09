@@ -7,7 +7,7 @@ import {
   Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Typography } from './Typography';
+import { Settings, Plus, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '../../components/ThemeProvider';
 
 export interface IconButtonProps extends AccessibilityProps {
@@ -20,18 +20,20 @@ export interface IconButtonProps extends AccessibilityProps {
   testID?: string;
 }
 
-const getIconSymbol = (icon: IconButtonProps['icon']): string => {
+const getIconComponent = (icon: IconButtonProps['icon'], size: number, color: string): React.ReactElement => {
+  const iconProps = { size, color, strokeWidth: 2.5 };
+  
   switch (icon) {
     case 'settings':
-      return '⚙️';
+      return <Settings {...iconProps} />;
     case 'plus':
-      return '+';
+      return <Plus {...iconProps} />;
     case 'chevron-left':
-      return '‹';
+      return <ChevronLeft {...iconProps} />;
     case 'chevron-right':
-      return '›';
+      return <ChevronRight {...iconProps} />;
     default:
-      return '?';
+      return <Settings {...iconProps} />;
   }
 };
 
@@ -157,15 +159,8 @@ export const IconButton: React.FC<IconButtonProps> = ({
     }
   };
 
-  const renderContent = () => (
-    <Typography
-      variant={config.typography}
-      color={getIconColor()}
-      style={styles.iconText}
-    >
-      {getIconSymbol(icon)}
-    </Typography>
-  );
+  const renderContent = () => 
+    getIconComponent(icon, config.iconSize, getIconColor());
 
   const buttonStyles = [getVariantStyles(), getShadowStyles(), style];
 
@@ -204,10 +199,4 @@ export const IconButton: React.FC<IconButtonProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  iconText: {
-    textAlign: 'center',
-    lineHeight: undefined, // Let the system handle line height for icons
-    fontWeight: '600',
-  },
-});
+const styles = StyleSheet.create({});

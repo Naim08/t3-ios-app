@@ -5,8 +5,15 @@ export interface Message {
   createdAt: string;
   isStreaming?: boolean;
   toolResponse?: {
-    type: 'tripplanner';
-    data: TripPlannerResponse;
+    type: string;
+    data: any;
+  };
+  toolCalls?: {
+    [toolName: string]: {
+      called_at: string;
+      success: boolean;
+      data?: any;
+    };
   };
 }
 

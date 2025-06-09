@@ -13,7 +13,6 @@ interface StreamRequest {
   model: string;
   messages: StreamMessage[];
   customApiKey?: string;
-  conversationId?: string;
   personaId?: string;
 }
 
@@ -37,6 +36,7 @@ interface UseStreamOptions {
   onError?: (error: string) => void;
   onComplete?: (usage?: StreamChunk['usage']) => void;
   onToolResult?: (toolResult: { tool_call_id: string; name: string; content: string }) => void;
+  onStart?: () => void;
 }
 
 interface UseStreamResult {
@@ -90,6 +90,8 @@ export function useStream(options: UseStreamOptions = {}): UseStreamResult {
         
         // Handle tool results
         if (data.role === 'tool' && data.tool_call_id && data.name && data.content) {
+          console.log('🎯 useStream: Tool result detected:', data.name);
+          console.log('🎯 useStream: Calling onToolResult callback');
           options.onToolResult?.({
             tool_call_id: data.tool_call_id,
             name: data.name,
@@ -129,6 +131,9 @@ export function useStream(options: UseStreamOptions = {}): UseStreamResult {
       setStreamingText('');
       setError(null);
       lastRequestRef.current = request;
+
+      // Call onStart callback when stream begins
+      options.onStart?.();
 
       // Get auth token
       const { data: { session } } = await supabase.auth.getSession();

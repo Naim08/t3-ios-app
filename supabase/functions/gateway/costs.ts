@@ -53,6 +53,38 @@ export const TOKEN_COSTS = {
     input: 0.075, // Preview pricing similar to flash
     output: 0.3,
   },
+  'gemini-2.5-flash-preview': {
+    input: 0.075, // Preview pricing similar to flash
+    output: 0.3,
+  },
+  'gemini-2.5-pro-preview': {
+    input: 3.5, // Similar to 1.5-pro
+    output: 10.5,
+  },
+  'gemini-2.5-pro-preview-06-05': {
+    input: 3.5, // Similar to 1.5-pro
+    output: 10.5,
+  },
+  'text-embedding-004': {
+    input: 0.01, // Very low cost for embeddings
+    output: 0.01,
+  },
+  'gemini-embedding-exp-03-07': {
+    input: 0.01, // Very low cost for embeddings
+    output: 0.01,
+  },
+  'aqa': {
+    input: 1.0, // Conservative estimate for QA model
+    output: 2.0,
+  },
+  'gemma-3': {
+    input: 0.05, // Very low cost for open source model
+    output: 0.1,
+  },
+  'gemma-3n': {
+    input: 0.025, // Even lower for compact model
+    output: 0.05,
+  },
   
   // Model aliases
   'gpt-3.5': {

@@ -28,6 +28,7 @@ export interface DatabaseMessage {
   content: string;
   model_used: string | null;
   created_at: string;
+  tool_calls?: object | null;
 }
 
 export interface ConversationServiceError {
@@ -224,6 +225,80 @@ export class ConversationService {
       return { data: messagesData || [] };
     } catch (error) {
       console.error('❌ Unexpected error fetching messages:', error);
+      
+      const serviceError: ConversationServiceError = {
+        type: 'unknown',
+        message: 'An unexpected error occurred while loading messages',
+        originalError: error
+      };
+      
+      return { error: serviceError };
+    }
+  }
+
+  /**
+   * Fetch messages with pagination (newest first for chat UI)
+   */
+  static async fetchMessagesWithPagination(
+    conversationId: string, 
+    limit: number = 6, 
+    offset: number = 0
+  ): Promise<{ data?: DatabaseMessage[]; error?: ConversationServiceError; hasMore?: boolean }> {
+    try {
+      // Get total count first
+      const { count, error: countError } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('conversation_id', conversationId)
+        .neq('role', 'system'); // Exclude system messages from count
+
+      if (countError) {
+        console.error('❌ Error getting message count:', countError);
+        
+        const serviceError: ConversationServiceError = {
+          type: 'database',
+          message: 'Failed to load message count',
+          originalError: countError
+        };
+        
+        return { error: serviceError };
+      }
+
+      // Fetch messages in reverse order (newest first) with pagination
+      const { data: messagesData, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .neq('role', 'system') // Exclude system messages from UI
+        .order('created_at', { ascending: false }) // Newest first
+        .range(offset, offset + limit - 1);
+
+      if (error) {
+        console.error('❌ Error fetching paginated messages:', error);
+        
+        const serviceError: ConversationServiceError = {
+          type: 'database',
+          message: 'Failed to load messages',
+          originalError: error
+        };
+        
+        return { error: serviceError };
+      }
+
+      const totalMessages = count || 0;
+      const hasMore = (offset + limit) < totalMessages;
+
+      // Reverse the messages to show oldest first in UI (but we fetched newest first for pagination)
+      const reversedMessages = (messagesData || []).reverse();
+
+      console.log(`📄 Fetched ${reversedMessages.length} messages (offset: ${offset}, limit: ${limit}, total: ${totalMessages}, hasMore: ${hasMore})`);
+
+      return { 
+        data: reversedMessages, 
+        hasMore 
+      };
+    } catch (error) {
+      console.error('❌ Unexpected error fetching paginated messages:', error);
       
       const serviceError: ConversationServiceError = {
         type: 'unknown',

@@ -8,6 +8,7 @@ import {
   TextStyle,
   AccessibilityProps,
 } from 'react-native';
+import { Eye, EyeOff } from 'lucide-react-native';
 import { useTheme } from '../../components/ThemeProvider';
 import { Typography } from './Typography';
 
@@ -61,7 +62,7 @@ export const TextField: React.FC<TextFieldProps> = ({
   accessibilityHint,
   ...accessibilityProps
 }) => {
-  const { theme } = useTheme();
+  const { theme, colorScheme } = useTheme();
   const [isFocused, setIsFocused] = useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   
@@ -173,12 +174,11 @@ export const TextField: React.FC<TextFieldProps> = ({
             accessibilityRole="button"
             testID={`${testID}-password-toggle`}
           >
-            <Typography
-              variant="bodySm"
-              color={theme.colors.textSecondary}
-            >
-              {isPasswordVisible ? '🙈' : '👁️'}
-            </Typography>
+            {isPasswordVisible ? (
+              <EyeOff size={20} color={colorScheme === 'dark' ? '#E5E7EB' : theme.colors.gray['600']} />
+            ) : (
+              <Eye size={20} color={colorScheme === 'dark' ? '#E5E7EB' : theme.colors.gray['600']} />
+            )}
           </TouchableOpacity>
         )}
       </View>

@@ -4,10 +4,13 @@
 interface ToolCall {
   id: string
   type: 'function'
-  function: {
+  function?: {
     name: string
     arguments: string
   }
+  // Gemini format
+  name?: string
+  args?: any
 }
 
 interface Tool {
@@ -48,22 +51,40 @@ export class ToolsRouter {
     const results = []
     let totalTokens = 0
 
+    console.log('🔧 TOOLSROUTER: Processing tool calls:', JSON.stringify(toolCalls, null, 2))
+
+    if (!toolCalls || !Array.isArray(toolCalls)) {
+      console.error('🔧 TOOLSROUTER: Invalid toolCalls provided:', toolCalls)
+      return { results: [], totalTokens: 0 }
+    }
+
     for (const toolCall of toolCalls) {
+      if (!toolCall) {
+        console.error('🔧 TOOLSROUTER: Null or undefined toolCall encountered')
+        continue
+      }
+
       try {
         const result = await this.executeToolCall(toolCall)
+        const toolName = toolCall.function?.name || toolCall.name || 'unknown'
+        const toolId = toolCall.id || `unknown_${Date.now()}`
+        
         results.push({
           role: 'tool',
-          tool_call_id: toolCall.id,
-          name: toolCall.function.name,
+          tool_call_id: toolId,
+          name: toolName,
           content: JSON.stringify(result)
         })
         totalTokens += result.tokensUsed || 0
       } catch (error) {
         console.error('🔧 TOOLSROUTER: Tool execution error:', error)
+        const toolName = toolCall.function?.name || toolCall.name || 'unknown'
+        const toolId = toolCall.id || `error_${Date.now()}`
+        
         results.push({
           role: 'tool',
-          tool_call_id: toolCall.id,
-          name: toolCall.function.name,
+          tool_call_id: toolId,
+          name: toolName,
           content: JSON.stringify({ error: error.message })
         })
       }
@@ -73,16 +94,31 @@ export class ToolsRouter {
   }
 
   private async executeToolCall(toolCall: ToolCall): Promise<any> {
-    const { name, arguments: argsString } = toolCall.function
+    console.log('🔧 TOOLSROUTER: Executing tool call:', JSON.stringify(toolCall, null, 2))
     
-    // Parse arguments
-    let args
-    try {
-      args = JSON.parse(argsString)
-    } catch (error) {
-      console.error('🔧 TOOLSROUTER: Failed to parse arguments:', error)
-      throw new Error('Invalid tool arguments')
+    // Handle different tool call formats (OpenAI vs Gemini)
+    let name: string
+    let args: any
+    
+    if (toolCall.function) {
+      // OpenAI format
+      name = toolCall.function.name
+      try {
+        args = JSON.parse(toolCall.function.arguments)
+      } catch (error) {
+        console.error('🔧 TOOLSROUTER: Failed to parse OpenAI arguments:', error)
+        throw new Error('Invalid tool arguments')
+      }
+    } else if (toolCall.name) {
+      // Gemini format
+      name = toolCall.name
+      args = toolCall.args || {}
+    } else {
+      console.error('🔧 TOOLSROUTER: Invalid tool call structure:', toolCall)
+      throw new Error('Invalid tool call structure')
     }
+    
+    console.log('🔧 TOOLSROUTER: Extracted name:', name, 'args:', args)
 
     // Look up tool in database
     const toolResponse = await fetch(`${this.supabaseUrl}/rest/v1/tools?name=eq.${encodeURIComponent(name)}&select=*`, {

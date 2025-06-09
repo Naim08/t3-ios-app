@@ -1,8 +1,10 @@
+/* eslint-disable no-undef */
+/* eslint-disable react-native/no-inline-styles */
+/* eslint-disable @typescript-eslint/no-require-imports */
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -14,19 +16,20 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // Conditional imports for gradients
-let LinearGradient, BlurView;
+let LinearGradient: any, BlurView: any;
 try {
   const gradientLib = require('expo-linear-gradient');
   LinearGradient = gradientLib.LinearGradient;
   const blurLib = require('expo-blur');
   BlurView = blurLib.BlurView;
-} catch (error) {
+} catch {
   console.warn('Gradient/Blur libraries not available, using fallback components');
-  LinearGradient = ({ children, style, ...props }) => React.createElement(View, { style, ...props }, children);
-  BlurView = ({ children, style, ...props }) => React.createElement(View, { style, ...props }, children);
+  LinearGradient = ({ children, style, ...props }: any) => React.createElement(View, { style, ...props }, children);
+  BlurView = ({ children, style, ...props }: any) => React.createElement(View, { style, ...props }, children);
 }
 import { useTheme } from '../components/ThemeProvider';
-import { Typography, TextField, Surface, IconButton, AILoadingAnimation } from '../ui/atoms';
+import { Typography, TextField, IconButton, AILoadingAnimation } from '../ui/atoms';
+import { Send, Square } from 'lucide-react-native';
 import { MessageBubble } from './MessageBubble';
 import { EmptyState } from './EmptyState';
 import { Message } from './types';
@@ -35,18 +38,158 @@ import { useEntitlements } from '../hooks/useEntitlements';
 import { useStream, StreamMessage } from './useStream';
 import { useTranslation } from 'react-i18next';
 import { usePersona } from '../context/PersonaContext';
-import { usePremium } from '../hooks/usePremium';
 import { supabase } from '../lib/supabase';
 import { isModelPremium } from '../utils/modelUtils';
 import { ConversationService } from '../services/conversationService';
 
 const { width } = Dimensions.get('window');
 
+// Configuration for conversation history optimization
+const CONVERSATION_OPTIMIZATION = {
+  MAX_TOTAL_TOKENS: 8000,      // Conservative limit to stay within most model contexts
+  CHARACTERS_PER_TOKEN: 4,     // Rough estimate: 1 token ≈ 4 characters
+  MIN_MESSAGES_TO_KEEP: 4,     // Always keep at least the last 2 exchanges (4 messages)
+  SYSTEM_PROMPT_BUFFER: 500,   // Reserve tokens for system prompt and current message
+} as const;
+
+/**
+ * Extracts keywords from a message for relevance matching
+ */
+function extractKeywords(text: string): string[] {
+  // Remove common stop words and extract meaningful terms
+  const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them', 'my', 'your', 'his', 'her', 'its', 'our', 'their']);
+  
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s]/g, ' ') // Remove punctuation
+    .split(/\s+/)
+    .filter(word => word.length > 2 && !stopWords.has(word))
+    .slice(0, 10); // Limit to top 10 keywords
+}
+
+/**
+ * Checks if two sets of keywords have overlap
+ */
+function hasKeywordOverlap(messageText: string, keywords: string[]): boolean {
+  if (keywords.length === 0) return false;
+  
+  const messageKeywords = extractKeywords(messageText);
+  const overlap = keywords.filter(keyword => 
+    messageKeywords.some(msgKeyword => 
+      msgKeyword.includes(keyword) || keyword.includes(msgKeyword)
+    )
+  );
+  
+  return overlap.length > 0;
+}
+
+/**
+ * Calculates relevance score for a message based on keyword overlap and other factors
+ */
+function calculateRelevanceScore(message: Message, keywords: string[]): number {
+  let score = 0;
+  
+  // Keyword overlap score
+  const messageKeywords = extractKeywords(message.text);
+  const overlapCount = keywords.filter(keyword => 
+    messageKeywords.some(msgKeyword => 
+      msgKeyword.includes(keyword) || keyword.includes(msgKeyword)
+    )
+  ).length;
+  score += overlapCount * 2;
+  
+  // Message importance factors
+  if (message.text.length > 100) score += 1; // Longer messages often more important
+  if (message.role === 'user') score += 1; // User questions are important context
+  if (message.text.includes('tool')) score += 2; // Tool results provide valuable context
+  if (message.text.match(/\b(plan|trip|travel|destination|flight|hotel)\b/i)) score += 1; // Travel-related terms
+  
+  return score;
+}
+
+/**
+ * Optimizes conversation history using hybrid approach:
+ * - Always keeps recent messages for immediate context
+ * - Selects relevant older messages based on keyword similarity
+ * - Respects token limits while maximizing context relevance
+ */
+function optimizeConversationHistory(messages: Message[], systemPrompt: string = '', currentMessage: string = ''): Message[] {
+  if (messages.length === 0) return [];
+
+  // Always keep minimum recent messages for short conversations
+  if (messages.length <= CONVERSATION_OPTIMIZATION.MIN_MESSAGES_TO_KEEP) {
+    return messages;
+  }
+
+  // 1. Always include last 4 messages (recent context)
+  const recentMessages = messages.slice(-4);
+  
+  // 2. Find relevant older messages if we have a longer conversation
+  const olderMessages = messages.slice(0, -4);
+  let relevantOlderMessages: Message[] = [];
+  
+  if (olderMessages.length > 0 && currentMessage) {
+    // Extract keywords from current message
+    const keywords = extractKeywords(currentMessage);
+    
+    // Score and sort older messages by relevance
+    const scoredMessages = olderMessages
+      .map(msg => ({
+        message: msg,
+        score: calculateRelevanceScore(msg, keywords)
+      }))
+      .filter(item => item.score > 0) // Only include messages with some relevance
+      .sort((a, b) => b.score - a.score); // Sort by relevance (highest first)
+    
+    // Take top 3 relevant older messages, respecting token limits
+    const systemTokens = Math.ceil(systemPrompt.length / CONVERSATION_OPTIMIZATION.CHARACTERS_PER_TOKEN);
+    const recentTokens = recentMessages.reduce((sum, msg) => 
+      sum + Math.ceil(msg.text.length / CONVERSATION_OPTIMIZATION.CHARACTERS_PER_TOKEN), 0);
+    
+    let availableTokens = CONVERSATION_OPTIMIZATION.MAX_TOTAL_TOKENS - systemTokens - recentTokens - CONVERSATION_OPTIMIZATION.SYSTEM_PROMPT_BUFFER;
+    
+    for (const { message } of scoredMessages.slice(0, 3)) {
+      const messageTokens = Math.ceil(message.text.length / CONVERSATION_OPTIMIZATION.CHARACTERS_PER_TOKEN);
+      if (messageTokens <= availableTokens) {
+        relevantOlderMessages.push(message);
+        availableTokens -= messageTokens;
+      }
+    }
+  }
+  
+  const selectedMessages = [...relevantOlderMessages, ...recentMessages];
+  
+  // Log optimization results
+  const totalMessages = messages.length;
+  const selectedCount = selectedMessages.length;
+  const truncatedCount = totalMessages - selectedCount;
+  
+  if (truncatedCount > 0) {
+    console.log(`📝 HYBRID OPTIMIZATION: Selected ${selectedCount}/${totalMessages} messages (${relevantOlderMessages.length} relevant older + ${recentMessages.length} recent)`);
+  }
+  
+  return selectedMessages;
+}
+
+/**
+ * Creates a summary of truncated conversation history for context preservation.
+ * This could be expanded to use AI summarization in the future.
+ */
+function createConversationSummary(truncatedMessages: Message[]): string {
+  if (truncatedMessages.length === 0) return '';
+  
+  const messageCount = truncatedMessages.length;
+  const firstMessage = truncatedMessages[0];
+  const lastMessage = truncatedMessages[truncatedMessages.length - 1];
+  
+  return `[Previous conversation summary: ${messageCount} messages exchanged. Started with "${firstMessage.text.substring(0, 50)}..." and last discussed "${lastMessage.text.substring(0, 50)}..."]`;
+}
+
 
 interface ChatScreenProps {
   navigation: {
     navigate: (screen: string) => void;
-    setOptions: (options: any) => void;
+    setOptions: (options: object) => void;
     goBack: () => void;
   };
   route?: {
@@ -60,24 +203,30 @@ interface ChatScreenProps {
 const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) => {
 
   const { theme } = useTheme();
-  const { t } = useTranslation();
   const { isSubscriber, hasCustomKey, remainingTokens, refreshCredits } = useEntitlements();
   const { currentPersona, setCurrentPersona } = usePersona();
-  const { loading: premiumLoading } = usePremium();
   const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [currentModel, setCurrentModel] = useState<string>('gpt-3.5'); // Will be loaded from storage
 
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [conversationTitle, setConversationTitle] = useState<string>('');
+  const [keyboardHeight, setKeyboardHeight] = useState<number>(0);
+  
+  // Pagination state
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [currentOffset, setCurrentOffset] = useState(0);
   const flatListRef = useRef<FlatList>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
   const typingAnimation = useRef(new Animated.Value(0)).current;
   const sendButtonScale = useRef(new Animated.Value(1)).current;
   const chatSettingsModalRef = useRef<ChatSettingsModalRef>(null);
+  const toolResultsRef = useRef<{ [messageId: string]: object }>({});
+  const databaseMessageIdRef = useRef<string | null>(null);
+  const streamingMessageIdRef = useRef<string | null>(null);
 
   // Component mount/unmount tracking
   useEffect(() => {
@@ -190,8 +339,8 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         return;
       }
 
-      // Fetch messages using service
-      const messagesResult = await ConversationService.fetchMessages(conversationId);
+      // Fetch initial messages using pagination (6 messages)
+      const messagesResult = await ConversationService.fetchMessagesWithPagination(conversationId, 6, 0);
       
       if (messagesResult.error) {
         ConversationService.handleError(messagesResult.error, 'loading messages');
@@ -199,9 +348,12 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
       }
 
       const messagesData = messagesResult.data || [];
+      const hasMore = messagesResult.hasMore || false;
       
       if (messagesData.length === 0) {
         setMessages([]);
+        setHasMoreMessages(false);
+        setCurrentOffset(0);
       } else {
         // Convert database messages to UI format (keeping existing conversion logic)
         const uiMessages: Message[] = messagesData
@@ -211,9 +363,12 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
             role: msg.role as 'user' | 'assistant',
             text: msg.content,
             createdAt: msg.created_at,
+            toolCalls: msg.tool_calls as Message['toolCalls'],
           }));
 
         setMessages(uiMessages);
+        setHasMoreMessages(hasMore);
+        setCurrentOffset(messagesData.length);
       }
 
       // Set the conversation state
@@ -248,6 +403,57 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
       console.error('❌ Unexpected error in loadConversation:', error);
     }
   }, [setCurrentPersona, scrollToBottom]); // Only depend on setCurrentPersona to avoid unnecessary re-creation
+
+  // Load more messages when scrolling to top
+  const loadMoreMessages = useCallback(async () => {
+    if (!currentConversationId || isLoadingMore || !hasMoreMessages) {
+      return;
+    }
+
+    setIsLoadingMore(true);
+    
+    try {
+      const messagesResult = await ConversationService.fetchMessagesWithPagination(
+        currentConversationId, 
+        12, // Load 12 more messages
+        currentOffset
+      );
+      
+      if (messagesResult.error) {
+        ConversationService.handleError(messagesResult.error, 'loading more messages');
+        return;
+      }
+
+      const messagesData = messagesResult.data || [];
+      const hasMore = messagesResult.hasMore || false;
+      
+      if (messagesData.length > 0) {
+        // Convert database messages to UI format
+        const uiMessages: Message[] = messagesData.map(msg => ({
+          id: msg.id,
+          role: msg.role as 'user' | 'assistant',
+          text: msg.content,
+          createdAt: msg.created_at,
+          toolCalls: msg.tool_calls as Message['toolCalls'],
+        }));
+
+        // Prepend older messages to the beginning of the array
+        setMessages(prev => [...uiMessages, ...prev]);
+        setCurrentOffset(prev => prev + messagesData.length);
+        setHasMoreMessages(hasMore);
+        
+        console.log(`📄 Loaded ${messagesData.length} more messages. Total: ${currentOffset + messagesData.length}`);
+        
+        // Don't auto-scroll when loading more messages - let user stay where they are
+      } else {
+        setHasMoreMessages(false);
+      }
+    } catch (error) {
+      console.error('❌ Error loading more messages:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [currentConversationId, isLoadingMore, hasMoreMessages, currentOffset]);
 
   // Load conversation on mount (only for existing conversations)
   useEffect(() => {
@@ -327,6 +533,40 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
     abortStream,
     retryStream 
   } = useStream({
+    onStart: async () => {
+      console.log('🎯 useStream: Stream started');
+      console.log('🎯 useStream: streamingMessageIdRef.current =', streamingMessageIdRef.current);
+      console.log('🎯 useStream: currentConversationId =', currentConversationId);
+
+      // Save the assistant message placeholder to database when stream starts
+      // Use the ref instead of state for immediate access
+      const messageId = streamingMessageIdRef.current;
+      
+      // For existing conversations, currentConversationId should be set
+      // Let's save the assistant message right away
+      if (currentConversationId) {
+        try {
+          console.log('💾 CHAT: Saving assistant message placeholder to database');
+          console.log('💾 CHAT: Conversation ID:', currentConversationId);
+          console.log('💾 CHAT: UI Message ID:', messageId);
+
+          const result = await saveMessage(
+            'assistant',
+            '', // Empty content initially
+            undefined, // No messageId - create new message
+            undefined // No tool calls yet
+          );
+
+          // Store the database message ID for later use
+          databaseMessageIdRef.current = result.messageId;
+          console.log('✅ CHAT: Successfully saved assistant message placeholder with ID:', result.messageId);
+        } catch (error) {
+          console.error('❌ CHAT: Failed to save assistant message placeholder:', error);
+        }
+      } else {
+        console.error('❌ CHAT: No conversation ID available! This should not happen for existing conversations');
+      }
+    },
     onTokenSpent: () => {
       // Tokens are spent automatically by the gateway
       refreshCredits();
@@ -337,22 +577,146 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
       if (streamingMessageId) {
         setMessages(prev => prev.filter(m => m.id !== streamingMessageId));
         setStreamingMessageId(null);
+        streamingMessageIdRef.current = null;
       }
     },
-    onComplete: async (usage) => {
-      if (streamingMessageId) {
-        // Just mark the message as no longer streaming - text is already updated by useEffect
-        setMessages(prev => prev.map(m => 
-          m.id === streamingMessageId 
-            ? { ...m, isStreaming: false }
+    onToolResult: (toolResult) => {
+      console.log('🔧 CHAT: Tool result received:', toolResult.name);
+      console.log('🔧 CHAT: Tool content preview:', toolResult.content?.substring(0, 200));
+      
+      // Use the ref to get the current streaming message ID
+      const targetMessageId = streamingMessageIdRef.current;
+      console.log('🔧 CHAT: Target message ID from ref:', targetMessageId);
+      
+      if (!targetMessageId) {
+        console.error('🔧 CHAT: No target message found for tool result!');
+        return;
+      }
+      
+      // Store tool results in a ref to track them
+      toolResultsRef.current[targetMessageId] = toolResultsRef.current[targetMessageId] || {};
+      toolResultsRef.current[targetMessageId][toolResult.name] = {
+        called_at: new Date().toISOString(),
+        success: true,
+        data: null
+      };
+      
+      if (toolResult.name === 'tripplanner') {
+        try {
+          const toolData = JSON.parse(toolResult.content);
+          console.log('🔧 CHAT: Parsed tool data success:', toolData.success);
+          console.log('🔧 CHAT: Tool data has data field:', !!toolData.data);
+          
+          if (toolData.success && toolData.data) {
+            console.log('🔧 CHAT: Attaching toolResponse to message:', targetMessageId);
+            
+            // Update tool results ref with actual data
+            toolResultsRef.current[targetMessageId][toolResult.name].data = toolData.data;
+            
+            setMessages(prev => {
+              const updated = prev.map(m => 
+                m.id === targetMessageId 
+                  ? { 
+                      ...m, 
+                      toolResponse: {
+                        type: 'tripplanner',
+                        data: toolData.data
+                      }
+                    }
+                  : m
+              );
+              console.log('🔧 CHAT: Updated message with toolResponse:', updated.find(m => m.id === targetMessageId)?.toolResponse);
+              return updated;
+            });
+          } else {
+            console.error('🔧 CHAT: Tool data missing success or data field');
+          }
+        } catch (error) {
+          console.error('🔧 CHAT: Failed to parse tool result:', error);
+          console.error('🔧 CHAT: Raw content:', toolResult.content);
+        }
+      }
+    },
+    onComplete: async () => {
+      console.log('🏁 CHAT: onComplete called');
+      
+      const targetMessageId = streamingMessageIdRef.current;
+      const dbMessageId = databaseMessageIdRef.current;
+      
+      console.log('🏁 CHAT: targetMessageId:', targetMessageId);
+      console.log('🏁 CHAT: dbMessageId:', dbMessageId);
+      console.log('🏁 CHAT: streamingText length:', streamingText?.length);
+
+      if (targetMessageId) {
+        // Get the final message content and tool calls
+        const toolCalls = toolResultsRef.current[targetMessageId];
+        
+        // Use streamingText directly as it contains the accumulated response
+        const finalContent = streamingText || '';
+        
+        console.log('🏁 CHAT: Final content preview:', finalContent.substring(0, 100));
+        console.log('🏁 CHAT: Tool calls:', JSON.stringify(toolCalls, null, 2));
+
+        // Mark the message as no longer streaming
+        setMessages(prev => prev.map(m =>
+          m.id === targetMessageId
+            ? { ...m, isStreaming: false, text: finalContent }
             : m
         ));
-        setStreamingMessageId(null);
 
-        // Server now saves the assistant message automatically
-        // No manual saving needed for assistant messages
+        // Update the assistant message in database with final content using our tracked ID
+        if (dbMessageId && currentConversationId) {
+          try {
+            console.log('💾 CHAT: Updating assistant message in database');
+            console.log('💾 CHAT: Database message ID:', dbMessageId);
+            console.log('💾 CHAT: Content length:', finalContent.length);
+            console.log('💾 CHAT: Tool calls object:', toolCalls);
+
+            const updateData: any = {
+              content: finalContent.trim() || 'Tool executed successfully'
+            };
+            
+            // Only add tool_calls if we have them
+            if (toolCalls && Object.keys(toolCalls).length > 0) {
+              updateData.tool_calls = toolCalls;
+            }
+
+            const { data, error } = await supabase
+              .from('messages')
+              .update(updateData)
+              .eq('id', dbMessageId)
+              .select();
+
+            if (error) {
+              console.error('❌ CHAT: Failed to update assistant message:', error);
+            } else {
+              console.log('✅ CHAT: Successfully updated assistant message');
+              console.log('✅ CHAT: Updated data:', data);
+            }
+          } catch (error) {
+            console.error('❌ CHAT: Failed to update assistant message:', error);
+          }
+        } else {
+          console.error('❌ CHAT: Missing dbMessageId or conversationId for update');
+        }
+
+        // Clean up tool results ref
+        delete toolResultsRef.current[targetMessageId];
       }
+
+      // Clean up refs
+      databaseMessageIdRef.current = null;
+      streamingMessageIdRef.current = null;
+
+      if (streamingMessageId) {
+        setStreamingMessageId(null);
+      }
+
+      // Assistant message is now saved by the client
       refreshCredits();
+
+      // Scroll to bottom when streaming completes
+      setTimeout(() => scrollToBottom(true), 100);
     }
   });
 
@@ -391,7 +755,7 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
   }, [isStreaming]);
 
   // Send button animation on press
-  const animateSendButton = () => {
+  const animateSendButton = useCallback(() => {
     Animated.sequence([
       Animated.spring(sendButtonScale, {
         toValue: 0.9,
@@ -406,9 +770,9 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         friction: 10,
       }),
     ]).start();
-  };
+  }, [sendButtonScale]);
 
-  const saveMessage = async (role: 'user' | 'assistant', content: string, messageId?: string): Promise<string> => {
+  const saveMessage = useCallback(async (role: 'user' | 'assistant', content: string, messageId?: string, toolCalls?: object): Promise<{ conversationId: string; messageId: string }> => {
     
     try {
       let conversationId = currentConversationId;
@@ -457,16 +821,20 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         conversationId = newConv.id;
         setCurrentConversationId(conversationId);
         setConversationTitle(title);
-      } else {
-      }
+      } 
 
       // Save message
-      const messageData = {
+      const messageData: any = {
         conversation_id: conversationId,
         role,
         content,
         model_used: role === 'assistant' ? currentModel : null,
       };
+      
+      // Add tool_calls if provided
+      if (toolCalls) {
+        messageData.tool_calls = toolCalls;
+      }
 
       let result;
       if (messageId) {
@@ -494,14 +862,17 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         throw new Error('No message data returned');
       }
       
-      // Return the conversation ID for use in streaming
-      return conversationId;
+      // Return both the conversation ID and the message ID
+      return {
+        conversationId,
+        messageId: result.data[0].id
+      };
       
     } catch (error) {
       console.error(`❌ Error saving ${role} message:`, error);
       throw error; // Re-throw so calling code can handle it
     }
-  };
+  }, [currentConversationId, currentPersona, currentModel, setCurrentConversationId, setConversationTitle]);
 
   const handleSend = useCallback(async () => {
     
@@ -555,19 +926,17 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
 
     setMessages(prev => [...prev, userMessage, assistantMessage]);
     setStreamingMessageId(assistantMessageId);
+    streamingMessageIdRef.current = assistantMessageId; // Also update the ref
     
     const messageText = inputText.trim();
     setInputText('');
 
-    // Save user message to database and get the conversation ID
-    let actualConversationId: string;
+    // Save user message to database
     try {
-      actualConversationId = await saveMessage('user', messageText);
+      await saveMessage('user', messageText);
     } catch (error) {
       console.error('❌ Failed to save user message:', error);
       // Don't return here - still try to send the message to the AI
-      // Fall back to currentConversationId if save failed
-      actualConversationId = currentConversationId || '';
     }
 
     // Auto-scroll to bottom
@@ -586,8 +955,9 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
       });
     }
     
-    // Add conversation history
-    streamMessages.push(...messages.map(m => ({ role: m.role, content: m.text })));
+    // Add conversation history with intelligent truncation
+    const optimizedHistory = optimizeConversationHistory(messages, currentPersona?.system_prompt || '', messageText);
+    streamMessages.push(...optimizedHistory.map(m => ({ role: m.role, content: m.text })));
     
     // Add current user message
     streamMessages.push({ role: 'user', content: messageText });
@@ -597,13 +967,12 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         model: currentModel,
         messages: streamMessages,
         customApiKey: hasCustomKey ? undefined : undefined, // TODO: Get from user settings
-        conversationId: actualConversationId,
         personaId: currentPersona?.id,
       });
     } catch (error) {
       console.error('❌ Failed to start stream:', error);
     }
-  }, [inputText, currentModel, isSubscriber, hasCustomKey, remainingTokens, navigation, messages, isStreaming, startStream, streamingMessageId, currentConversationId, currentPersona, saveMessage]);
+  }, [inputText, isStreaming, animateSendButton, currentModel, remainingTokens, isSubscriber, hasCustomKey, streamingMessageId, currentPersona, messages, navigation, saveMessage, currentConversationId, scrollToBottom, startStream]);
 
   const renderMessage: ListRenderItem<Message> = ({ item }) => (
     <MessageBubble message={item} />
@@ -694,23 +1063,49 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
           ]}
           showsVerticalScrollIndicator={true}
           ListEmptyComponent={renderEmptyState}
+          ListHeaderComponent={
+            isLoadingMore ? (
+              <View style={styles.loadingMoreContainer}>
+                <AILoadingAnimation size={24} />
+                <Typography variant="bodySm" color={theme.colors.textSecondary} style={styles.loadingMoreText}>
+                  Loading older messages...
+                </Typography>
+              </View>
+            ) : null
+          }
           maintainVisibleContentPosition={{
-            minIndexForVisible: 0,
-            autoscrollToTopThreshold: 100,
+            minIndexForVisible: 1,
+            autoscrollToTopThreshold: null, // Disable auto-scroll to top
           }}
           onContentSizeChange={() => {
-            setTimeout(() => {
-              scrollToBottom(true);
-            }, 100);
+            // Only auto-scroll if user is near the bottom (not browsing history)
+            // @ts-ignore - scrollY is an Animated.Value
+            if (scrollY.__getValue && scrollY.__getValue() < 100) {
+              setTimeout(() => {
+                scrollToBottom(true);
+              }, 100);
+            }
           }}
           onLayout={() => {
-            setTimeout(() => {
-              scrollToBottom(false);
-            }, 50);
+            // Only auto-scroll on initial layout, not when loading more messages
+            if (messages.length <= 6) {
+              setTimeout(() => {
+                scrollToBottom(false);
+              }, 50);
+            }
           }}
           onScroll={Animated.event(
             [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-            { useNativeDriver: true }
+            { 
+              useNativeDriver: true,
+              listener: (event: any) => {
+                const { contentOffset } = event.nativeEvent;
+                // Load more when scrolled near the top (within 100px)
+                if (contentOffset.y < 100 && hasMoreMessages && !isLoadingMore) {
+                  loadMoreMessages();
+                }
+              }
+            }
           )}
           scrollEventThrottle={16}
           keyboardShouldPersistTaps="handled"
@@ -986,5 +1381,15 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 12,
     backgroundColor: 'rgba(57, 112, 255, 0.1)',
+  },
+  loadingMoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  loadingMoreText: {
+    marginLeft: 8,
   },
 });

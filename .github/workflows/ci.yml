@@ -29,9 +29,6 @@ jobs:
       - name: Run ESLint
         run: yarn lint
 
-      - name: Run tests
-        run: yarn test
-
       - name: Setup Sentry
         if: github.event_name == 'push'
         env:

@@ -1,8 +1,31 @@
-// Trip Planner tool for comprehensive travel planning
-// Provides destination search, flight information, weather data, accommodations, and detailed itineraries
+// supabase/functions/tools/tripplanner.ts
+// Trip Planner tool using Google Gemini and Maps APIs
 
-// ===== INTERFACES =====
+import { GoogleGenerativeAI } from "npm:@google/generative-ai@0.7.0"
 
+export interface TripPlannerRequest {
+  destination?: string
+  destinations?: string[]  // Array of destinations from the tool call
+  trip_type?: 'day_trip' | 'weekend' | 'week' | 'custom'
+  interests?: string[]
+  start_date?: string
+  end_date?: string
+  budget?: 'budget' | 'moderate' | 'luxury'
+  group_type?: 'solo' | 'couple' | 'family' | 'friends'
+  travelers?: {
+    adults?: number
+    children?: number
+  }
+  // New fields for trip modification/replanning
+  modification_type?: 'new_trip' | 'replace_activity' | 'replace_day' | 'add_activity' | 'modify_timing' | 'change_destination'
+  existing_trip?: TripPlannerResponse  // Previous trip data for modifications
+  modification_request?: string  // Specific modification instructions
+  activity_to_replace?: string  // Name of activity to replace
+  new_activity_preference?: string  // What to replace it with
+  day_to_modify?: number  // Which day to modify (1-based)
+}
+
+// Use the interfaces from the frontend to ensure compatibility
 export interface Location {
   name: string;
   country: string;
@@ -12,28 +35,26 @@ export interface Location {
   };
   timezone?: string;
   description?: string;
+  // Additional fields for the service
+  time?: string;
+  duration?: string;
+  sequence?: number;
+  category?: string;
 }
 
-export interface FlightOption {
-  airline: string;
-  flight_number: string;
-  departure: {
-    airport: string;
-    time: string;
-    date: string;
-  };
-  arrival: {
-    airport: string;
-    time: string;
-    date: string;
-  };
+export interface Activity {
+  name: string;
+  type: 'sightseeing' | 'adventure' | 'cultural' | 'entertainment' | 'dining' | 'shopping' | 'relaxation';
   duration: string;
-  price: {
+  description: string;
+  location: string;
+  estimated_cost?: {
     amount: number;
     currency: string;
   };
-  stops: number;
-  booking_url?: string;
+  opening_hours?: string;
+  rating?: number;
+  booking_required?: boolean;
 }
 
 export interface WeatherInfo {
@@ -63,21 +84,6 @@ export interface Accommodation {
   description: string;
   booking_url?: string;
   image_url?: string;
-}
-
-export interface Activity {
-  name: string;
-  type: 'sightseeing' | 'adventure' | 'cultural' | 'entertainment' | 'dining' | 'shopping' | 'relaxation';
-  duration: string;
-  description: string;
-  location: string;
-  estimated_cost?: {
-    amount: number;
-    currency: string;
-  };
-  opening_hours?: string;
-  rating?: number;
-  booking_required?: boolean;
 }
 
 export interface Route {
@@ -115,33 +121,26 @@ export interface DaySchedule {
   };
 }
 
-export interface TripPlannerRequest {
-  destinations: string[]; // Array of destination names
-  start_date: string; // YYYY-MM-DD format
-  end_date: string; // YYYY-MM-DD format
-  departure_location?: string; // Origin city for flights
-  budget?: {
+export interface FlightOption {
+  airline: string;
+  flight_number: string;
+  departure: {
+    airport: string;
+    time: string;
+    date: string;
+  };
+  arrival: {
+    airport: string;
+    time: string;
+    date: string;
+  };
+  duration: string;
+  price: {
     amount: number;
     currency: string;
-    category: 'budget' | 'mid-range' | 'luxury';
   };
-  travelers: {
-    adults: number;
-    children?: number;
-  };
-  preferences?: {
-    accommodation_type?: 'hotel' | 'hostel' | 'apartment' | 'resort' | 'any';
-    activity_types?: string[]; // e.g., ['cultural', 'adventure', 'relaxation']
-    dietary_restrictions?: string[];
-    accessibility_needs?: string[];
-    interests?: string[]; // e.g., ['history', 'art', 'nature', 'nightlife']
-  };
-  trip_type?: 'leisure' | 'business' | 'adventure' | 'cultural' | 'romantic' | 'family';
-  include_flights?: boolean;
-  include_weather?: boolean;
-  include_accommodations?: boolean;
-  include_activities?: boolean;
-  include_detailed_itinerary?: boolean;
+  stops: number;
+  booking_url?: string;
 }
 
 export interface TripPlannerResponse {
@@ -165,7 +164,7 @@ export interface TripPlannerResponse {
   flights?: {
     outbound: FlightOption[];
     return?: FlightOption[];
-    internal?: FlightOption[]; // For multi-destination trips
+    internal?: FlightOption[];
   };
   weather_forecast?: WeatherInfo[];
   accommodations?: Accommodation[];
@@ -181,600 +180,564 @@ export interface TripPlannerResponse {
   };
 }
 
-// ===== UTILITY FUNCTIONS =====
-
-function calculateDaysBetween(startDate: string, endDate: string): number {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const diffTime = Math.abs(end.getTime() - start.getTime());
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-}
-
-function formatCurrency(amount: number, currency: string): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency
-  }).format(amount);
-}
-
-function getRandomElements<T>(array: T[], count: number): T[] {
-  const shuffled = [...array].sort(() => 0.5 - Math.random());
-  return shuffled.slice(0, count);
-}
-
-// ===== DATA SOURCES =====
-
-// Sample destination data (in a real implementation, this would come from APIs)
-const DESTINATION_DATABASE = {
-  "paris": {
-    name: "Paris",
-    country: "France",
-    coordinates: { latitude: 48.8566, longitude: 2.3522 },
-    timezone: "Europe/Paris",
-    description: "The City of Light, famous for its art, fashion, gastronomy, and culture."
+// Function declaration for extracting location data using Google AI.
+const locationFunctionDeclaration = {
+  name: 'location',
+  parameters: {
+    type: 'object',
+    description: 'Geographic coordinates of a location for a day plan.',
+    properties: {
+      name: {
+        type: 'string',
+        description: 'Name of the location.',
+      },
+      description: {
+        type: 'string',
+        description:
+          'Description of the location: why is it relevant, details to know for the visit.',
+      },
+      lat: {
+        type: 'string',
+        description: 'Latitude of the location.',
+      },
+      lng: {
+        type: 'string',
+        description: 'Longitude of the location.',
+      },
+      time: {
+        type: 'string',
+        description:
+          'Time of day to visit this location (e.g., "09:00", "14:30").',
+      },
+      duration: {
+        type: 'string',
+        description:
+          'Suggested duration of stay at this location (e.g., "1 hour", "45 minutes").',
+      },
+      sequence: {
+        type: 'number',
+        description: 'Order in the day itinerary (1 = first stop of the day).',
+      },
+    },
+    required: ['name', 'description', 'lat', 'lng', 'time', 'duration', 'sequence'],
   },
-  "tokyo": {
-    name: "Tokyo",
-    country: "Japan",
-    coordinates: { latitude: 35.6762, longitude: 139.6503 },
-    timezone: "Asia/Tokyo",
-    description: "A vibrant metropolis blending traditional and modern culture."
-  },
-  "new york": {
-    name: "New York",
-    country: "United States",
-    coordinates: { latitude: 40.7128, longitude: -74.0060 },
-    timezone: "America/New_York",
-    description: "The Big Apple, a global hub for business, arts, and culture."
-  },
-  "london": {
-    name: "London",
-    country: "United Kingdom",
-    coordinates: { latitude: 51.5074, longitude: -0.1278 },
-    timezone: "Europe/London",
-    description: "Historic capital with world-class museums, theaters, and royal palaces."
-  },
-  "bali": {
-    name: "Bali",
-    country: "Indonesia",
-    coordinates: { latitude: -8.3405, longitude: 115.0920 },
-    timezone: "Asia/Makassar",
-    description: "Tropical paradise known for beaches, temples, and spiritual culture."
-  },
-  "barcelona": {
-    name: "Barcelona",
-    country: "Spain",
-    coordinates: { latitude: 41.3851, longitude: 2.1734 },
-    timezone: "Europe/Madrid",
-    description: "Artistic city famous for Gaudí's architecture and Mediterranean lifestyle."
-  },
-  "rome": {
-    name: "Rome",
-    country: "Italy",
-    coordinates: { latitude: 41.9028, longitude: 12.4964 },
-    timezone: "Europe/Rome",
-    description: "The Eternal City, rich in ancient history and Italian culture."
-  },
-  "sydney": {
-    name: "Sydney",
-    country: "Australia",
-    coordinates: { latitude: -33.8688, longitude: 151.2093 },
-    timezone: "Australia/Sydney",
-    description: "Harbor city known for its Opera House, beaches, and laid-back lifestyle."
-  }
 };
 
-const SAMPLE_ACCOMMODATIONS = {
-  budget: [
-    {
-      name: "Cozy Downtown Hostel",
-      type: "hostel" as const,
-      rating: 4.2,
-      price_per_night: { amount: 35, currency: "USD" },
-      amenities: ["Free WiFi", "Shared Kitchen", "Laundry", "24/7 Reception"],
-      location: "City Center",
-      description: "Clean and safe hostel in the heart of the city with friendly staff."
-    },
-    {
-      name: "Budget Inn Express",
-      type: "hotel" as const,
-      rating: 3.8,
-      price_per_night: { amount: 65, currency: "USD" },
-      amenities: ["Free WiFi", "Continental Breakfast", "Parking"],
-      location: "Near Public Transport",
-      description: "Comfortable budget hotel with basic amenities and good location."
-    }
-  ],
-  "mid-range": [
-    {
-      name: "Grand City Hotel",
-      type: "hotel" as const,
-      rating: 4.5,
-      price_per_night: { amount: 150, currency: "USD" },
-      amenities: ["Free WiFi", "Fitness Center", "Restaurant", "Room Service", "Concierge"],
-      location: "Downtown",
-      description: "Modern hotel with excellent service and prime location."
-    },
-    {
-      name: "Boutique Suites",
-      type: "apartment" as const,
-      rating: 4.6,
-      price_per_night: { amount: 120, currency: "USD" },
-      amenities: ["Full Kitchen", "Free WiFi", "Washer/Dryer", "Balcony"],
-      location: "Trendy Neighborhood",
-      description: "Stylish apartment suites with home-like comfort."
-    }
-  ],
-  luxury: [
-    {
-      name: "Royal Palace Hotel",
-      type: "hotel" as const,
-      rating: 4.9,
-      price_per_night: { amount: 400, currency: "USD" },
-      amenities: ["Spa", "Fine Dining", "Butler Service", "Pool", "Valet Parking", "Gym"],
-      location: "Premium District",
-      description: "Luxury hotel offering exceptional service and world-class amenities."
-    },
-    {
-      name: "Executive Resort & Spa",
-      type: "resort" as const,
-      rating: 4.8,
-      price_per_night: { amount: 350, currency: "USD" },
-      amenities: ["Multiple Pools", "Spa", "Golf Course", "Multiple Restaurants", "Private Beach"],
-      location: "Exclusive Area",
-      description: "Luxury resort with comprehensive facilities and premium location."
-    }
-  ]
-};
-
-const SAMPLE_ACTIVITIES = {
-  sightseeing: [
-    {
-      name: "Historic City Walking Tour",
-      type: "sightseeing" as const,
-      duration: "3 hours",
-      description: "Guided tour of the city's most important historical landmarks and monuments.",
-      location: "City Center",
-      estimated_cost: { amount: 25, currency: "USD" },
-      rating: 4.7
-    },
-    {
-      name: "Famous Museum Visit",
-      type: "cultural" as const,
-      duration: "2-3 hours",
-      description: "Explore world-renowned art and cultural artifacts.",
-      location: "Museum District",
-      estimated_cost: { amount: 18, currency: "USD" },
-      opening_hours: "9:00 AM - 6:00 PM"
-    }
-  ],
-  adventure: [
-    {
-      name: "Mountain Hiking Adventure",
-      type: "adventure" as const,
-      duration: "6 hours",
-      description: "Challenging hike with spectacular views and nature photography opportunities.",
-      location: "Mountain Region",
-      estimated_cost: { amount: 45, currency: "USD" },
-      rating: 4.8
-    },
-    {
-      name: "Water Sports Experience",
-      type: "adventure" as const,
-      duration: "4 hours",
-      description: "Kayaking, snorkeling, or surfing depending on location.",
-      location: "Coastal Area",
-      estimated_cost: { amount: 75, currency: "USD" }
-    }
-  ],
-  cultural: [
-    {
-      name: "Traditional Cooking Class",
-      type: "cultural" as const,
-      duration: "4 hours",
-      description: "Learn to prepare authentic local dishes with a professional chef.",
-      location: "Culinary School",
-      estimated_cost: { amount: 80, currency: "USD" },
-      booking_required: true
-    },
-    {
-      name: "Local Market Tour",
-      type: "cultural" as const,
-      duration: "2 hours",
-      description: "Explore bustling local markets and taste regional specialties.",
-      location: "Market District",
-      estimated_cost: { amount: 15, currency: "USD" }
-    }
-  ],
-  dining: [
-    {
-      name: "Fine Dining Experience",
-      type: "dining" as const,
-      duration: "2 hours",
-      description: "Michelin-starred restaurant featuring innovative local cuisine.",
-      location: "Upscale District",
-      estimated_cost: { amount: 120, currency: "USD" },
-      booking_required: true
-    },
-    {
-      name: "Street Food Tour",
-      type: "dining" as const,
-      duration: "3 hours",
-      description: "Sample the best local street food from various vendors.",
-      location: "Food District",
-      estimated_cost: { amount: 30, currency: "USD" }
-    }
-  ]
-};
-
-// ===== MOCK DATA GENERATORS =====
-
-function generateMockFlights(origin: string, destination: string, date: string): FlightOption[] {
-  const airlines = ["Delta", "United", "American", "Lufthansa", "Emirates", "British Airways"];
-  const airports = {
-    "New York": "JFK",
-    "Paris": "CDG",
-    "London": "LHR",
-    "Tokyo": "NRT",
-    "Rome": "FCO",
-    "Barcelona": "BCN",
-    "Sydney": "SYD",
-    "Bali": "DPS"
-  };
-
-  return [
-    {
-      airline: getRandomElements(airlines, 1)[0],
-      flight_number: `${getRandomElements(["AA", "DL", "UA", "LH", "EK"], 1)[0]}${Math.floor(Math.random() * 9999)}`,
-      departure: {
-        airport: airports[origin as keyof typeof airports] || "XXX",
-        time: "10:30 AM",
-        date: date
+// Function declaration for extracting route/line data using Google AI.
+const lineFunctionDeclaration = {
+  name: 'line',
+  parameters: {
+    type: 'object',
+    description: 'Connection between a start location and an end location for a day plan.',
+    properties: {
+      name: {
+        type: 'string',
+        description: 'Name of the route or connection (e.g., "Travel to [Next Location]").',
       },
-      arrival: {
-        airport: airports[destination as keyof typeof airports] || "YYY",
-        time: "2:45 PM",
-        date: date
-      },
-      duration: "8h 15m",
-      price: { amount: 450 + Math.floor(Math.random() * 800), currency: "USD" },
-      stops: Math.floor(Math.random() * 2)
-    },
-    {
-      airline: getRandomElements(airlines, 1)[0],
-      flight_number: `${getRandomElements(["AA", "DL", "UA", "LH", "EK"], 1)[0]}${Math.floor(Math.random() * 9999)}`,
-      departure: {
-        airport: airports[origin as keyof typeof airports] || "XXX",
-        time: "6:15 PM",
-        date: date
-      },
-      arrival: {
-        airport: airports[destination as keyof typeof airports] || "YYY",
-        time: "11:30 AM",
-        date: new Date(new Date(date).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-      },
-      duration: "12h 15m",
-      price: { amount: 380 + Math.floor(Math.random() * 600), currency: "USD" },
-      stops: 1
-    }
-  ];
-}
-
-function generateMockWeather(startDate: string, endDate: string): WeatherInfo[] {
-  const days = calculateDaysBetween(startDate, endDate);
-  const weather: WeatherInfo[] = [];
-  const conditions = ["Sunny", "Partly Cloudy", "Cloudy", "Light Rain", "Clear"];
-
-  for (let i = 0; i <= days; i++) {
-    const date = new Date(startDate);
-    date.setDate(date.getDate() + i);
-    
-    weather.push({
-      date: date.toISOString().split('T')[0],
-      temperature: {
-        high: 18 + Math.floor(Math.random() * 15),
-        low: 8 + Math.floor(Math.random() * 10),
-        unit: "°C"
-      },
-      condition: getRandomElements(conditions, 1)[0],
-      humidity: 40 + Math.floor(Math.random() * 40),
-      precipitation_chance: Math.floor(Math.random() * 30),
-      wind_speed: 5 + Math.floor(Math.random() * 15),
-      uv_index: 3 + Math.floor(Math.random() * 8)
-    });
-  }
-
-  return weather;
-}
-
-function generateRoute(origin: string, destination: string): Route {
-  const originData = DESTINATION_DATABASE[origin.toLowerCase() as keyof typeof DESTINATION_DATABASE];
-  const destData = DESTINATION_DATABASE[destination.toLowerCase() as keyof typeof DESTINATION_DATABASE];
-
-  if (!originData || !destData) {
-    throw new Error(`Unable to find location data for ${origin} or ${destination}`);
-  }
-
-  return {
-    origin: originData,
-    destination: destData,
-    distance: "2,850 km",
-    estimated_travel_time: "8-12 hours",
-    transportation_modes: [
-      {
-        mode: "flight",
-        duration: "8h 30m",
-        cost: { amount: 650, currency: "USD" },
-        description: "Direct flight or with 1 connection"
-      },
-      {
-        mode: "train",
-        duration: "12-15 hours",
-        cost: { amount: 180, currency: "USD" },
-        description: "High-speed rail where available"
-      },
-      {
-        mode: "bus",
-        duration: "18-24 hours",
-        cost: { amount: 85, currency: "USD" },
-        description: "Budget option with multiple stops"
-      }
-    ]
-  };
-}
-
-// ===== MAIN FUNCTION =====
-
-export async function planTrip(request: TripPlannerRequest): Promise<{ success: boolean; data: TripPlannerResponse; message: string }> {
-  try {
-    console.log('🧳 TRIP PLANNER: Processing request:', JSON.stringify(request, null, 2));
-
-    // Validate required fields
-    if (!request.destinations || request.destinations.length === 0) {
-      throw new Error("At least one destination is required");
-    }
-
-    if (!request.start_date || !request.end_date) {
-      throw new Error("Start date and end date are required");
-    }
-
-    // Parse and validate dates
-    const startDate = new Date(request.start_date);
-    const endDate = new Date(request.end_date);
-    
-    if (startDate >= endDate) {
-      throw new Error("End date must be after start date");
-    }
-
-    if (startDate < new Date()) {
-      throw new Error("Start date cannot be in the past");
-    }
-
-    const tripDays = calculateDaysBetween(request.start_date, request.end_date);
-
-    // Process destinations
-    const destinations: Location[] = [];
-    for (const destName of request.destinations) {
-      const destData = DESTINATION_DATABASE[destName.toLowerCase() as keyof typeof DESTINATION_DATABASE];
-      if (destData) {
-        destinations.push(destData);
-      } else {
-        // For unknown destinations, create a basic entry
-        destinations.push({
-          name: destName,
-          country: "Unknown",
-          coordinates: { latitude: 0, longitude: 0 },
-          description: `Information about ${destName} will be provided upon booking.`
-        });
-      }
-    }
-
-    // Determine budget category
-    const budgetCategory = request.budget?.category || 'mid-range';
-    const dailyBudget = request.budget?.amount ? request.budget.amount / tripDays : 150;
-
-    // Generate flight options if requested
-    let flights: TripPlannerResponse['flights'] | undefined;
-    if (request.include_flights && request.departure_location) {
-      flights = {
-        outbound: generateMockFlights(request.departure_location, destinations[0].name, request.start_date)
-      };
-      
-      if (destinations.length === 1) {
-        flights.return = generateMockFlights(destinations[0].name, request.departure_location, request.end_date);
-      } else {
-        flights.internal = [];
-        for (let i = 0; i < destinations.length - 1; i++) {
-          const segmentDate = new Date(startDate);
-          segmentDate.setDate(segmentDate.getDate() + (i + 1) * Math.floor(tripDays / destinations.length));
-          flights.internal.push(...generateMockFlights(
-            destinations[i].name, 
-            destinations[i + 1].name, 
-            segmentDate.toISOString().split('T')[0]
-          ));
-        }
-        flights.return = generateMockFlights(
-          destinations[destinations.length - 1].name, 
-          request.departure_location, 
-          request.end_date
-        );
-      }
-    }
-
-    // Generate weather forecast if requested
-    let weatherForecast: WeatherInfo[] | undefined;
-    if (request.include_weather) {
-      weatherForecast = generateMockWeather(request.start_date, request.end_date);
-    }
-
-    // Generate accommodations if requested
-    let accommodations: Accommodation[] | undefined;
-    if (request.include_accommodations) {
-      const accommodationType = budgetCategory;
-      accommodations = getRandomElements(SAMPLE_ACCOMMODATIONS[accommodationType], 3);
-    }
-
-    // Generate routes between destinations
-    let routes: Route[] | undefined;
-    if (destinations.length > 1) {
-      routes = [];
-      for (let i = 0; i < destinations.length - 1; i++) {
-        try {
-          routes.push(generateRoute(destinations[i].name, destinations[i + 1].name));
-        } catch (error) {
-          console.warn(`Could not generate route between ${destinations[i].name} and ${destinations[i + 1].name}`);
-        }
-      }
-    }
-
-    // Generate detailed itinerary if requested
-    let dailyItinerary: DaySchedule[] | undefined;
-    if (request.include_detailed_itinerary) {
-      dailyItinerary = [];
-      const daysPerDestination = Math.ceil(tripDays / destinations.length);
-      
-      for (let day = 0; day < tripDays; day++) {
-        const currentDate = new Date(startDate);
-        currentDate.setDate(currentDate.getDate() + day);
-        
-        const destinationIndex = Math.floor(day / daysPerDestination);
-        const currentDestination = destinations[Math.min(destinationIndex, destinations.length - 1)];
-        
-        // Select activities based on preferences
-        const activityTypes = request.preferences?.activity_types || ['sightseeing', 'cultural', 'dining'];
-        const dayActivities: Activity[] = [];
-        
-        for (const actType of activityTypes.slice(0, 3)) {
-          const availableActivities = SAMPLE_ACTIVITIES[actType as keyof typeof SAMPLE_ACTIVITIES];
-          if (availableActivities) {
-            dayActivities.push(...getRandomElements(availableActivities, 1));
-          }
-        }
-
-        const dayWeather = weatherForecast?.find(w => w.date === currentDate.toISOString().split('T')[0]) || {
-          date: currentDate.toISOString().split('T')[0],
-          temperature: { high: 22, low: 15, unit: "°C" },
-          condition: "Pleasant",
-          humidity: 60,
-          precipitation_chance: 10,
-          wind_speed: 8
-        };
-
-        const dayAccommodation = accommodations?.[0] || SAMPLE_ACCOMMODATIONS[budgetCategory][0];
-
-        dailyItinerary.push({
-          day: day + 1,
-          date: currentDate.toISOString().split('T')[0],
-          location: currentDestination.name,
-          weather: dayWeather,
-          activities: dayActivities,
-          meals: {
-            breakfast: getRandomElements(SAMPLE_ACTIVITIES.dining, 1)[0],
-            lunch: getRandomElements(SAMPLE_ACTIVITIES.dining, 1)[0],
-            dinner: getRandomElements(SAMPLE_ACTIVITIES.dining, 1)[0]
+      start: {
+        type: 'object',
+        description: 'Start location of the route',
+        properties: {
+          lat: {
+            type: 'string',
+            description: 'Latitude of the start location.',
           },
-          accommodation: dayAccommodation,
-          estimated_daily_cost: {
-            amount: dailyBudget,
-            currency: request.budget?.currency || "USD"
-          }
-        });
-      }
-    }
-
-    // Calculate total estimated cost
-    const costBreakdown = {
-      flights: flights ? (flights.outbound[0]?.price.amount || 0) + (flights.return?.[0]?.price.amount || 0) : 0,
-      accommodations: accommodations ? accommodations[0].price_per_night.amount * tripDays : 0,
-      activities: dailyItinerary ? 
-        dailyItinerary.reduce((sum, day) => 
-          sum + day.activities.reduce((actSum, act) => actSum + (act.estimated_cost?.amount || 0), 0), 0
-        ) : 0,
-      meals: tripDays * 60, // Estimated $60 per day for meals
-      transportation: routes ? routes.length * 50 : 0 // Local transportation
-    };
-
-    const totalCost = Object.values(costBreakdown).reduce((sum, cost) => sum + cost, 0);
-
-    // Generate travel tips based on destinations and preferences
-    const travelTips = [
-      "Pack comfortable walking shoes for city exploration",
-      "Check visa requirements and ensure your passport is valid",
-      "Notify your bank of international travel plans",
-      "Download offline maps and translation apps",
-      "Research local customs and tipping practices",
-      "Keep digital and physical copies of important documents",
-      "Check weather forecasts and pack accordingly"
-    ];
-
-    if (request.trip_type === 'adventure') {
-      travelTips.push("Bring appropriate gear for outdoor activities", "Consider travel insurance for adventure sports");
-    }
-
-    if (request.travelers.children && request.travelers.children > 0) {
-      travelTips.push("Pack entertainment for children during travel", "Research child-friendly activities and restaurants");
-    }
-
-    // Generate packing suggestions
-    const packingSuggestions = [
-      "Universal power adapter",
-      "Portable charger and charging cables",
-      "Basic first aid kit",
-      "Comfortable walking shoes",
-      "Weather-appropriate clothing",
-      "Camera or smartphone for photos",
-      "Sunscreen and sunglasses",
-      "Reusable water bottle"
-    ];
-
-    if (weatherForecast?.some(w => w.condition.includes("Rain"))) {
-      packingSuggestions.push("Umbrella or rain jacket");
-    }
-
-    // Build the response
-    const response: TripPlannerResponse = {
-      destinations,
-      trip_summary: {
-        duration_days: tripDays,
-        total_estimated_cost: {
-          amount: totalCost,
-          currency: request.budget?.currency || "USD",
-          breakdown: costBreakdown
+          lng: {
+            type: 'string',
+            description: 'Longitude of the start location.',
+          },
         },
-        best_time_to_visit: "Spring and Fall typically offer the best weather and fewer crowds",
-        recommended_duration: `${Math.max(3, Math.min(tripDays, 14))} days would be ideal for this itinerary`
+         required: ['lat', 'lng'],
       },
-      flights,
-      weather_forecast: weatherForecast,
-      accommodations,
-      routes,
-      daily_itinerary: dailyItinerary,
-      travel_tips: getRandomElements(travelTips, 6),
-      packing_suggestions: getRandomElements(packingSuggestions, 8),
-      local_customs: [
-        "Research local tipping customs and practices",
-        "Learn basic phrases in the local language",
-        "Respect dress codes at religious or cultural sites",
-        "Be aware of local dining etiquette"
-      ],
-      emergency_info: {
-        emergency_number: "Local emergency services: 112 (Europe) or 911 (North America)",
-        travel_advisories: ["Check current travel advisories before departure"]
-      }
-    };
+      end: {
+        type: 'object',
+        description: 'End location of the route',
+        properties: {
+          lat: {
+            type: 'string',
+            description: 'Latitude of the end location.',
+          },
+          lng: {
+            type: 'string',
+            description: 'Longitude of the end location.',
+          },
+        },
+        required: ['lat', 'lng'],
+      },
+      transport: {
+        type: 'string',
+        description:
+          'Mode of transportation between locations (e.g., "walking", "driving", "public transit").',
+      },
+      travelTime: {
+        type: 'string',
+        description:
+          'Estimated travel time between locations (e.g., "15 minutes", "1 hour").',
+      },
+    },
+    required: ['name', 'start', 'end', 'transport', 'travelTime'],
+  },
+};
 
-    return {
-      success: true,
-      data: response,
-      message: `Complete trip plan generated for ${destinations.map(d => d.name).join(", ")} from ${request.start_date} to ${request.end_date}`
-    };
+const SYSTEM_PROMPT = `You are an expert travel planner that creates comprehensive, detailed trip itineraries. Your goal is to provide COMPLETE, ready-to-execute travel plans that require NO follow-up questions or additional information.
 
-  } catch (error) {
-    console.error('Trip Planner error:', error);
+**CORE PRINCIPLES:**
+1. NEVER ask for clarification or additional information
+2. ALWAYS create a complete, actionable itinerary using available information
+3. Make reasonable assumptions when details are missing
+4. Provide specific times, locations, and activities for every part of the trip
+5. Support both new trip planning and modification of existing plans
+
+**TRIP PLANNING CAPABILITIES:**
+
+**New Trip Creation:**
+- Create detailed itineraries with specific times and realistic durations
+- Start days between 8:00-9:00 AM and end by 9:00-10:00 PM
+- Include meal breaks (breakfast, lunch, dinner) with specific restaurant recommendations
+- Account for realistic travel times between all locations
+- Provide accurate GPS coordinates for every location
+- Consider user interests, budget, and group type in all recommendations
+- Trip duration guidelines:
+  * Day trips: 4-6 major stops with 3 meal breaks
+  * Weekend trips: 6-8 stops per day with proper pacing
+  * Week-long trips: 5-7 stops per day with rest periods
+
+**Trip Modification & Replanning:**
+- Recognize when user wants to modify an existing trip plan
+- Replace specific activities, locations, or entire days as requested
+- Maintain overall trip structure while implementing changes
+- Adjust timing and logistics when modifications are made
+- Keep unchanged elements intact when only partial updates are requested
+
+**MANDATORY OUTPUT REQUIREMENTS:**
+
+You MUST use the "location" and "line" functions for EVERY itinerary:
+
+**Location Function Usage:**
+- Call "location" function for EVERY stop in the itinerary
+- Include ALL required properties: name, description, lat, lng, time, duration, sequence
+- Provide 2-3 sentence descriptions that explain why each location is worth visiting
+- Use precise coordinates (not approximations)
+- Specify exact visit times in 24h format (e.g., "09:00", "14:30")
+- Give realistic durations (e.g., "1.5 hours", "45 minutes")
+- Number locations sequentially throughout the entire trip
+
+**Line Function Usage:**
+- Call "line" function to connect ALL sequential stops
+- Include ALL required properties: name, start, end, transport, travelTime
+- Specify appropriate transportation (walking, driving, public transit, taxi)
+- Provide realistic travel times between locations
+- Create logical routes that minimize backtracking
+
+**DECISION-MAKING FRAMEWORK:**
+
+When information is missing, make intelligent defaults:
+- No destination specified: Choose a popular city relevant to user's context
+- Vague interests ("fun", "explore"): Select diverse activities including culture, food, sightseeing
+- No budget specified: Assume moderate budget with mix of free and paid activities
+- No dates: Plan for optimal weather season for the destination
+- No group type: Assume solo traveler but include options suitable for various group sizes
+
+**CRITICAL REQUIREMENTS:**
+- Generate a COMPLETE itinerary in every response
+- Use function calls for ALL locations and routes
+- Never request additional information
+- Make the plan immediately actionable
+- Include practical details (opening hours, booking requirements, costs)
+- Ensure geographical and temporal logic in the sequence
+
+Your response should be a fully-formed travel plan that someone could follow immediately without any additional planning required.`
+
+export async function createTripPlan(request: TripPlannerRequest): Promise<{ success: boolean; data: TripPlannerResponse; message: string }> {
+  const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
+  
+  if (!GEMINI_API_KEY) {
     return {
       success: false,
       data: {} as TripPlannerResponse,
-      message: `Failed to generate trip plan: ${(error as Error).message}`
-    };
+      message: 'Gemini API key not configured'
+    }
   }
+
+  try {
+    // Validate required parameters
+    if (!request.destination || request.destination.trim() === '') {
+      // If no destination provided, default to a popular city based on the request
+      if (request.destinations && request.destinations.length > 0) {
+        request.destination = request.destinations[0]
+      } else {
+        return {
+          success: false,
+          data: {} as TripPlannerResponse,
+          message: 'Destination is required for trip planning'
+        }
+      }
+    }
+
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY)
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-05-20" })
+
+    // Build the prompt based on modification type
+    const interests = request.interests?.join(', ') || 'general sightseeing'
+    
+    // Detect if this is a modification request
+    const isModification = request.modification_type && request.modification_type !== 'new_trip'
+    const hasExistingTrip = request.existing_trip && request.existing_trip.destinations?.length > 0
+    
+    // Calculate trip duration
+    let tripDuration = 'custom duration'
+    if (request.start_date && request.end_date) {
+      const start = new Date(request.start_date)
+      const end = new Date(request.end_date)
+      const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+      tripDuration = days === 1 ? '1 day' : `${days} days`
+      request.trip_type = days === 1 ? 'day_trip' : days <= 3 ? 'weekend' : 'week'
+    } else if (request.trip_type) {
+      tripDuration = request.trip_type === 'day_trip' ? '1 day' : 
+                      request.trip_type === 'weekend' ? '2-3 days' :
+                      request.trip_type === 'week' ? '7 days' : 'custom duration'
+    }
+    
+    let prompt: string
+    
+    if (isModification && hasExistingTrip) {
+      // Handle trip modifications
+      prompt = `MODIFY an existing ${tripDuration} trip itinerary for ${request.destination}.
+
+**MODIFICATION REQUEST:** ${request.modification_request || 'Update the trip as requested'}
+
+**EXISTING TRIP DETAILS:**
+${request.existing_trip.destinations.map(dest => `- ${dest.name}: ${dest.description}`).join('\n')}
+
+**MODIFICATION TYPE:** ${request.modification_type}
+${request.activity_to_replace ? `**ACTIVITY TO REPLACE:** ${request.activity_to_replace}` : ''}
+${request.new_activity_preference ? `**NEW ACTIVITY PREFERENCE:** ${request.new_activity_preference}` : ''}
+${request.day_to_modify ? `**DAY TO MODIFY:** Day ${request.day_to_modify}` : ''}
+
+**USER REQUIREMENTS:**
+- Interests: ${interests}
+- Budget: ${request.budget || 'moderate'} 
+- Travel group: ${request.group_type || 'solo'}${request.travelers ? `\n- Travelers: ${request.travelers.adults || 1} adults${request.travelers.children ? `, ${request.travelers.children} children` : ''}` : ''}
+
+**MODIFICATION INSTRUCTIONS:**
+
+1. **KEEP UNCHANGED**: Preserve all parts of the original itinerary that are NOT being modified
+2. **IMPLEMENT CHANGES**: Make the specific requested modifications while maintaining trip flow
+3. **ADJUST LOGISTICS**: Update timing and transportation as needed due to changes
+4. **MAINTAIN QUALITY**: Ensure modifications enhance rather than compromise the trip
+
+**REQUIRED OUTPUT:**
+- Provide the COMPLETE modified itinerary using function calls
+- Include both changed and unchanged elements in the output
+- Ensure all timing and logistics work with the modifications
+- Maintain the overall trip structure and flow`
+    } else {
+      // Handle new trip creation
+      prompt = `Create a COMPLETE, ready-to-execute ${tripDuration} trip itinerary for ${request.destination}.
+
+**USER REQUIREMENTS:**
+- Destination: ${request.destination}
+- Interests: ${interests}
+- Budget: ${request.budget || 'moderate'} 
+- Travel group: ${request.group_type || 'solo'}${request.travelers ? `\n- Travelers: ${request.travelers.adults || 1} adults${request.travelers.children ? `, ${request.travelers.children} children` : ''}` : ''}
+${request.start_date ? `- Start date: ${request.start_date}` : '- Start date: Use optimal season for destination'}${request.end_date ? `\n- End date: ${request.end_date}` : ''}
+
+**MANDATORY DELIVERABLES:**
+
+1. **COMPLETE ITINERARY**: Create a full day-by-day plan with NO gaps or missing information
+2. **SPECIFIC TIMING**: Exact times for every activity, meal, and transition
+3. **PRACTICAL DETAILS**: Include opening hours, estimated costs, booking requirements
+4. **LOGICAL FLOW**: Ensure activities are geographically and temporally sensible
+5. **COMPREHENSIVE COVERAGE**: Include sightseeing, dining, cultural experiences, and rest periods`
+    }
+    
+    // Common requirements for both new trips and modifications
+    prompt += `
+
+**CRITICAL INSTRUCTIONS:**
+
+✅ DO: Create a complete, actionable plan using function calls
+✅ DO: Make reasonable assumptions for any missing information  
+✅ DO: Include specific restaurants, attractions, and activities with exact coordinates
+✅ DO: Plan realistic travel times and transportation between all locations
+✅ DO: Provide meal recommendations integrated into the daily schedule
+
+❌ DON'T: Ask for clarification or additional information
+❌ DON'T: Leave any time periods unplanned
+❌ DON'T: Provide vague or incomplete location information
+
+**FUNCTION CALL REQUIREMENTS:**
+
+You MUST make multiple function calls:
+- Call "location" function for EVERY single stop (attractions, restaurants, hotels)
+- Call "line" function for EVERY route between consecutive locations
+- Ensure all function parameters are complete and accurate
+- Number locations sequentially across the entire trip (1, 2, 3... not restarting each day)
+
+This should be a publication-quality itinerary that requires no additional planning or research.`
+
+    const result = await model.generateContent({
+      contents: [
+        { role: "user", parts: [{ text: SYSTEM_PROMPT + "\n\n" + prompt }] }
+      ],
+      tools: [
+        {
+          functionDeclarations: [locationFunctionDeclaration, lineFunctionDeclaration]
+        }
+      ],
+      generationConfig: {
+        temperature: 1,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 8192,
+      }
+    })
+
+    const response = await result.response
+    
+    // Extract function calls from the response
+    const functionCalls = response.functionCalls()
+     console.log('🔍 TRIPPLANNER DEBUG: Function calls received:',
+  JSON.stringify(functionCalls, null, 2))
+  console.log('🔍 TRIPPLANNER DEBUG: Function calls length:', functionCalls?.length ||
+  0)
+
+    // Process function calls to extract locations and lines
+    const locations: Location[] = []
+    const routes: Route[] = []
+    
+    if (functionCalls && functionCalls.length > 0) {
+      for (const call of functionCalls) {
+        if (call.name === 'location') {
+          const args = call.args
+          locations.push({
+            name: args.name,
+            country: request.destination.includes(',') ? request.destination.split(',').pop()?.trim() || 'Unknown' : 
+                     request.destination.toLowerCase().includes('central park') ? 'USA' :
+                     request.destination.toLowerCase().includes('nyc') || request.destination.toLowerCase().includes('new york') ? 'USA' :
+                     'Unknown',
+            coordinates: {
+              latitude: parseFloat(args.lat),
+              longitude: parseFloat(args.lng),
+            },
+            description: args.description,
+            time: args.time,
+            duration: args.duration,
+            sequence: args.sequence,
+            category: 'attraction',
+          })
+        } else if (call.name === 'line') {
+          const args = call.args
+          // Find corresponding locations for start and end
+          const startLoc = locations.find(loc => 
+            Math.abs(loc.coordinates.latitude - parseFloat(args.start.lat)) < 0.001 &&
+            Math.abs(loc.coordinates.longitude - parseFloat(args.start.lng)) < 0.001
+          )
+          const endLoc = locations.find(loc => 
+            Math.abs(loc.coordinates.latitude - parseFloat(args.end.lat)) < 0.001 &&
+            Math.abs(loc.coordinates.longitude - parseFloat(args.end.lng)) < 0.001
+          )
+          
+          if (startLoc && endLoc) {
+            routes.push({
+              origin: startLoc,
+              destination: endLoc,
+              distance: '1 km', // Default distance
+              estimated_travel_time: args.travelTime,
+              transportation_modes: [{
+                mode: args.transport as any,
+                duration: args.travelTime,
+                description: args.name,
+              }],
+            })
+          }
+        }
+      }
+    }
+    
+    // Sort locations by sequence
+    locations.sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+    
+    // If no function calls were made, fall back to text parsing
+    if (locations.length === 0) {
+      const text = response.text()
+        console.log('🔍 TRIPPLANNER DEBUG: No function calls, raw text response:',
+  text.substring(0, 500))
+      
+      // Try to parse as JSON if possible
+      let aiData
+      try {
+        aiData = JSON.parse(text)
+        // Process the old format if available
+        if (aiData.locations) {
+          aiData.locations.forEach((loc: any) => {
+            locations.push({
+              name: loc.name,
+              country: loc.country || 'Unknown',
+              coordinates: {
+                latitude: loc.coordinates?.latitude || loc.lat || 0,
+                longitude: loc.coordinates?.longitude || loc.lng || 0,
+              },
+              description: loc.description,
+              time: loc.time,
+              duration: loc.duration,
+              sequence: loc.sequence,
+              category: loc.category,
+            })
+          })
+        }
+      } catch (parseError) {
+        console.error('Failed to parse AI response:', text)
+        throw new Error('Invalid response format from AI')
+      }
+    }
+    
+    // If no routes provided, create basic routes between consecutive locations
+    if (routes.length === 0 && locations.length > 1) {
+      for (let i = 0; i < locations.length - 1; i++) {
+        routes.push({
+          origin: locations[i],
+          destination: locations[i + 1],
+          distance: '1 km', // Default distance
+          estimated_travel_time: '10 minutes', // Default time
+          transportation_modes: [{
+            mode: 'walking',
+            duration: '10 minutes',
+            description: 'Walk between locations',
+          }],
+        });
+      }
+    }
+    
+    // Group locations by day for multi-day trips
+    const dailyItinerary: DaySchedule[] = []
+    
+    if (request.trip_type === 'day_trip') {
+      // For day trips, create activities from locations
+      const activities: Activity[] = locations.map(loc => ({
+        name: loc.name,
+        type: (loc.category as Activity['type']) || 'sightseeing',
+        duration: loc.duration || '1 hour',
+        description: loc.description || '',
+        location: loc.name,
+      }));
+
+      dailyItinerary.push({
+        day: 1,
+        date: request.start_date || new Date().toISOString().split('T')[0],
+        location: request.destination,
+        weather: {
+          date: request.start_date || new Date().toISOString().split('T')[0],
+          temperature: { high: 22, low: 15, unit: 'C' },
+          condition: 'Partly cloudy',
+          humidity: 60,
+          precipitation_chance: 20,
+          wind_speed: 10,
+        },
+        activities,
+        meals: {},
+        accommodation: {
+          name: 'Local Accommodation',
+          type: 'hotel',
+          rating: 4,
+          price_per_night: { amount: 100, currency: 'USD' },
+          amenities: [],
+          location: request.destination,
+          description: 'Comfortable accommodation',
+        },
+        estimated_daily_cost: { amount: 150, currency: 'USD' },
+      })
+    } else {
+      // Group locations by day based on sequence or time
+      const locationsByDay = new Map<number, Location[]>()
+      
+      locations.forEach(loc => {
+        const day = Math.ceil((loc.sequence || 1) / 6) // Assume ~6 stops per day
+        if (!locationsByDay.has(day)) {
+          locationsByDay.set(day, [])
+        }
+        locationsByDay.get(day)!.push(loc)
+      })
+      
+      locationsByDay.forEach((locs, day) => {
+        const activities: Activity[] = locs.map(loc => ({
+          name: loc.name,
+          type: (loc.category as Activity['type']) || 'sightseeing',
+          duration: loc.duration || '1 hour',
+          description: loc.description || '',
+          location: loc.name,
+        }));
+
+        dailyItinerary.push({
+          day,
+          date: request.start_date ? addDays(request.start_date, day - 1) : new Date().toISOString().split('T')[0],
+          location: request.destination,
+          weather: {
+            date: request.start_date ? addDays(request.start_date, day - 1) : new Date().toISOString().split('T')[0],
+            temperature: { high: 22, low: 15, unit: 'C' },
+            condition: 'Partly cloudy',
+            humidity: 60,
+            precipitation_chance: 20,
+            wind_speed: 10,
+          },
+          activities,
+          meals: {},
+          accommodation: {
+            name: `Day ${day} Accommodation`,
+            type: 'hotel',
+            rating: 4,
+            price_per_night: { amount: 100, currency: 'USD' },
+            amenities: [],
+            location: request.destination,
+            description: 'Comfortable accommodation',
+          },
+          estimated_daily_cost: { amount: 150, currency: 'USD' },
+        })
+      })
+    }
+    
+    const tripPlan: TripPlannerResponse = {
+      destinations: locations,
+      trip_summary: {
+        duration_days: dailyItinerary.length,
+        total_estimated_cost: {
+          amount: dailyItinerary.length * 150,
+          currency: 'USD',
+          breakdown: {
+            accommodations: dailyItinerary.length * 100,
+            meals: dailyItinerary.length * 50,
+          },
+        },
+        best_time_to_visit: 'Year-round',
+        recommended_duration: `${dailyItinerary.length} days`,
+      },
+      routes,
+      daily_itinerary: dailyItinerary,
+      travel_tips: ['Stay hydrated', 'Keep local currency handy', 'Respect local customs'],
+      packing_suggestions: ['Comfortable walking shoes', 'Weather-appropriate clothing', 'Travel adapter'],
+    }
+     console.log('🔍 TRIPPLANNER DEBUG: Final locations count:', locations.length)
+  console.log('🔍 TRIPPLANNER DEBUG: Final routes count:', routes.length)
+
+    return {
+      success: true,
+      data: tripPlan,
+      message: `Created ${tripDuration} itinerary for ${request.destination} with ${locations.length} locations`
+    }
+
+  } catch (error) {
+    console.error('Trip planner error:', error)
+    return {
+      success: false,
+      data: {} as TripPlannerResponse,
+      message: `Failed to create trip plan: ${error.message}`
+    }
+  }
+}
+
+// Helper function to add days to a date
+function addDays(dateStr: string, days: number): string {
+  const date = new Date(dateStr)
+  date.setDate(date.getDate() + days)
+  return date.toISOString().split('T')[0]
 }

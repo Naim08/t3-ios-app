@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
+import React, { createContext, useContext, useState, useMemo } from 'react';
 import { useCredits } from '../hooks/useCredits';
 import { usePurchase } from '../purchases';
 

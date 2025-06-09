@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, ViewStyle, Animated, Platform, Image } from 'react-native';
+// src/chat/MessageBubble.tsx
+import React, { useEffect, useRef, useState, memo } from 'react';
+import { View, StyleSheet, ViewStyle, Animated, Platform, Image, Text } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 // Conditional imports for gradients
 let LinearGradient, BlurView;
@@ -15,8 +16,11 @@ try {
 }
 import { useTheme } from '../components/ThemeProvider';
 import { Surface, Typography, Avatar, AILoadingAnimation } from '../ui/atoms';
-import { Message } from './types';
-import TripPlannerTool from './components/TripPlannerTool';
+import { Message, TripPlannerResponse } from './types';
+import { TripPlannerTool } from './components/TripPlannerTool';
+import { FullScreenMapModal } from './components/FullScreenMapModal';
+import { usePersona } from '../context/PersonaContext';
+import { useProfile } from '../hooks/useProfile';
 
 export interface MessageBubbleProps {
   message: Message;
@@ -28,8 +32,12 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
   style,
 }) => {
   const { theme } = useTheme();
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
+  const { currentPersona } = usePersona();
+  const { profile } = useProfile();
+  const fadeAnim = useRef(new Animated.Value(1)).current; // Start at 1 to avoid flicker
+  const slideAnim = useRef(new Animated.Value(0)).current; // Start at 0
+  const [fullScreenMapData, setFullScreenMapData] = useState<TripPlannerResponse | null>(null);
+  const [showFullScreenMap, setShowFullScreenMap] = useState(false);
   
   const isUser = message.role === 'user';
   const isStreaming = message.isStreaming;
@@ -38,8 +46,17 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
     minute: '2-digit',
   });
 
+  const handleFullScreenMap = (data: TripPlannerResponse) => {
+    setFullScreenMapData(data);
+    setShowFullScreenMap(true);
+  };
+
+  const handleCloseFullScreenMap = () => {
+    setShowFullScreenMap(false);
+    setFullScreenMapData(null);
+  };
   
-  // Animation on mount
+  // Remove animation on mount to prevent issues
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -59,6 +76,8 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
   const getBubbleStyle = (): ViewStyle => {
     const baseStyle: ViewStyle = {
       marginBottom: 16,
+      width: '100%',
+      flexDirection: 'column',
     };
 
     return baseStyle;
@@ -80,7 +99,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
 
   // Custom render rules to fix the key prop issue
   const renderRules = {
-    image: (node: any, children: any, parent: any, styles: any) => {
+    image: (node: any, _children: any, _parent: any, _styles: any) => {
       const { src, alt } = node.attributes;
       return (
         <Image
@@ -170,6 +189,46 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
     },
   });
 
+  // Check if we should show tool response
+  const shouldShowToolResponse = () => {
+    // Check for new format toolResponse
+    if (message.toolResponse?.type === 'tripplanner') {
+      return true;
+    }
+    
+    // Check for database tool_calls
+    if (message.toolCalls && message.toolCalls.tripplanner) {
+      return true;
+    }
+
+    // Check for legacy tripplanner in text
+    if (!isUser && message.text && (
+      message.text.includes('**Trip Plan:**') || 
+      message.text.includes('**Day 1 -') ||
+      message.text.includes('**Key Destinations:**') ||
+      message.text.includes('destinations":[') ||
+      message.text.includes('trip_summary') ||
+      message.text.includes('"coordinates"') ||
+      message.text.includes('"latitude"')
+    )) {
+      return true;
+    }
+
+    return false;
+  };
+
+  // Get the message text to display
+  const getDisplayText = () => {
+    // For streaming messages that are still empty, show a space to maintain bubble
+    if (isStreaming && (!message.text || message.text === '')) {
+      return ' ';
+    }
+    
+    // Return the actual text
+    return message.text || '';
+  };
+
+
   return (
     <Animated.View 
       style={[
@@ -182,29 +241,69 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
         },
       ] as any}
     >
-      <View style={[styles.messageRow, { justifyContent: isUser ? 'flex-end' : 'flex-start' }]}>
-        {!isUser && (
-          <View style={styles.avatarContainer}>
-            <View style={styles.aiAvatar}>
-              <LinearGradient
-                colors={[
-                  theme.colors.accent['400'],
-                  theme.colors.accent['600'],
-                ]}
-                style={[styles.avatar, { width: 32, height: 32, borderRadius: 16 }]}
+      <View style={styles.messageColumn}>
+        {/* Avatar with name for both user and assistant messages */}
+        <View style={[styles.avatarWithName, { alignSelf: isUser ? 'flex-end' : 'flex-start' }]}>
+          {isUser ? (
+            /* User: Name on left, avatar on right */
+            <View style={styles.userAvatarRow}>
+              <Typography
+                variant="caption"
+                weight="semibold"
+                color={theme.colors.textSecondary}
+                style={styles.userName}
               >
-                <Typography
-                  variant="bodySm"
-                  weight="bold"
-                  color="#FFFFFF"
-                  align="center"
-                >
-                  AI
-                </Typography>
-              </LinearGradient>
+                {profile?.display_name || 'You'}
+              </Typography>
+              <Avatar
+                size={32}
+                showBorder={true}
+                accessibilityLabel="Your profile picture"
+              />
             </View>
-          </View>
-        )}
+          ) : (
+            /* Assistant: Avatar on left, name on right */
+            <View style={styles.assistantAvatarRow}>
+              <View style={styles.assistantAvatarContainer}>
+                {currentPersona?.icon ? (
+                  <View style={[styles.personaAvatar, { backgroundColor: theme.colors.surface }]}>
+                    <Typography
+                      variant="bodyLg"
+                      style={styles.personaIcon}
+                    >
+                      {currentPersona.icon}
+                    </Typography>
+                  </View>
+                ) : (
+                  <LinearGradient
+                    colors={[
+                      theme.colors.accent['400'],
+                      theme.colors.accent['600'],
+                    ]}
+                    style={[styles.avatar, { width: 32, height: 32, borderRadius: 16 }]}
+                  >
+                    <Typography
+                      variant="bodySm"
+                      weight="bold"
+                      color="#FFFFFF"
+                      align="center"
+                    >
+                      AI
+                    </Typography>
+                  </LinearGradient>
+                )}
+              </View>
+              <Typography
+                variant="caption"
+                weight="semibold"
+                color={theme.colors.textSecondary}
+                style={styles.assistantName}
+              >
+                {currentPersona?.display_name || 'Assistant'}
+              </Typography>
+            </View>
+          )}
+        </View>
         
         {isUser ? (
           <View style={styles.userMessageContainer}>
@@ -223,7 +322,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
             >
             <View style={styles.markdownContainer}>
               <Markdown style={getMarkdownStyles()} rules={renderRules}>
-                {message.text}
+                {getDisplayText()}
               </Markdown>
             </View>
             
@@ -238,13 +337,6 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
               </Typography>
             )}
             </LinearGradient>
-            <View style={[styles.avatarContainer, { marginLeft: 10 }]}>
-              <Avatar
-                size={32}
-                showBorder={true}
-                accessibilityLabel="Your profile picture"
-              />
-            </View>
           </View>
         ) : (
           <View style={styles.aiMessageContainer}>
@@ -257,23 +349,130 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                 isStreaming && styles.streamingBubble,
               ] as any}
             >
-              {isStreaming && message.text === '' && (
+                           {isStreaming && (!message.text || message.text === '') && (
                 <View style={styles.aiLoadingContainer}>
                   <AILoadingAnimation size={24} />
                 </View>
               )}
-              <View style={styles.markdownContainer}>
-                <Markdown style={getMarkdownStyles()} rules={renderRules}>
-                  {message.text || ' '}
-                </Markdown>
-              </View>
-              
-              {/* Tool Response Content */}
-              {message.toolResponse && message.toolResponse.type === 'tripplanner' && (
-                <View style={styles.toolResponseContainer}>
-                  <TripPlannerTool tripPlan={message.toolResponse.data} />
+    {!shouldShowToolResponse() && (
+                <View style={styles.markdownContainer}>
+                  <Markdown style={getMarkdownStyles()} rules={renderRules}>
+                   {getDisplayText()}
+                  </Markdown>
                 </View>
               )}
+              
+              {/* Tool Response Content */}
+         {shouldShowToolResponse() && (() => {
+                // Check for new format toolResponse (for real-time streaming messages)
+                if (message.toolResponse?.type === 'tripplanner') {
+                  return (
+                <View style={styles.toolResponseContainer}>
+                  <TripPlannerTool 
+                                          data={message.toolResponse.data as TripPlannerResponse} 
+                                                   compact={true} 
+                    onFullScreenMap={handleFullScreenMap}
+                  />
+                </View>
+                   );
+              }
+ if (message.toolCalls && message.toolCalls.tripplanner) {
+                  const toolCall = message.toolCalls.tripplanner;
+                  if (toolCall.success && toolCall.data) {
+                    return (
+                      <View style={styles.toolResponseContainer}>
+                        <TripPlannerTool 
+                          data={toolCall.data as TripPlannerResponse} 
+                          compact={true} 
+                          onFullScreenMap={handleFullScreenMap}
+                        />
+                      </View>
+                    );
+                  }
+                }
+
+                // Check for legacy tripplanner responses in message text
+                if (!isUser && message.text) {
+                  // Try to extract structured data from text
+                  try {
+                    // Method 1: Try parsing the entire message as JSON
+                    try {
+                      const parsed = JSON.parse(message.text);
+                      if (parsed.destinations && Array.isArray(parsed.destinations)) {
+                        return (
+                          <View style={styles.toolResponseContainer}>
+                            <TripPlannerTool 
+                              data={parsed as TripPlannerResponse} 
+                              compact={true} 
+                              onFullScreenMap={handleFullScreenMap}
+                            />
+                          </View>
+                        );
+                      }
+                    } catch (e) {
+                      // Not pure JSON, try other methods
+                    }
+                    
+                    // Method 2: Look for JSON embedded in formatted text
+                    const jsonMatch = message.text.match(/\{[\s\S]*"destinations"[\s\S]*\}/);
+                    if (jsonMatch) {
+                      const tripData = JSON.parse(jsonMatch[0]);
+                      if (tripData.destinations && Array.isArray(tripData.destinations)) {
+                        return (
+                          <View style={styles.toolResponseContainer}>
+                            <TripPlannerTool 
+                              data={tripData as TripPlannerResponse} 
+                              compact={true} 
+                              onFullScreenMap={handleFullScreenMap}
+                            />
+                          </View>
+                        );
+                      }
+                    }
+                  } catch (error) {
+                    console.log('🗺️ Could not parse legacy tripplanner JSON:', error);
+                  }
+
+                  // If JSON parsing failed, show legacy indicator with the text content
+                  return (
+                    <>
+                      <View style={styles.markdownContainer}>
+                        <Markdown style={getMarkdownStyles()} rules={renderRules}>
+                          {getDisplayText()}
+                        </Markdown>
+                      </View>
+                      <View style={styles.toolResponseContainer}>
+                        <View style={{ padding: 12, backgroundColor: theme.colors.surface, borderRadius: 8, borderLeftWidth: 4, borderLeftColor: theme.colors.brand['500'] }}>
+                          <Typography variant="caption" color={theme.colors.brand['600']}>
+                            🗺️ Trip Plan (Legacy Format)
+                          </Typography>
+                          <Typography variant="bodySm" style={{ marginTop: 4, color: theme.colors.textSecondary }}>
+                            This trip plan was created before the new map interface.
+                          </Typography>
+                        </View>
+                      </View>
+                    </>
+                  );
+                }
+
+                // Handle other tool types
+                if (message.toolResponse) {
+                  return (
+                    <View style={styles.toolResponseContainer}>
+                      <View style={{ padding: 12, backgroundColor: theme.colors.surface, borderRadius: 8 }}>
+                        <Typography variant="caption" color={theme.colors.textSecondary}>
+                          Tool: {message.toolResponse.type}
+                        </Typography>
+                        <Typography variant="bodySm" style={{ marginTop: 4 }}>
+                          {JSON.stringify(message.toolResponse.data, null, 2).substring(0, 200)}...
+                        </Typography>
+                      </View>
+                    </View>
+                  );
+                }
+
+                return null;
+              })()}
               
               {!isStreaming && (
                 <Typography
@@ -289,13 +488,20 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
           </View>
         )}
       </View>
+      
+      {/* Full Screen Map Modal */}
+      <FullScreenMapModal
+        visible={showFullScreenMap}
+        data={fullScreenMapData}
+        onClose={handleCloseFullScreenMap}
+      />
     </Animated.View>
   );
 };
 
-// Memoize MessageBubble to prevent unnecessary re-renders that cause layout jumps
-export const MessageBubble = React.memo(MessageBubbleComponent, (prevProps, nextProps) => {
-  // Only re-render if message content or streaming state changed
+// Use memo with proper comparison
+export const MessageBubble = memo(MessageBubbleComponent, (prevProps, nextProps) => {
+  // Only re-render if the message data actually changed
   return (
     prevProps.message.id === nextProps.message.id &&
     prevProps.message.text === nextProps.message.text &&
@@ -307,26 +513,64 @@ export const MessageBubble = React.memo(MessageBubbleComponent, (prevProps, next
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 12,
-    flexShrink: 1,
+    paddingVertical: 4,
     maxWidth: '100%',
+    flexShrink: 0, // Prevent shrinking
+    overflow: 'visible', // Allow content to be visible
+    // Ensure minimum height
+    minHeight: 60,
   },
-  messageRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+  messageColumn: {
+    flexDirection: 'column',
     width: '100%',
+    flex: 1,
+  },
+  avatarWithName: {
+    marginBottom: 8,
+  },
+  userAvatarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  assistantAvatarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  assistantAvatarContainer: {
+    // Container for the persona avatar
+  },
+  personaAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(0,0,0,0.1)',
+  },
+  personaIcon: {
+    fontSize: 18,
+  },
+  userName: {
+    // User name styling
+  },
+  assistantName: {
+    // Assistant name styling
   },
   avatarContainer: {
     marginBottom: 4,
   },
   userMessageContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    maxWidth: '85%',
+    width: '100%',
+    alignItems: 'flex-end', // Align user messages to the right
+    alignSelf: 'flex-end',
   },
   aiMessageContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    maxWidth: '75%',
+    width: '100%',
+    alignItems: 'flex-start', // Align AI messages to the left
+    alignSelf: 'flex-start',
   },
   aiAvatar: {
     marginRight: 10,
@@ -354,8 +598,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 20,
     minWidth: 50,
-    maxWidth: '100%',
+    width: '100%',
+    flex: 1,
     flexShrink: 1,
+    // Ensure minimum height
+    minHeight: 40,
+    // Better text wrapping
+    overflow: 'hidden',
   },
   userBubble: {
     borderTopRightRadius: 4,
@@ -397,13 +646,21 @@ const styles = StyleSheet.create({
   markdownContainer: {
     flex: 1,
     maxWidth: '100%',
-    minWidth: 0, // Allows flex items to shrink below their content size
+    minWidth: 0,
+     
   },
   timestamp: {
     marginTop: 6,
     fontSize: 11,
   },
   toolResponseContainer: {
-    marginTop: 12,
+    maxWidth: '100%',
+    marginTop: 0,
+  },
+  image: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    marginVertical: 8,
   },
 });

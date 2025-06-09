@@ -63,3 +63,41 @@ export const typography = {
 
 export type TypographyVariant = keyof typeof typography.scale;
 export type TypographyWeight = keyof typeof typography.weight;
+
+// TailwindCSS class utilities for typography
+export const tailwindTypography = {
+  // Font sizes mapping to Tailwind classes
+  fontSize: {
+    h1: 'text-h1',
+    h2: 'text-h2', 
+    h3: 'text-h3',
+    h4: 'text-h4',
+    h5: 'text-h5',
+    h6: 'text-h6',
+    bodyLg: 'text-body-lg',
+    bodyMd: 'text-body-md',
+    bodySm: 'text-body-sm',
+    bodyXs: 'text-body-xs',
+    caption: 'text-caption',
+    overline: 'text-overline'
+  },
+  // Font weights mapping to Tailwind classes
+  fontWeight: {
+    regular: 'font-normal',
+    medium: 'font-medium',
+    semibold: 'font-semibold',
+    bold: 'font-bold'
+  }
+} as const;
+
+// Utility function to combine typography variant and weight into Tailwind classes
+export const getTypographyClasses = (
+  variant: TypographyVariant,
+  weight?: TypographyWeight,
+  additionalClasses?: string
+): string => {
+  const sizeClass = tailwindTypography.fontSize[variant];
+  const weightClass = weight ? tailwindTypography.fontWeight[weight] : tailwindTypography.fontWeight.regular;
+  
+  return [sizeClass, weightClass, additionalClasses].filter(Boolean).join(' ');
+};

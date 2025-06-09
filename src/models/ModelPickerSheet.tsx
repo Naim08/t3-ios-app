@@ -1,3 +1,4 @@
+/* eslint-disable react-native/no-inline-styles */
 import React, { useCallback, useMemo } from 'react';
 import {
   View,
@@ -9,6 +10,7 @@ import {
 import BottomSheet from '@gorhom/bottom-sheet';
 import { useTheme } from '../components/ThemeProvider';
 import { Typography, Surface } from '../ui/atoms';
+import { Lock, Check, AlertTriangle, Circle } from 'lucide-react-native';
 import { PremiumBadge } from './PremiumBadge';
 import { useEntitlements } from '../hooks/useEntitlements';
 import { useTranslation } from 'react-i18next';
@@ -122,9 +124,12 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
                   >
                     {model.name}
                     {isLockedPremium && (
-                      <Typography variant="caption" style={{ color: theme.colors.brand['500'] }}>
-                        {' '}🔒 Premium
-                      </Typography>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 4 }}>
+                        <Lock size={12} color={theme.colors.brand['500']} strokeWidth={2} />
+                        <Typography variant="caption" style={{ color: theme.colors.brand['500'], marginLeft: 2 }}>
+                          Premium
+                        </Typography>
+                      </View>
                     )}
                   </Typography>
                   <View style={styles.badges}>
@@ -137,20 +142,22 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
                     )}
                     {isCurrentModel && (
                       <View style={[styles.badge, { backgroundColor: theme.colors.brand['100'] }]}>
-                        <Typography variant="caption" style={{ color: theme.colors.brand['700'] }}>
-                          ✓ Selected
-                        </Typography>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Check size={12} color={theme.colors.brand['700']} strokeWidth={2.5} />
+                          <Typography variant="caption" style={{ color: theme.colors.brand['700'], marginLeft: 2 }}>
+                            Selected
+                          </Typography>
+                        </View>
                       </View>
                     )}
                   </View>
                 </View>
                 {showWarning && (
-                  <Typography
-                    variant="caption"
-                    style={{ color: theme.colors.danger['600'] }}
-                  >
-                    ⚠
-                  </Typography>
+                  <AlertTriangle 
+                    size={16} 
+                    color={theme.colors.danger['600']} 
+                    strokeWidth={2}
+                  />
                 )}
               </View>
               <Typography
@@ -242,10 +249,19 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
               fontWeight: remainingTokens === 0 ? 'bold' : 'normal'
             }}
           >
-            {remainingTokens === 0 
-              ? `🔴 ${t('models.remainingTokens', { count: remainingTokens })}`
-              : t('models.remainingTokens', { count: remainingTokens })
-            }
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {remainingTokens === 0 && (
+                <View style={{ marginRight: 4 }}>
+                  <Circle 
+                    size={12} 
+                    color={theme.colors.danger['600']} 
+                    fill={theme.colors.danger['600']}
+                    strokeWidth={0}
+                  />
+                </View>
+              )}
+              {t('models.remainingTokens', { count: remainingTokens })}
+            </View>
           </Typography>
         </View>
 
