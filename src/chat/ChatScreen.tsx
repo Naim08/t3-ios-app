@@ -1,14 +1,13 @@
 /* eslint-disable no-undef */
 /* eslint-disable react-native/no-inline-styles */
 /* eslint-disable @typescript-eslint/no-require-imports */
-import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo, memo } from 'react';
 import {
   View,
   StyleSheet,
   FlatList,
   KeyboardAvoidingView,
   Platform,
-  TouchableOpacity,
   ListRenderItem,
   Keyboard,
   Animated,
@@ -28,21 +27,23 @@ try {
   BlurView = ({ children, style, ...props }: any) => React.createElement(View, { style, ...props }, children);
 }
 import { useTheme } from '../components/ThemeProvider';
-import { Typography, TextField, IconButton, AILoadingAnimation } from '../ui/atoms';
-import { Send, Square } from 'lucide-react-native';
+import { Typography, IconButton, AILoadingAnimation } from '../ui/atoms';
+// Removed unused icon imports
 import { MessageBubble } from './MessageBubble';
+import { StreamingMessage } from './components/StreamingMessage';
+import { ChatInputBar } from './components/ChatInputBar';
 import { EmptyState } from './EmptyState';
 import { Message } from './types';
 import { ChatSettingsModal, ChatSettingsModalRef } from './ChatSettingsModal';
 import { useEntitlements } from '../hooks/useEntitlements';
 import { useStream, StreamMessage } from './useStream';
-import { useTranslation } from 'react-i18next';
+// Removed unused translation import
 import { usePersona } from '../context/PersonaContext';
 import { supabase } from '../lib/supabase';
 import { isModelPremium } from '../utils/modelUtils';
 import { ConversationService } from '../services/conversationService';
 
-const { width } = Dimensions.get('window');
+// Removed unused width constant
 
 // Configuration for conversation history optimization
 const CONVERSATION_OPTIMIZATION = {
@@ -67,21 +68,7 @@ function extractKeywords(text: string): string[] {
     .slice(0, 10); // Limit to top 10 keywords
 }
 
-/**
- * Checks if two sets of keywords have overlap
- */
-function hasKeywordOverlap(messageText: string, keywords: string[]): boolean {
-  if (keywords.length === 0) return false;
-  
-  const messageKeywords = extractKeywords(messageText);
-  const overlap = keywords.filter(keyword => 
-    messageKeywords.some(msgKeyword => 
-      msgKeyword.includes(keyword) || keyword.includes(msgKeyword)
-    )
-  );
-  
-  return overlap.length > 0;
-}
+// Removed unused hasKeywordOverlap function
 
 /**
  * Calculates relevance score for a message based on keyword overlap and other factors
@@ -171,19 +158,7 @@ function optimizeConversationHistory(messages: Message[], systemPrompt: string =
   return selectedMessages;
 }
 
-/**
- * Creates a summary of truncated conversation history for context preservation.
- * This could be expanded to use AI summarization in the future.
- */
-function createConversationSummary(truncatedMessages: Message[]): string {
-  if (truncatedMessages.length === 0) return '';
-  
-  const messageCount = truncatedMessages.length;
-  const firstMessage = truncatedMessages[0];
-  const lastMessage = truncatedMessages[truncatedMessages.length - 1];
-  
-  return `[Previous conversation summary: ${messageCount} messages exchanged. Started with "${firstMessage.text.substring(0, 50)}..." and last discussed "${lastMessage.text.substring(0, 50)}..."]`;
-}
+// Removed unused createConversationSummary function
 
 
 interface ChatScreenProps {
@@ -207,26 +182,37 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
   const { currentPersona, setCurrentPersona } = usePersona();
   const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [inputText, setInputText] = useState('');
+
+  // Debug messages state changes
+  React.useEffect(() => {
+    console.log('📋 CHAT: Messages state updated. Count:', messages.length);
+    messages.forEach((msg, i) => {
+      console.log(`  ${i}: ${msg.role} (${msg.id}): ${msg.text?.substring(0, 50)}${msg.text && msg.text.length > 50 ? '...' : ''} [streaming: ${msg.isStreaming}]`);
+    });
+  }, [messages]);
+  // Remove inputText state - now handled in ChatInputBar
   const [currentModel, setCurrentModel] = useState<string>('gpt-3.5'); // Will be loaded from storage
 
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
-  const [conversationTitle, setConversationTitle] = useState<string>('');
+  const [conversationTitle, setConversationTitle] = useState<string>(''); // TODO: Display this in the UI
   const [keyboardHeight, setKeyboardHeight] = useState<number>(0);
+  const [pendingSuggestion, setPendingSuggestion] = useState<string>('');
+  const [isLoadingConversation, setIsLoadingConversation] = useState(false);
   
-  // Pagination state
-  const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  // Pagination state - Start with false for new conversations
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [currentOffset, setCurrentOffset] = useState(0);
   const flatListRef = useRef<FlatList>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
-  const typingAnimation = useRef(new Animated.Value(0)).current;
-  const sendButtonScale = useRef(new Animated.Value(1)).current;
   const chatSettingsModalRef = useRef<ChatSettingsModalRef>(null);
   const toolResultsRef = useRef<{ [messageId: string]: object }>({});
   const databaseMessageIdRef = useRef<string | null>(null);
   const streamingMessageIdRef = useRef<string | null>(null);
+  const lastSentMessageRef = useRef<{ text: string; timestamp: number } | null>(null);
+  const isLoadingMoreRef = useRef(false);
+  const conversationIdRef = useRef<string | null>(null);
 
   // Component mount/unmount tracking
   useEffect(() => {
@@ -325,6 +311,15 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
 
   const loadConversation = useCallback(async (conversationId: string) => {
     try {
+      console.log('📄 Loading conversation:', conversationId);
+      setIsLoadingConversation(true);
+
+      // ✅ Reset pagination state when loading new conversation
+      setCurrentOffset(0);
+      setHasMoreMessages(true); // Set to true for existing conversations, will be updated by initial fetch
+      setIsLoadingMore(false);
+      isLoadingMoreRef.current = false;
+
       // Fetch conversation details using service
       const conversationResult = await ConversationService.fetchConversation(conversationId);
       
@@ -366,13 +361,22 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
             toolCalls: msg.tool_calls as Message['toolCalls'],
           }));
 
-        setMessages(uiMessages);
-        setHasMoreMessages(hasMore);
-        setCurrentOffset(messagesData.length);
+        // ✅ Deduplicate messages by ID to prevent duplicate rendering
+        const deduplicatedMessages = uiMessages.filter((msg, index, arr) =>
+          arr.findIndex(m => m.id === msg.id) === index
+        );
+
+        console.log(`📄 CHAT: Loaded ${uiMessages.length} messages, deduplicated to ${deduplicatedMessages.length}`);
+        console.log(`📄 CHAT: hasMore from initial load: ${hasMore}, setting hasMoreMessages to: ${hasMore}`);
+        console.log(`📄 CHAT: Setting currentOffset to: ${deduplicatedMessages.length}`);
+        setMessages(deduplicatedMessages);
+        setHasMoreMessages(hasMore); // ✅ Set hasMoreMessages from initial load
+        setCurrentOffset(deduplicatedMessages.length); // ✅ Set offset to loaded message count
       }
 
       // Set the conversation state
       setCurrentConversationId(conversationId);
+      conversationIdRef.current = conversationId; // Also store in ref for immediate access
       setConversationTitle(conversation.title || '');
 
       // Set model from conversation if available
@@ -401,15 +405,28 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
 
     } catch (error) {
       console.error('❌ Unexpected error in loadConversation:', error);
+    } finally {
+      setIsLoadingConversation(false);
     }
   }, [setCurrentPersona, scrollToBottom]); // Only depend on setCurrentPersona to avoid unnecessary re-creation
 
   // Load more messages when scrolling to top
   const loadMoreMessages = useCallback(async () => {
-    if (!currentConversationId || isLoadingMore || !hasMoreMessages) {
+    console.log('📄 CHAT: loadMoreMessages called');
+    console.log('📄 CHAT: currentConversationId:', currentConversationId);
+    console.log('📄 CHAT: isLoadingMore:', isLoadingMore);
+    console.log('📄 CHAT: hasMoreMessages:', hasMoreMessages);
+    console.log('📄 CHAT: currentOffset:', currentOffset);
+
+    if (!currentConversationId || isLoadingMore || !hasMoreMessages || isLoadingMoreRef.current || isLoadingConversation) {
+      console.log('📄 CHAT: Skipping loadMoreMessages - conditions not met');
+      console.log('📄 CHAT: isLoadingMoreRef.current:', isLoadingMoreRef.current);
+      console.log('📄 CHAT: isLoadingConversation:', isLoadingConversation);
       return;
     }
 
+    console.log('📄 CHAT: Starting loadMoreMessages...');
+    isLoadingMoreRef.current = true;
     setIsLoadingMore(true);
     
     try {
@@ -441,8 +458,9 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         setMessages(prev => [...uiMessages, ...prev]);
         setCurrentOffset(prev => prev + messagesData.length);
         setHasMoreMessages(hasMore);
-        
+
         console.log(`📄 Loaded ${messagesData.length} more messages. Total: ${currentOffset + messagesData.length}`);
+        console.log(`📄 hasMore from API: ${hasMore}, setting hasMoreMessages to: ${hasMore}`);
         
         // Don't auto-scroll when loading more messages - let user stay where they are
       } else {
@@ -451,9 +469,10 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
     } catch (error) {
       console.error('❌ Error loading more messages:', error);
     } finally {
+      isLoadingMoreRef.current = false;
       setIsLoadingMore(false);
     }
-  }, [currentConversationId, isLoadingMore, hasMoreMessages, currentOffset]);
+  }, [currentConversationId, isLoadingMore, hasMoreMessages, currentOffset, isLoadingConversation]);
 
   // Load conversation on mount (only for existing conversations)
   useEffect(() => {
@@ -467,38 +486,7 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
     // For new conversations, persona is already set by PersonaPickerScreen
   }, [route?.params?.conversationId, currentConversationId, loadConversation]);
 
-  const loadPersona = useCallback(async (personaId: string) => {
-    try {
-      const { data: persona, error } = await supabase
-        .from('personas')
-        .select('*')
-        .eq('id', personaId)
-        .single();
-
-      if (error) {
-        console.error('Error loading persona:', error);
-        return;
-      }
-
-      if (persona) {
-        // Check if persona requires premium and user doesn't have it
-        if (persona.requires_premium && !isSubscriber && !hasCustomKey) {
-          navigation.navigate('Paywall');
-          return;
-        }
-
-        setCurrentPersona(persona);
-        setCurrentModel(persona.default_model);
-        
-        // Start fresh conversation for new persona
-        setMessages([]);
-        setCurrentConversationId(null);
-        setConversationTitle('');
-      }
-    } catch (error) {
-      console.error('Error loading persona:', error);
-    }
-  }, [isSubscriber, hasCustomKey, navigation, setCurrentPersona]);
+  // Removed unused loadPersona function - persona loading is handled by navigation params
 
   // Keyboard listeners for better input positioning
   useEffect(() => {
@@ -533,28 +521,29 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
     abortStream,
     retryStream 
   } = useStream({
-    onStart: async () => {
+    onStart: async (conversationId) => {
       console.log('🎯 useStream: Stream started');
       console.log('🎯 useStream: streamingMessageIdRef.current =', streamingMessageIdRef.current);
-      console.log('🎯 useStream: currentConversationId =', currentConversationId);
+      console.log('🎯 useStream: conversationId from startStream =', conversationId);
+      console.log('🎯 useStream: currentConversationId state =', currentConversationId);
 
       // Save the assistant message placeholder to database when stream starts
       // Use the ref instead of state for immediate access
       const messageId = streamingMessageIdRef.current;
-      
-      // For existing conversations, currentConversationId should be set
-      // Let's save the assistant message right away
-      if (currentConversationId) {
+
+      // ✅ Use conversation ID passed directly from startStream
+      if (conversationId) {
         try {
           console.log('💾 CHAT: Saving assistant message placeholder to database');
-          console.log('💾 CHAT: Conversation ID:', currentConversationId);
+          console.log('💾 CHAT: Conversation ID:', conversationId);
           console.log('💾 CHAT: UI Message ID:', messageId);
 
           const result = await saveMessage(
             'assistant',
             '', // Empty content initially
             undefined, // No messageId - create new message
-            undefined // No tool calls yet
+            undefined, // No tool calls yet
+            conversationId // ✅ Pass the conversation ID to prevent creating new conversation
           );
 
           // Store the database message ID for later use
@@ -562,9 +551,13 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
           console.log('✅ CHAT: Successfully saved assistant message placeholder with ID:', result.messageId);
         } catch (error) {
           console.error('❌ CHAT: Failed to save assistant message placeholder:', error);
+          // ✅ Set a flag to handle this in onComplete
+          databaseMessageIdRef.current = 'FAILED_TO_CREATE';
         }
       } else {
-        console.error('❌ CHAT: No conversation ID available! This should not happen for existing conversations');
+        console.error('❌ CHAT: No conversation ID provided to onStart!');
+        // ✅ Set a flag to handle this in onComplete
+        databaseMessageIdRef.current = 'NO_CONVERSATION';
       }
     },
     onTokenSpent: () => {
@@ -637,43 +630,61 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         }
       }
     },
-    onComplete: async () => {
+    onComplete: async (usage, finalContent) => {
       console.log('🏁 CHAT: onComplete called');
-      
+
       const targetMessageId = streamingMessageIdRef.current;
       const dbMessageId = databaseMessageIdRef.current;
-      
+
       console.log('🏁 CHAT: targetMessageId:', targetMessageId);
       console.log('🏁 CHAT: dbMessageId:', dbMessageId);
       console.log('🏁 CHAT: streamingText length:', streamingText?.length);
+      console.log('🏁 CHAT: finalContent length:', finalContent?.length);
+      console.log('🏁 CHAT: finalContent preview:', finalContent?.substring(0, 100));
 
       if (targetMessageId) {
         // Get the final message content and tool calls
         const toolCalls = toolResultsRef.current[targetMessageId];
-        
-        // Use streamingText directly as it contains the accumulated response
-        const finalContent = streamingText || '';
-        
-        console.log('🏁 CHAT: Final content preview:', finalContent.substring(0, 100));
+
+        // ✅ Use finalContent from useStream ref, fallback to streamingText
+        const content = finalContent || streamingText || '';
+
+        console.log('🏁 CHAT: Using content length:', content.length);
+        console.log('🏁 CHAT: Content preview:', content.substring(0, 100));
         console.log('🏁 CHAT: Tool calls:', JSON.stringify(toolCalls, null, 2));
 
         // Mark the message as no longer streaming
         setMessages(prev => prev.map(m =>
           m.id === targetMessageId
-            ? { ...m, isStreaming: false, text: finalContent }
+            ? { ...m, isStreaming: false, text: content }
             : m
         ));
 
         // Update the assistant message in database with final content using our tracked ID
-        if (dbMessageId && currentConversationId) {
+
+        // ✅ Handle fallback cases where onStart failed to create database message
+        if (dbMessageId === 'FAILED_TO_CREATE' || dbMessageId === 'NO_CONVERSATION') {
+          console.log('🔄 CHAT: onStart failed to create assistant message, creating now...');
+          try {
+            const result = await saveMessage('assistant', content, undefined, undefined, conversationIdRef.current || currentConversationId);
+            console.log('✅ CHAT: Successfully saved assistant message as fallback with ID:', result.messageId);
+          } catch (error) {
+            console.error('❌ CHAT: Failed to save assistant message as fallback:', error);
+          }
+        } else if (dbMessageId && conversationIdRef.current) {
           try {
             console.log('💾 CHAT: Updating assistant message in database');
             console.log('💾 CHAT: Database message ID:', dbMessageId);
-            console.log('💾 CHAT: Content length:', finalContent.length);
+            console.log('💾 CHAT: Conversation ID from ref:', conversationIdRef.current);
+            console.log('💾 CHAT: Content length:', content.length);
             console.log('💾 CHAT: Tool calls object:', toolCalls);
 
+            // Only use fallback text if we have tool calls but no content
+            // For normal text responses, empty content might indicate an error
+            const shouldUseFallback = !content.trim() && toolCalls && Object.keys(toolCalls).length > 0;
+            
             const updateData: any = {
-              content: finalContent.trim() || 'Tool executed successfully'
+              content: content.trim() || (shouldUseFallback ? 'Tool executed successfully' : '[Empty response]')
             };
             
             // Only add tool_calls if we have them
@@ -698,6 +709,9 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
           }
         } else {
           console.error('❌ CHAT: Missing dbMessageId or conversationId for update');
+          console.error('❌ CHAT: dbMessageId:', dbMessageId);
+          console.error('❌ CHAT: conversationIdRef.current:', conversationIdRef.current);
+          console.error('❌ CHAT: currentConversationId state:', currentConversationId);
         }
 
         // Clean up tool results ref
@@ -720,62 +734,21 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
     }
   });
 
-  // Update streaming message text in real-time
-  React.useEffect(() => {
-    // Only update the message text if we're actively streaming and have a streaming message
-    if (streamingMessageId && isStreaming) {
-      setMessages(prev => prev.map(m => 
-        m.id === streamingMessageId 
-          ? { ...m, text: streamingText || '' }
-          : m
-      ));
-    }
-  }, [streamingMessageId, streamingText, isStreaming]);
+  // Remove the effect that was updating messages during streaming
+  // The StreamingMessage component now handles this internally
 
-  // Typing indicator animation
-  React.useEffect(() => {
-    if (isStreaming) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(typingAnimation, {
-            toValue: 1,
-            duration: 600,
-            useNativeDriver: true,
-          }),
-          Animated.timing(typingAnimation, {
-            toValue: 0,
-            duration: 600,
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
-    } else {
-      typingAnimation.setValue(0);
-    }
-  }, [isStreaming]);
+  // Removed animation logic - now handled in ChatInputBar component
 
-  // Send button animation on press
-  const animateSendButton = useCallback(() => {
-    Animated.sequence([
-      Animated.spring(sendButtonScale, {
-        toValue: 0.9,
-        useNativeDriver: true,
-        tension: 100,
-        friction: 10,
-      }),
-      Animated.spring(sendButtonScale, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 100,
-        friction: 10,
-      }),
-    ]).start();
-  }, [sendButtonScale]);
-
-  const saveMessage = useCallback(async (role: 'user' | 'assistant', content: string, messageId?: string, toolCalls?: object): Promise<{ conversationId: string; messageId: string }> => {
+  const saveMessage = useCallback(async (role: 'user' | 'assistant', content: string, messageId?: string, toolCalls?: object, forceConversationId?: string): Promise<{ conversationId: string; messageId: string }> => {
     
     try {
-      let conversationId = currentConversationId;
+      // ✅ Use forceConversationId if provided, otherwise fall back to state
+      let conversationId = forceConversationId || currentConversationId;
+
+      console.log('💾 CHAT: saveMessage called for', role);
+      console.log('💾 CHAT: forceConversationId:', forceConversationId);
+      console.log('💾 CHAT: currentConversationId state:', currentConversationId);
+      console.log('💾 CHAT: Using conversationId:', conversationId);
 
       // Create conversation if it doesn't exist
       if (!conversationId) {
@@ -819,7 +792,10 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         }
 
         conversationId = newConv.id;
+        console.log('✅ CHAT: Created new conversation with ID:', conversationId);
+        console.log('✅ CHAT: Setting currentConversationId state to:', conversationId);
         setCurrentConversationId(conversationId);
+        conversationIdRef.current = conversationId; // Also store in ref for immediate access
         setConversationTitle(title);
       } 
 
@@ -836,7 +812,7 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         messageData.tool_calls = toolCalls;
       }
 
-      let result;
+      let result: { data: any[] | null; error: any };
       if (messageId) {
         // Update existing message (for streaming completion)
         result = await supabase
@@ -874,13 +850,46 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
     }
   }, [currentConversationId, currentPersona, currentModel, setCurrentConversationId, setConversationTitle]);
 
-  const handleSend = useCallback(async () => {
-    
-    if (inputText.trim().length === 0 || isStreaming) {
+  const handleSend = useCallback(async (text: string) => {
+    console.log('🚀 CHAT: handleSend called with text:', text);
+    console.log('🚀 CHAT: Call stack:', new Error().stack?.split('\n').slice(1, 5).join('\n'));
+    console.log('🚀 CHAT: Current streaming state:', isStreaming);
+    console.log('🚀 CHAT: Current streamingMessageId:', streamingMessageId);
+    console.log('🚀 CHAT: isLoadingConversation:', isLoadingConversation);
+
+    // ✅ Prevent empty or whitespace-only messages
+    if (!text || text.trim().length === 0) {
+      console.log('⚠️ CHAT: Empty text, ignoring send request');
       return;
     }
-    
-    animateSendButton();
+
+    // Prevent sending while conversation is loading
+    if (isLoadingConversation) {
+      console.log('⚠️ CHAT: Conversation is loading, ignoring send request');
+      return;
+    }
+
+    // Prevent duplicate sends while streaming
+    if (isStreaming) {
+      console.log('⚠️ CHAT: Already streaming, ignoring send request');
+      return;
+    }
+
+    // ✅ Prevent duplicate messages using ref-based tracking (more reliable)
+    const now = Date.now();
+    const trimmedText = text.trim();
+
+    if (lastSentMessageRef.current) {
+      const { text: lastText, timestamp: lastTime } = lastSentMessageRef.current;
+      if (lastText === trimmedText && (now - lastTime) < 3000) { // Within 3 seconds
+        console.log('⚠️ CHAT: Duplicate message detected via ref, ignoring send request');
+        console.log('⚠️ CHAT: Last sent:', lastTime, 'Current:', now, 'Diff:', now - lastTime);
+        return;
+      }
+    }
+
+    // Update the ref with current message
+    lastSentMessageRef.current = { text: trimmedText, timestamp: now };
 
     // Check if user has access to the selected model using unified logic
     const modelIsPremium = isModelPremium(currentModel);
@@ -900,7 +909,7 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
     const userMessage: Message = {
       id: `m${Date.now()}`,
       role: 'user',
-      text: inputText.trim(),
+      text: text,
       createdAt: new Date().toISOString(),
     };
 
@@ -914,26 +923,93 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
       isStreaming: true,
     };
 
+
     // Clear any existing streaming state before adding new messages
     if (streamingMessageId) {
-      setMessages(prev => prev.map(m => 
-        m.id === streamingMessageId 
-          ? { ...m, isStreaming: false }
-          : m
-      ));
+      console.log('🧹 CHAT: Cleaning up previous streaming message:', streamingMessageId);
+      setMessages(prev => {
+        const filtered = prev.filter(m => {
+          // Remove incomplete streaming messages (empty text and still streaming)
+          if (m.id === streamingMessageId && m.isStreaming && (!m.text || m.text.trim() === '')) {
+            console.log('🗑️ CHAT: Removing incomplete streaming message:', m.id);
+            return false;
+          }
+          // Keep completed messages but mark as non-streaming
+          if (m.id === streamingMessageId) {
+            return true;
+          }
+          return true;
+        }).map(m => 
+          m.id === streamingMessageId 
+            ? { ...m, isStreaming: false }
+            : m
+        );
+        
+        console.log('🧹 CHAT: Messages after cleanup:', filtered.length);
+        return filtered;
+      });
       setStreamingMessageId(null);
     }
 
-    setMessages(prev => [...prev, userMessage, assistantMessage]);
+    setMessages(prev => {
+      // ✅ Deduplicate existing messages before adding new ones
+      const deduplicatedPrev = prev.filter((msg, index, arr) =>
+        arr.findIndex(m => m.id === msg.id) === index
+      );
+
+      console.log(`📄 CHAT: Deduplicating messages: ${prev.length} -> ${deduplicatedPrev.length}`);
+
+      const newMessages = [...deduplicatedPrev, userMessage, assistantMessage];
+
+      // Clean up message state if it gets too bloated (more than 30 messages)
+      if (newMessages.length > 30) {
+        console.log('🧹 CHAT: Message state cleanup - removing old messages');
+        const cleaned = newMessages.filter(m => {
+          // Always keep recent messages (last 20)
+          if (newMessages.indexOf(m) >= newMessages.length - 20) {
+            return true;
+          }
+          
+          // For older messages, only keep high-quality ones
+          if (m.role === 'assistant') {
+            return m.text && m.text.trim() !== '' && 
+                   m.text !== '[Empty response]' && 
+                   m.text !== 'Tool executed successfully' &&
+                   m.text.length > 20; // Keep substantial responses
+          }
+          
+          if (m.role === 'user') {
+            return m.text && m.text.trim().length > 3; // Keep meaningful user messages
+          }
+          
+          return true;
+        });
+        
+        console.log(`🧹 CHAT: State cleanup: ${newMessages.length} -> ${cleaned.length} messages`);
+        return cleaned;
+      }
+      
+      return newMessages;
+    });
+    
     setStreamingMessageId(assistantMessageId);
     streamingMessageIdRef.current = assistantMessageId; // Also update the ref
-    
-    const messageText = inputText.trim();
-    setInputText('');
 
-    // Save user message to database
+    // Save user message to database and ensure conversation exists
+    let finalConversationId = currentConversationId;
     try {
-      await saveMessage('user', messageText);
+      console.log('💾 CHAT: Saving user message and ensuring conversation exists');
+      const result = await saveMessage('user', text);
+      console.log('💾 CHAT: User message saved, conversation ID:', result.conversationId);
+
+      // ✅ Store the conversation ID for passing to startStream
+      finalConversationId = result.conversationId;
+
+      // ✅ Ensure currentConversationId is set before starting stream
+      if (!currentConversationId && result.conversationId) {
+        console.log('💾 CHAT: Setting conversation ID from user message save:', result.conversationId);
+        // Note: setCurrentConversationId is already called in saveMessage, but let's be explicit
+      }
     } catch (error) {
       console.error('❌ Failed to save user message:', error);
       // Don't return here - still try to send the message to the AI
@@ -955,31 +1031,89 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
       });
     }
     
+    // Filter out low-quality messages before optimization
+    const qualityFilteredMessages = messages.filter(m => {
+      // Remove empty or failed assistant responses
+      if (m.role === 'assistant') {
+        if (!m.text || m.text.trim() === '' || 
+            m.text === '[Empty response]' || 
+            m.text === 'Tool executed successfully') {
+          console.log('🚫 CHAT: Filtering out failed assistant message:', m.id, `"${m.text}"`);
+          return false;
+        }
+      }
+      
+      // Remove user messages that are just repeated "hello" or very short
+      if (m.role === 'user') {
+        const text = m.text?.toLowerCase().trim();
+        // Count how many times this exact message appears
+        const duplicateCount = messages.filter(msg => 
+          msg.role === 'user' && msg.text?.toLowerCase().trim() === text
+        ).length;
+        
+        // If it's a simple greeting repeated more than 2 times, filter out the extras
+        if ((text === 'hello' || text === 'hi' || text === 'hey') && duplicateCount > 2) {
+          // Keep only the first 2 instances
+          const sameMessages = messages.filter(msg => 
+            msg.role === 'user' && msg.text?.toLowerCase().trim() === text
+          );
+          const isFirstTwo = sameMessages.indexOf(m) < 2;
+          if (!isFirstTwo) {
+            console.log('🚫 CHAT: Filtering out duplicate greeting:', m.id, `"${m.text}"`);
+            return false;
+          }
+        }
+      }
+      
+      return true;
+    });
+    
+    console.log(`🧹 CHAT: Quality filter: ${messages.length} -> ${qualityFilteredMessages.length} messages`);
+    
     // Add conversation history with intelligent truncation
-    const optimizedHistory = optimizeConversationHistory(messages, currentPersona?.system_prompt || '', messageText);
+    const optimizedHistory = optimizeConversationHistory(qualityFilteredMessages, currentPersona?.system_prompt || '', text);
     streamMessages.push(...optimizedHistory.map(m => ({ role: m.role, content: m.text })));
     
     // Add current user message
-    streamMessages.push({ role: 'user', content: messageText });
+    streamMessages.push({ role: 'user', content: text });
+
+    // Log the conversation being sent to AI
+    console.log('💬 CHAT: Conversation being sent to AI:');
+    streamMessages.forEach((msg, i) => {
+      console.log(`  ${i}: ${msg.role}: ${msg.content.substring(0, 100)}${msg.content.length > 100 ? '...' : ''}`);
+    });
 
     try {
+      console.log('🚀 CHAT: Starting stream with conversation ID:', finalConversationId);
       await startStream({
         model: currentModel,
         messages: streamMessages,
         customApiKey: hasCustomKey ? undefined : undefined, // TODO: Get from user settings
         personaId: currentPersona?.id,
+        conversationId: finalConversationId, // ✅ Pass conversation ID directly
       });
     } catch (error) {
       console.error('❌ Failed to start stream:', error);
     }
-  }, [inputText, isStreaming, animateSendButton, currentModel, remainingTokens, isSubscriber, hasCustomKey, streamingMessageId, currentPersona, messages, navigation, saveMessage, currentConversationId, scrollToBottom, startStream]);
+  }, [currentModel, remainingTokens, isSubscriber, hasCustomKey, streamingMessageId, currentPersona, messages, navigation, saveMessage, scrollToBottom, startStream, isStreaming, isLoadingConversation]);
 
-  const renderMessage: ListRenderItem<Message> = ({ item }) => (
-    <MessageBubble message={item} />
-  );
+  const renderMessage: ListRenderItem<Message> = useCallback(({ item }: { item: Message }) => {
+    // Use StreamingMessage for the actively streaming message
+    if (item.id === streamingMessageId && isStreaming) {
+      return (
+        <StreamingMessage
+          message={item}
+          streamingText={streamingText}
+          isStreaming={isStreaming}
+        />
+      );
+    }
+    return <MessageBubble message={item} />;
+  }, [streamingMessageId, isStreaming, streamingText]);
 
   const handleSuggestionPress = useCallback((suggestion: string) => {
-    setInputText(suggestion);
+    // Store the suggestion to pass to ChatInputBar
+    setPendingSuggestion(suggestion);
   }, []);
 
   const renderEmptyState = useMemo(() => <EmptyState onSuggestionPress={handleSuggestionPress} />, [handleSuggestionPress]);
@@ -1055,7 +1189,7 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
           ref={flatListRef}
           data={messages}
           renderItem={renderMessage}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item, index) => `${item.id}-${index}`} // ✅ Ensure unique keys even if IDs duplicate
           style={styles.messagesList}
           contentContainerStyle={[
             styles.messagesContent,
@@ -1101,7 +1235,14 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
               listener: (event: any) => {
                 const { contentOffset } = event.nativeEvent;
                 // Load more when scrolled near the top (within 100px)
-                if (contentOffset.y < 100 && hasMoreMessages && !isLoadingMore) {
+                // Add additional checks to prevent infinite loops
+                if (contentOffset.y < 100 && hasMoreMessages && !isLoadingMore && !isLoadingMoreRef.current && !isLoadingConversation && messages.length > 0) {
+                  console.log('📄 SCROLL: Triggering loadMoreMessages from scroll listener');
+                  console.log('📄 SCROLL: contentOffset.y:', contentOffset.y);
+                  console.log('📄 SCROLL: hasMoreMessages:', hasMoreMessages);
+                  console.log('📄 SCROLL: isLoadingMore:', isLoadingMore);
+                  console.log('📄 SCROLL: isLoadingConversation:', isLoadingConversation);
+                  console.log('📄 SCROLL: messages.length:', messages.length);
                   loadMoreMessages();
                 }
               }
@@ -1126,112 +1267,19 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         />
 
         {/* Input Bar */}
-        <BlurView intensity={90} style={styles.inputBarBlur}>
-          <LinearGradient
-            colors={[
-              theme.colors.surface + 'F8',
-              theme.colors.surface + 'FA',
-            ]}
-            style={[
-              styles.inputBar,
-              { paddingBottom: Math.max(insets.bottom, 12) },
-            ]}
-          >
-            {/* Typing Indicator */}
-            {isStreaming && (
-              <Animated.View
-                style={[
-                  styles.typingIndicator,
-                  {
-                    opacity: typingAnimation,
-                    transform: [{
-                      scale: typingAnimation.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.8, 1],
-                      }),
-                    }],
-                  },
-                ]}
-              >
-                <View style={styles.typingDot} />
-                <View style={[styles.typingDot, { marginLeft: 4 }]} />
-                <View style={[styles.typingDot, { marginLeft: 4 }]} />
-              </Animated.View>
-            )}
-            
-            <View style={styles.inputContainer}>
-              {streamError && (
-                <View style={[styles.errorContainer, { backgroundColor: theme.colors.danger['500'] + '15' }]}>
-                  <Typography variant="bodySm" color={theme.colors.danger['600']}>
-                    {streamError}
-                  </Typography>
-                  <TouchableOpacity onPress={retryStream} style={styles.retryButton}>
-                    <Typography variant="bodySm" color={theme.colors.brand['500']} weight="semibold">
-                      Retry
-                    </Typography>
-                  </TouchableOpacity>
-                </View>
-              )}
-              
-              <View style={styles.inputWrapper}>
-                <TextField
-                  value={inputText}
-                  onChangeText={setInputText}
-                  placeholder={isStreaming ? "AI is typing..." : "Type your message..."}
-                  multiline
-                  numberOfLines={3}
-                  style={{
-                    ...styles.textInput,
-                    backgroundColor: theme.colors.gray['50'],
-                    borderColor: inputText ? theme.colors.brand['300'] : theme.colors.border,
-                  }}
-                  inputStyle={styles.textInputStyle}
-                  editable={!isStreaming}
-                  autoFocus={false}
-                  onFocus={() => {
-                    setTimeout(() => {
-                      scrollToBottom(true);
-                    }, 300);
-                  }}
-                />
-                
-                <Animated.View style={{ transform: [{ scale: sendButtonScale }] }}>
-                  <TouchableOpacity
-                    style={[
-                      styles.sendButton,
-                      {
-                        backgroundColor: inputText.trim().length > 0 && !isStreaming
-                          ? theme.colors.brand['500']
-                          : isStreaming
-                          ? theme.colors.danger['500']
-                          : theme.colors.gray['300'],
-                      },
-                    ]}
-                    onPress={isStreaming ? abortStream : handleSend}
-                    disabled={inputText.trim().length === 0 && !isStreaming}
-                    activeOpacity={0.7}
-                  >
-                    {isStreaming ? (
-                      <Typography variant="h4">⏹</Typography>
-                    ) : (
-                      <LinearGradient
-                        colors={[
-                          inputText.trim().length > 0 ? theme.colors.brand['400'] : theme.colors.gray['300'],
-                          inputText.trim().length > 0 ? theme.colors.brand['600'] : theme.colors.gray['400'],
-                        ]}
-                        style={styles.sendButtonGradient}
-                      >
-                        <Typography variant="h4" color="#FFFFFF">
-                          ➤
-                        </Typography>
-                      </LinearGradient>
-                    )}
-                  </TouchableOpacity>
-                </Animated.View>
-              </View>
-            </View>
-          </LinearGradient>
-        </BlurView>
+        <ChatInputBar
+          onSend={handleSend}
+          isStreaming={isStreaming}
+          onAbortStream={abortStream}
+          onRetryStream={retryStream}
+          streamError={streamError}
+          keyboardHeight={keyboardHeight}
+          bottomInset={insets.bottom}
+          onScrollToBottom={scrollToBottom}
+          initialText={pendingSuggestion}
+          onTextConsumed={() => setPendingSuggestion('')}
+          disabled={isLoadingConversation}
+        />
       </KeyboardAvoidingView>
       
       {/* Chat Settings Modal */}

@@ -1,4 +1,4 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useCallback } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -20,12 +20,17 @@ import { IconButton, Typography } from '../ui/atoms';
 
 const Stack = createNativeStackNavigator();
 
+// Memoized header button styles to prevent re-creation
+const headerLeftStyle = { marginLeft: 10 };
+const headerRightStyle = { marginRight: 10 };
+
 export const RootNavigator = () => {
   const { theme, colorScheme } = useTheme();
   const renderCount = useRef(0);
   renderCount.current += 1;
 
   // MEMOIZE the navigation theme to prevent unnecessary re-renders
+  // Reduce dependencies by only depending on colorScheme and theme (which is already memoized)
   const navigationTheme = useMemo(() => ({
     ...(colorScheme === 'dark' ? DarkTheme : DefaultTheme),
     colors: {
@@ -37,7 +42,54 @@ export const RootNavigator = () => {
       border: theme.colors.border,
       notification: theme.colors.danger['600'],
     },
-  }), [colorScheme, theme.colors.brand, theme.colors.background, theme.colors.surface, theme.colors.textPrimary, theme.colors.border, theme.colors.danger]);
+  }), [colorScheme, theme]);
+
+  // Memoize screen options to prevent re-creation
+  const conversationListOptions = useCallback(({ navigation }: any) => ({
+    title: 'Chats',
+    headerLeft: () => (
+      <IconButton
+        icon="settings"
+        onPress={() => navigation.navigate('Settings')}
+        variant="gradient"
+        style={headerLeftStyle}
+      />
+    ),
+    headerRight: () => (
+      <IconButton
+        icon="plus"
+        onPress={() => navigation.navigate('PersonaPicker')}
+        variant="gradient"
+        style={headerRightStyle}
+      />
+    ),
+  }), []);
+
+  const chatScreenOptions = useCallback(({ navigation, route }: any) => ({
+    headerTitle: () => null, // This will be updated dynamically by the ChatScreen component
+    headerLeft: () => (
+      <IconButton
+        icon="chevron-left"
+        onPress={() => navigation.goBack()}
+        variant="ghost"
+        style={headerLeftStyle}
+      />
+    ),
+    headerRight: () => (
+      <IconButton
+        icon="settings"
+        onPress={() => {
+          // The ChatScreen will handle opening the settings modal
+          // This is a placeholder that will be overridden by the screen
+        }}
+        variant="ghost"
+        style={headerRightStyle}
+      />
+    ),
+    title: 'Chat',
+    // Prevent screen from remounting when navigating with different params
+    freezeOnBlur: false,
+  }), []);
 
   return (
     <PersonaProvider>
@@ -49,25 +101,7 @@ export const RootNavigator = () => {
             <Stack.Screen
               name="ConversationList"
               component={ConversationListScreen}
-              options={({ navigation }) => ({
-                title: 'Chats',
-                headerLeft: () => (
-                  <IconButton
-                    icon="settings"
-                    onPress={() => navigation.navigate('Settings')}
-                    variant="gradient"
-                    style={{ marginLeft: 10 }}
-                  />
-                ),
-                headerRight: () => (
-                  <IconButton
-                    icon="plus"
-                    onPress={() => navigation.navigate('PersonaPicker')}
-                    variant="gradient"
-                    style={{ marginRight: 10 }}
-                  />
-                ),
-              })}
+              options={conversationListOptions}
             />
             <Stack.Screen
               name="PersonaPicker"
@@ -82,34 +116,7 @@ export const RootNavigator = () => {
             <Stack.Screen
               name="Chat"
               component={ChatScreen}
-              options={({ navigation, route }) => ({
-                headerTitle: () => {
-                  // This will be updated dynamically by the ChatScreen component
-                  return null;
-                },
-                headerLeft: () => (
-                  <IconButton
-                    icon="chevron-left"
-                    onPress={() => navigation.goBack()}
-                    variant="ghost"
-                    style={{ marginLeft: 10 }}
-                  />
-                ),
-                headerRight: () => (
-                  <IconButton
-                    icon="settings"
-                    onPress={() => {
-                      // The ChatScreen will handle opening the settings modal
-                      // This is a placeholder that will be overridden by the screen
-                    }}
-                    variant="ghost"
-                    style={{ marginRight: 10 }}
-                  />
-                ),
-                title: 'Chat',
-                // Prevent screen from remounting when navigating with different params
-                freezeOnBlur: false,
-              })}
+              options={chatScreenOptions}
             />
             <Stack.Screen
               name="Home"

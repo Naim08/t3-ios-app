@@ -14,6 +14,7 @@ interface StreamRequest {
   messages: StreamMessage[];
   customApiKey?: string;
   personaId?: string;
+  conversationId?: string; // ✅ Add conversation ID to stream request
 }
 
 interface StreamChunk {
@@ -34,9 +35,9 @@ interface StreamChunk {
 interface UseStreamOptions {
   onTokenSpent?: (tokens: number) => void;
   onError?: (error: string) => void;
-  onComplete?: (usage?: StreamChunk['usage']) => void;
+  onComplete?: (usage?: StreamChunk['usage'], finalContent?: string) => void;
   onToolResult?: (toolResult: { tool_call_id: string; name: string; content: string }) => void;
-  onStart?: () => void;
+  onStart?: (conversationId?: string) => void; // ✅ Pass conversation ID to onStart
 }
 
 interface UseStreamResult {
@@ -53,7 +54,10 @@ export function useStream(options: UseStreamOptions = {}): UseStreamResult {
   const [streamingText, setStreamingText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
-  
+
+  // ✅ Add ref to track accumulated content for onComplete callback
+  const accumulatedTextRef = useRef('');
+
   const eventSourceRef = useRef<EventSource | null>(null);
   const lastRequestRef = useRef<StreamRequest | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -71,7 +75,12 @@ export function useStream(options: UseStreamOptions = {}): UseStreamResult {
 
   // Simple, direct token addition without buffering
   const addToken = useCallback((token: string) => {
-    setStreamingText(prev => prev + token);
+    // ✅ Update both state and ref
+    accumulatedTextRef.current += token;
+    setStreamingText(prev => {
+      const newText = prev + token;
+      return newText;
+    });
   }, []);
 
   // Helper function to process SSE lines
@@ -79,6 +88,7 @@ export function useStream(options: UseStreamOptions = {}): UseStreamResult {
     if (line.startsWith('data: ')) {
       try {
         const data: StreamChunk = JSON.parse(line.slice(6));
+  
         
         if (data.error) {
           if (data.error === 'insufficient_credits') {
@@ -109,7 +119,7 @@ export function useStream(options: UseStreamOptions = {}): UseStreamResult {
         }
         
         if (data.done) {
-          options.onComplete?.(data.usage);
+          options.onComplete?.(data.usage, accumulatedTextRef.current);
           return { shouldStop: true };
         }
       } catch (parseError) {
@@ -129,11 +139,12 @@ export function useStream(options: UseStreamOptions = {}): UseStreamResult {
     try {
       setIsStreaming(true);
       setStreamingText('');
+      accumulatedTextRef.current = ''; // ✅ Reset ref too
       setError(null);
       lastRequestRef.current = request;
 
       // Call onStart callback when stream begins
-      options.onStart?.();
+      options.onStart?.(request.conversationId);
 
       // Get auth token
       const { data: { session } } = await supabase.auth.getSession();
