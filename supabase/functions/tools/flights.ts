@@ -1,232 +1,163 @@
-// Flights tool using OpenSky Network API for real-time flight tracking
+// Flights tool for flight search and booking
 
 export interface FlightsRequest {
-  // Real-time flight tracking parameters
-  area?: {
-    min_latitude: number
-    max_latitude: number
-    min_longitude: number
-    max_longitude: number
-  }
-  aircraft_icao24?: string
-  time?: number
-  airport_icao?: string
-  query_type: 'states' | 'flights' | 'arrivals' | 'departures'
-  time_begin?: number
-  time_end?: number
+  // Flight search parameters
+  origin: string // Origin city/airport (e.g., "NYC", "New York", "JFK")
+  destination: string // Destination city/airport (e.g., "London", "LHR")
+  departure_date: string // Departure date in YYYY-MM-DD format
+  return_date?: string // Optional return date for round trip
+  passengers?: number // Number of passengers (default: 1)
+  class?: 'economy' | 'business' | 'first' // Travel class (default: economy)
 }
 
-export interface FlightState {
-  icao24: string
-  callsign: string | null
-  origin_country: string
-  time_position: number | null
-  last_contact: number
-  longitude: number | null
-  latitude: number | null
-  baro_altitude: number | null
-  on_ground: boolean
-  velocity: number | null
-  true_track: number | null
-  vertical_rate: number | null
-  geo_altitude: number | null
-  squawk: string | null
-  spi: boolean
-  position_source: number
-}
-
-export interface FlightInfo {
-  icao24: string
-  first_seen: number
-  est_departure_airport: string | null
-  last_seen: number
-  est_arrival_airport: string | null
-  callsign: string | null
-  est_departure_airport_horiz_distance: number | null
-  est_departure_airport_vert_distance: number | null
-  est_arrival_airport_horiz_distance: number | null
-  est_arrival_airport_vert_distance: number | null
-  departure_airport_candidates_count: number | null
-  arrival_airport_candidates_count: number | null
+export interface FlightOption {
+  airline: string
+  flight_number: string
+  departure_time: string
+  arrival_time: string
+  duration: string
+  price: number
+  currency: string
+  stops: number
+  aircraft: string
+  departure_airport: string
+  arrival_airport: string
 }
 
 export interface FlightsResponse {
-  query_type: string
-  time_queried: number
-  states?: FlightState[]
-  flights?: FlightInfo[]
+  origin: string
+  destination: string
+  departure_date: string
+  return_date?: string
+  flights: FlightOption[]
   total_results: number
-  credits_used: number
+  search_timestamp: number
 }
 
 export async function searchFlights(
   requestData: FlightsRequest
 ): Promise<{ success: boolean; data: FlightsResponse; message: string }> {
-  // OpenSky API credentials (optional - can work without auth but with lower rate limits)
-  const OPENSKY_USERNAME = Deno.env.get('OPENSKY_CLIENT_ID')
-  const OPENSKY_PASSWORD = Deno.env.get('OPENSKY_CLIENT_SECRET')
-
   try {
     const {
-      query_type,
-      area,
-      aircraft_icao24,
-      time,
-      airport_icao,
-      time_begin,
-      time_end
+      origin,
+      destination,
+      departure_date,
+      return_date,
+      passengers = 1,
+      class: travelClass = 'economy'
     } = requestData
 
-    let url = 'https://opensky-network.org/api'
-    let endpoint = ''
-    const params = new URLSearchParams()
+    // Check for flight search API credentials
+    const AMADEUS_CLIENT_ID = Deno.env.get('AMADEUS_CLIENT_ID')
+    const AMADEUS_CLIENT_SECRET = Deno.env.get('AMADEUS_CLIENT_SECRET')
 
-    // Build endpoint based on query type
-    switch (query_type) {
-      case 'states':
-        endpoint = '/states/all'
-        if (time) params.append('time', time.toString())
-        if (aircraft_icao24) params.append('icao24', aircraft_icao24)
-        if (area) {
-          params.append('lamin', area.min_latitude.toString())
-          params.append('lomin', area.min_longitude.toString())
-          params.append('lamax', area.max_latitude.toString())
-          params.append('lomax', area.max_longitude.toString())
-        }
-        break
-
-      case 'flights':
-        endpoint = '/flights/all'
-        if (time_begin) params.append('begin', time_begin.toString())
-        if (time_end) params.append('end', time_end.toString())
-        break
-
-      case 'arrivals':
-        if (!airport_icao) {
-          throw new Error('Airport ICAO code required for arrivals query')
-        }
-        endpoint = `/flights/arrival`
-        params.append('airport', airport_icao)
-        if (time_begin) params.append('begin', time_begin.toString())
-        if (time_end) params.append('end', time_end.toString())
-        break
-
-      case 'departures':
-        if (!airport_icao) {
-          throw new Error('Airport ICAO code required for departures query')
-        }
-        endpoint = `/flights/departure`
-        params.append('airport', airport_icao)
-        if (time_begin) params.append('begin', time_begin.toString())
-        if (time_end) params.append('end', time_end.toString())
-        break
-
-      default:
-        throw new Error(`Invalid query type: ${query_type}`)
+    if (!AMADEUS_CLIENT_ID || !AMADEUS_CLIENT_SECRET) {
+      return {
+        success: false,
+        data: {} as FlightsResponse,
+        message: "Flight search API credentials not configured. Please contact administrator to set up Amadeus API access."
+      }
     }
 
-    // Construct full URL
-    const fullUrl = `${url}${endpoint}${params.toString() ? '?' + params.toString() : ''}`
+    console.log(`🛩️ Searching flights from ${origin} to ${destination} on ${departure_date}`)
 
-    // Prepare headers
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json'
-    }
-
-    // Add authentication if credentials are provided
-    if (OPENSKY_USERNAME && OPENSKY_PASSWORD) {
-      headers['Authorization'] = `Basic ${btoa(`${OPENSKY_USERNAME}:${OPENSKY_PASSWORD}`)}`
-    }
-
-    console.log(`🛩️ Calling OpenSky API: ${fullUrl}`)
-
-    const response = await fetch(fullUrl, {
-      method: 'GET',
-      headers
+    // Get Amadeus access token
+    const tokenResponse = await fetch('https://test.api.amadeus.com/v1/security/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: AMADEUS_CLIENT_ID,
+        client_secret: AMADEUS_CLIENT_SECRET
+      })
     })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`OpenSky API error (${response.status}): ${errorText}`)
+    if (!tokenResponse.ok) {
+      throw new Error(`Failed to get Amadeus access token: ${tokenResponse.status}`)
     }
 
-    const data = await response.json()
-    
-    // Process response based on query type
-    let processedData: FlightsResponse
-    
-    if (query_type === 'states') {
-      // States endpoint returns { time, states: [[...], [...]] }
-      const states: FlightState[] = (data.states || []).map((stateArray: any[]) => ({
-        icao24: stateArray[0],
-        callsign: stateArray[1]?.trim() || null,
-        origin_country: stateArray[2],
-        time_position: stateArray[3],
-        last_contact: stateArray[4],
-        longitude: stateArray[5],
-        latitude: stateArray[6],
-        baro_altitude: stateArray[7],
-        on_ground: stateArray[8],
-        velocity: stateArray[9],
-        true_track: stateArray[10],
-        vertical_rate: stateArray[11],
-        geo_altitude: stateArray[13],
-        squawk: stateArray[14],
-        spi: stateArray[15],
-        position_source: stateArray[16]
-      }))
+    const tokenData = await tokenResponse.json()
+    const accessToken = tokenData.access_token
 
-      processedData = {
-        query_type: query_type,
-        time_queried: data.time || Math.floor(Date.now() / 1000),
-        states: states,
-        total_results: states.length,
-        credits_used: 1 // States endpoint uses 1 credit
-      }
-    } else {
-      // Flights endpoints return array of flight objects
-      const flights: FlightInfo[] = data || []
+    // Search for flights using Amadeus API
+    const searchParams = new URLSearchParams({
+      originLocationCode: origin,
+      destinationLocationCode: destination,
+      departureDate: departure_date,
+      adults: passengers.toString(),
+      travelClass: travelClass.toUpperCase(),
+      max: '10'
+    })
 
-      processedData = {
-        query_type: query_type,
-        time_queried: Math.floor(Date.now() / 1000),
-        flights: flights,
-        total_results: flights.length,
-        credits_used: 0 // Flight endpoints don't use credits
-      }
+    if (return_date) {
+      searchParams.append('returnDate', return_date)
     }
 
-    let message = ''
-    switch (query_type) {
-      case 'states':
-        message = `Found ${processedData.total_results} aircraft states`
-        if (area) {
-          message += ` in area (${area.min_latitude}, ${area.min_longitude}) to (${area.max_latitude}, ${area.max_longitude})`
-        }
-        break
-      case 'flights':
-        message = `Found ${processedData.total_results} flights in time range`
-        break
-      case 'arrivals':
-        message = `Found ${processedData.total_results} arrivals at ${airport_icao}`
-        break
-      case 'departures':
-        message = `Found ${processedData.total_results} departures from ${airport_icao}`
-        break
+    const flightResponse = await fetch(`https://test.api.amadeus.com/v2/shopping/flight-offers?${searchParams}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!flightResponse.ok) {
+      throw new Error(`Amadeus API error: ${flightResponse.status}`)
+    }
+
+    const flightData = await flightResponse.json()
+
+    // Process Amadeus response into our format
+    const flights: FlightOption[] = (flightData.data || []).map((offer: any) => {
+      const itinerary = offer.itineraries[0]
+      const segment = itinerary.segments[0]
+
+      return {
+        airline: segment.carrierCode,
+        flight_number: `${segment.carrierCode}${segment.number}`,
+        departure_time: new Date(segment.departure.at).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: 'UTC'
+        }),
+        arrival_time: new Date(segment.arrival.at).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: 'UTC'
+        }),
+        duration: itinerary.duration.replace('PT', '').toLowerCase(),
+        price: parseFloat(offer.price.total),
+        currency: offer.price.currency,
+        stops: itinerary.segments.length - 1,
+        aircraft: segment.aircraft?.code || 'Unknown',
+        departure_airport: segment.departure.iataCode,
+        arrival_airport: segment.arrival.iataCode
+      }
+    })
+
+    const responseData: FlightsResponse = {
+      origin,
+      destination,
+      departure_date,
+      return_date,
+      flights,
+      total_results: flights.length,
+      search_timestamp: Math.floor(Date.now() / 1000)
     }
 
     return {
       success: true,
-      data: processedData,
-      message: message
+      data: responseData,
+      message: `Found ${flights.length} flights from ${origin} to ${destination} on ${departure_date}`
     }
 
   } catch (error) {
-    console.error('OpenSky API error:', error)
+    console.error('🛩️ Flight search error:', error)
     return {
       success: false,
       data: {} as FlightsResponse,
-      message: `Failed to fetch flight data: ${(error as Error).message}`
+      message: `Failed to search flights: ${(error as Error).message}`
     }
   }
 }

@@ -9,6 +9,10 @@ import { getProviderConfig, isModelPremium } from "./providers.ts"
 import { calculateTokenCost } from "./costs.ts"
 import { ToolsRouter } from "./toolsRouter.ts"
 
+// Memory management constants for gateway
+const MAX_RESPONSE_LENGTH = 200000; // 200KB limit for complete response accumulation
+const MAX_TOOL_SUMMARY_LENGTH = 50000; // 50KB limit for tool summaries
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -338,14 +342,16 @@ IMPORTANT TOOL USAGE: You have access to these tools: ${toolNames}.
 When a user's request can be fulfilled by one of these tools, you MUST call the appropriate tool function to get accurate, real-time data. Do not provide generic responses when a tool can give specific information.
 
 Tool usage guidelines:
-- For trip planning requests → use the tripplanner tool
-- For weather information → use the weather tool  
+- For flight search, "flights from X to Y" queries → use the flights tool
+- For trip planning, travel itineraries, complete trip plans → use the tripplanner tool
+- For weather information → use the weather tool
 - For Wikipedia searches → use the wiki tool
 - For nutrition data → use the nutrition tool
 - For currency/unit conversion → use the convert tool
-- For flight searches → use the flights tool
 - For content summarization → use the summarise tool
 - For mood-based music → use the moodmusic tool
+
+IMPORTANT: "Flights from X to Y" queries should ALWAYS use flights tool, NOT tripplanner.
 
 Always call the appropriate tool function rather than providing general information from your training data.`
       
@@ -398,9 +404,14 @@ Always call the appropriate tool function rather than providing general informat
                   if (!token || typeof token !== 'string' || token.trim() === '' || token.length === 0) {
                     return;
                   }
-                  
-                  // Accumulate the complete response
-                  completeResponse += token
+
+                  // Accumulate the complete response with memory limit
+                  if (completeResponse.length < MAX_RESPONSE_LENGTH) {
+                    completeResponse += token;
+                  } else {
+                    // Stop accumulating but continue streaming to prevent memory bloat
+                    console.warn('🧹 MEMORY: Response length limit reached, stopping accumulation');
+                  }
                   
                   // Additional filtering for LangChain artifacts
                   if (token === '\n' || token === '\r' || token === '\r\n') {
@@ -484,6 +495,19 @@ Always call the appropriate tool function rather than providing general informat
                           content: result.content
                         })}\n\n`))
                       }
+
+                      // Tools that have custom UI components - don't send text summary for these
+                      const toolsWithCustomUI = ['tripplanner', 'weather', 'wiki', 'convert', 'nutrition', 'summarise']
+                      const hasCustomUITools = results.some(r => toolsWithCustomUI.includes(r.name))
+
+                      // If all tools have custom UI, skip the text summary to let the UI components display
+                      if (hasCustomUITools && results.every(r => toolsWithCustomUI.includes(r.name))) {
+                        console.log('🎨 GATEWAY: Skipping text summary for tools with custom UI components')
+                        // Just add a small delay and continue
+                        await new Promise(resolve => setTimeout(resolve, 200))
+                        // Don't add anything to completeResponse or stream text chunks
+                      } else {
+                        // Continue with text summary for tools without custom UI
                       
                       // Add tool token costs
                       completionTokens += totalTokens
@@ -492,7 +516,7 @@ Always call the appropriate tool function rather than providing general informat
                       
                       // For now, we'll just stream a message indicating the tool was executed
                       // The client should handle the tool results and display them appropriately
-                      const toolSummary = results.map(r => {
+                      let toolSummary = results.map(r => {
                         try {
                           const content = JSON.parse(r.content)
                           console.log('🔧 GATEWAY: Formatting tool result for:', r.name, 'content:', JSON.stringify(content, null, 2))
@@ -527,17 +551,69 @@ Always call the appropriate tool function rather than providing general informat
                             }
                           }
                           
+                          if (r.name === 'convert' && content.success) {
+                            const data = content.data
+                            const formatAmount = (amount: number, unit: string) => {
+                              if (data.conversion_type === 'currency') {
+                                const symbols: Record<string, string> = {
+                                  'USD': '$', 'EUR': '€', 'GBP': '£', 'JPY': '¥', 'TRY': '₺', 'CAD': 'C$', 'AUD': 'A$'
+                                };
+                                const symbol = symbols[unit] || unit;
+                                return `${symbol}${amount.toLocaleString()}`;
+                              }
+                              return `${amount.toLocaleString()} ${unit}`;
+                            };
+
+                            return `\n\n💱 **Currency Conversion**\n\n${formatAmount(data.original_amount || 1, data.original_unit)} → **${formatAmount(data.converted_amount, data.converted_unit)}**\n\n📊 Exchange Rate: 1 ${data.original_unit} = ${data.conversion_rate.toLocaleString()} ${data.converted_unit}\n📅 ${data.timestamp}`;
+                          }
+
+                          if (r.name === 'nutrition' && content.success) {
+                            const data = content.data
+                            let nutritionText = `\n\n🥗 **Nutrition Information**\n\n**${data.food_name || 'Food Item'}**\n`
+                            if (data.serving_size) nutritionText += `📏 Serving: ${data.serving_size}\n`
+                            if (data.calories) nutritionText += `🔥 Calories: ${data.calories}\n`
+                            if (data.protein || data.carbs || data.fat) {
+                              nutritionText += '\n**Macronutrients:**\n'
+                              if (data.protein) nutritionText += `💪 Protein: ${data.protein}g\n`
+                              if (data.carbs) nutritionText += `🌾 Carbs: ${data.carbs}g\n`
+                              if (data.fat) nutritionText += `🥑 Fat: ${data.fat}g\n`
+                            }
+                            return nutritionText
+                          }
+
+                          if (r.name === 'summarise' && content.success) {
+                            const data = content.data
+                            let summaryText = `\n\n📄 **Content Summary**\n\n`
+                            if (data.title) summaryText += `**${data.title}**\n\n`
+                            if (data.summary) summaryText += `${data.summary}\n\n`
+                            if (data.key_points && data.key_points.length > 0) {
+                              summaryText += '🔑 **Key Points:**\n'
+                              data.key_points.slice(0, 3).forEach((point: string) => {
+                                summaryText += `• ${point}\n`
+                              })
+                              summaryText += '\n'
+                            }
+                            if (data.word_count || data.reading_time) {
+                              summaryText += '📊 **Stats:** '
+                              if (data.word_count) summaryText += `${data.word_count} words`
+                              if (data.reading_time) summaryText += ` • ${data.reading_time} min read`
+                              summaryText += '\n'
+                            }
+                            if (data.url) summaryText += `\n🔗 [View original source](${data.url})`
+                            return summaryText
+                          }
+
                           if (r.name === 'tripplanner' && content.success) {
                             const data = content.data
-                            
+
                             let tripText = '\n\n**Trip Plan:**\n'
-                            
+
                             // Handle daily_itinerary (the correct field name from the tripplanner response)
                             if (data.daily_itinerary && data.daily_itinerary.length > 0) {
-                              data.daily_itinerary.forEach((day: any, index: number) => {
+                              data.daily_itinerary.forEach((day: any) => {
                                 tripText += `\n**Day ${day.day} - ${day.date}:**\n`
                                 tripText += `📍 Location: ${day.location}\n`
-                                
+
                                 if (day.activities && day.activities.length > 0) {
                                   tripText += `\n**Activities:**\n`
                                   day.activities.forEach((activity: any, actIndex: number) => {
@@ -557,11 +633,11 @@ Always call the appropriate tool function rather than providing general informat
                                     tripText += '\n'
                                   })
                                 }
-                                
+
                                 tripText += '\n'
                               })
                             }
-                            
+
                             // Add destinations info
                             if (data.destinations && data.destinations.length > 0) {
                               tripText += '\n**Key Destinations:**\n'
@@ -570,16 +646,16 @@ Always call the appropriate tool function rather than providing general informat
                               })
                               tripText += '\n'
                             }
-                            
+
                             // Add travel tips
                             if (data.travel_tips && data.travel_tips.length > 0) {
                               tripText += '\n**Travel Tips:**\n'
-                              data.travel_tips.forEach((tip: string, index: number) => {
+                              data.travel_tips.forEach((tip: string) => {
                                 tripText += `• ${tip}\n`
                               })
                               tripText += '\n'
                             }
-                            
+
                             // Add budget info
                             if (data.trip_summary && data.trip_summary.total_estimated_cost) {
                               const cost = data.trip_summary.total_estimated_cost
@@ -592,7 +668,7 @@ Always call the appropriate tool function rather than providing general informat
                                 if (cost.breakdown.transportation) tripText += `• Transportation: ${cost.breakdown.transportation} ${cost.currency}\n`
                               }
                             }
-                            
+
                             return tripText
                           }
                           
@@ -601,9 +677,19 @@ Always call the appropriate tool function rather than providing general informat
                           return `\n\nTool ${r.name} result: ${r.content}`
                         }
                       }).join('')
-                      
-                      // Add tool summary to complete response
-                      completeResponse += toolSummary
+
+                      // Apply memory limit to tool summary
+                      if (toolSummary.length > MAX_TOOL_SUMMARY_LENGTH) {
+                        toolSummary = toolSummary.slice(0, MAX_TOOL_SUMMARY_LENGTH) + '\n\n[Tool response truncated to prevent memory issues]';
+                        console.warn('🧹 MEMORY: Tool summary truncated to prevent memory bloat');
+                      }
+
+                      // Add tool summary to complete response with memory check
+                      if (completeResponse.length + toolSummary.length < MAX_RESPONSE_LENGTH) {
+                        completeResponse += toolSummary;
+                      } else {
+                        console.warn('🧹 MEMORY: Skipping tool summary addition to prevent memory bloat');
+                      }
                       
                       // Stream the tool results in smaller chunks to avoid cutoff
                       const chunkSize = 500 // characters per chunk
@@ -614,9 +700,10 @@ Always call the appropriate tool function rather than providing general informat
                         await new Promise(resolve => setTimeout(resolve, 10))
                       }
                       
-                      // Ensure the stream is flushed before continuing
-                      await new Promise(resolve => setTimeout(resolve, 200))
-                      
+                        // Ensure the stream is flushed before continuing
+                        await new Promise(resolve => setTimeout(resolve, 200))
+                      }
+
                     } catch (error) {
                       console.error('Tool execution error:', error)
                       controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
