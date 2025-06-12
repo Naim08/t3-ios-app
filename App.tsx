@@ -37,24 +37,37 @@ declare global {
 // Add this at the very top of your App.js/App.tsx (before any other imports)
 
 
-// Disable the native error dialog in development
+// Performance optimizations and error handling
 if (__DEV__) {
   // This disables the React Native error dialog
-  
   LogBox.ignoreAllLogs(true);
-  
+
   // Override the error handler to prevent native alerts
   const originalErrorHandler = (global as any).ErrorUtils?.getGlobalHandler?.();
-  
+
   (global as any).ErrorUtils?.setGlobalHandler?.((error, isFatal) => {
     // Log the error but don't show native alert
     console.error('Global error caught:', error);
-    
+
     // Only call original handler for fatal errors
     if (isFatal && originalErrorHandler) {
       originalErrorHandler(error, isFatal);
     }
   });
+} else {
+  // Production optimizations
+
+  // Disable console.log in production for performance
+  console.log = () => {};
+  console.warn = () => {};
+  console.info = () => {};
+  // Keep console.error for crash reporting
+
+  // Disable React Native Inspector in production
+  if (global.__REACT_DEVTOOLS_GLOBAL_HOOK__) {
+    global.__REACT_DEVTOOLS_GLOBAL_HOOK__.onCommitFiberRoot = null;
+    global.__REACT_DEVTOOLS_GLOBAL_HOOK__.onCommitFiberUnmount = null;
+  }
 }
 
 

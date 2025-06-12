@@ -54,60 +54,44 @@ false),
 500,
 false),
 
--- 3. Flights Tool (OpenSky Network - Real-time Flight Tracking)
-('flights', 'flights', 'Real-time flight tracking and aircraft monitoring using OpenSky Network API',
+-- 3. Flights Tool (Flight Search)
+('flights', 'flights', 'Flight search tool for finding flights between destinations. Use for "flights from X to Y" queries. Does NOT handle booking.',
 '{
   "type": "object",
   "properties": {
-    "query_type": {
+    "origin": {
       "type": "string",
-      "enum": ["states", "flights", "arrivals", "departures"],
-      "description": "Type of flight data to retrieve"
+      "description": "Origin city or airport (e.g., \"NYC\", \"New York\", \"JFK\")"
     },
-    "area": {
-      "type": "object",
-      "properties": {
-        "min_latitude": {
-          "type": "number",
-          "description": "Minimum latitude for geographic area"
-        },
-        "max_latitude": {
-          "type": "number",
-          "description": "Maximum latitude for geographic area"
-        },
-        "min_longitude": {
-          "type": "number",
-          "description": "Minimum longitude for geographic area"
-        },
-        "max_longitude": {
-          "type": "number",
-          "description": "Maximum longitude for geographic area"
-        }
-      },
-      "description": "Geographic area for flight states (optional)"
-    },
-    "aircraft_icao24": {
+    "destination": {
       "type": "string",
-      "description": "Specific aircraft ICAO24 transponder address (optional)"
+      "description": "Destination city or airport (e.g., \"London\", \"LHR\")"
     },
-    "airport_icao": {
+    "departure_date": {
       "type": "string",
-      "description": "Airport ICAO code for arrivals/departures (e.g., \"KJFK\", \"EGLL\")"
+      "format": "date",
+      "description": "Departure date in YYYY-MM-DD format"
     },
-    "time": {
-      "type": "integer",
-      "description": "Unix timestamp for historical data (optional)"
+    "return_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Optional return date for round trip in YYYY-MM-DD format"
     },
-    "time_begin": {
+    "passengers": {
       "type": "integer",
-      "description": "Unix timestamp for start of time range (flights query)"
+      "description": "Number of passengers",
+      "default": 1,
+      "minimum": 1,
+      "maximum": 9
     },
-    "time_end": {
-      "type": "integer",
-      "description": "Unix timestamp for end of time range (flights query)"
+    "class": {
+      "type": "string",
+      "enum": ["economy", "business", "first"],
+      "description": "Travel class",
+      "default": "economy"
     }
   },
-  "required": ["query_type"]
+  "required": ["origin", "destination", "departure_date"]
 }',
 'flights',
 5000,

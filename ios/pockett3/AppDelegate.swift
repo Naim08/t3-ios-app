@@ -13,6 +13,12 @@ public class AppDelegate: ExpoAppDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
+
+    // Apply performance optimizations for production builds
+    #if !DEBUG
+    optimizeForProduction()
+    #endif
+
     let delegate = ReactNativeDelegate()
     let factory = ExpoReactNativeFactory(delegate: delegate)
     delegate.dependencyProvider = RCTAppDependencyProvider()
@@ -30,6 +36,21 @@ public class AppDelegate: ExpoAppDelegate {
 #endif
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  // Performance optimization methods
+  private func optimizeForProduction() {
+    // Optimize memory management for production builds
+    optimizeMemoryManagement()
+  }
+
+  private func optimizeMemoryManagement() {
+    // Enable automatic memory management optimizations
+    if #available(iOS 13.0, *) {
+      // Use more aggressive memory management
+      URLCache.shared.memoryCapacity = 50 * 1024 * 1024 // 50MB
+      URLCache.shared.diskCapacity = 100 * 1024 * 1024   // 100MB
+    }
   }
 
   // Linking API

@@ -42,6 +42,8 @@ import { usePersona } from '../context/PersonaContext';
 import { supabase } from '../lib/supabase';
 import { isModelPremium } from '../utils/modelUtils';
 import { ConversationService } from '../services/conversationService';
+import { usePerformanceMonitor } from '../utils/performanceMonitor';
+import { useMemoryLeakDetection } from '../utils/memoryLeakDetector';
 
 // Removed unused width constant
 
@@ -181,15 +183,23 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
   const { isSubscriber, hasCustomKey, remainingTokens, refreshCredits } = useEntitlements();
   const { currentPersona, setCurrentPersona } = usePersona();
   const insets = useSafeAreaInsets();
+
+  // Performance monitoring
+  const { recordRender, timeAction, recordMemoryUsage } = usePerformanceMonitor('ChatScreen');
   const [messages, setMessages] = useState<Message[]>([]);
 
-  // Debug messages state changes
+  // Debug messages state changes and record performance
   React.useEffect(() => {
-    console.log('📋 CHAT: Messages state updated. Count:', messages.length);
-    messages.forEach((msg, i) => {
-      console.log(`  ${i}: ${msg.role} (${msg.id}): ${msg.text?.substring(0, 50)}${msg.text && msg.text.length > 50 ? '...' : ''} [streaming: ${msg.isStreaming}]`);
-    });
-  }, [messages]);
+    recordRender();
+    recordMemoryUsage();
+
+    if (__DEV__) {
+      console.log('📋 CHAT: Messages state updated. Count:', messages.length);
+      messages.forEach((msg, i) => {
+        console.log(`  ${i}: ${msg.role} (${msg.id}): ${msg.text?.substring(0, 50)}${msg.text && msg.text.length > 50 ? '...' : ''} [streaming: ${msg.isStreaming}]`);
+      });
+    }
+  }, [messages, recordRender, recordMemoryUsage]);
   // Remove inputText state - now handled in ChatInputBar
   const [currentModel, setCurrentModel] = useState<string>('gpt-3.5'); // Will be loaded from storage
 
@@ -208,16 +218,117 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
   const scrollY = useRef(new Animated.Value(0)).current;
   const chatSettingsModalRef = useRef<ChatSettingsModalRef>(null);
   const toolResultsRef = useRef<{ [messageId: string]: object }>({});
+  const [toolResultsVersion, setToolResultsVersion] = useState(0); // Force re-renders when tool results change
   const databaseMessageIdRef = useRef<string | null>(null);
   const streamingMessageIdRef = useRef<string | null>(null);
   const lastSentMessageRef = useRef<{ text: string; timestamp: number } | null>(null);
   const isLoadingMoreRef = useRef(false);
   const conversationIdRef = useRef<string | null>(null);
 
+  // Memory management constants
+  const MAX_TOOL_RESULTS = 20; // Keep only last 20 tool results (reduced from 50)
+  const MAX_MESSAGES_IN_MEMORY = 50; // Keep only last 50 messages (reduced from 100)
+
+  // Memory management: Clean up old tool results
+  const cleanupToolResults = useCallback(() => {
+    const toolResultKeys = Object.keys(toolResultsRef.current);
+    if (toolResultKeys.length > MAX_TOOL_RESULTS) {
+      // Sort by message creation time (newest first)
+      const sortedKeys = toolResultKeys.sort((a, b) => {
+        const messageA = messages.find(m => m.id === a);
+        const messageB = messages.find(m => m.id === b);
+        if (!messageA || !messageB) return 0;
+        return new Date(messageB.createdAt).getTime() - new Date(messageA.createdAt).getTime();
+      });
+
+      // Remove old tool results
+      const keysToRemove = sortedKeys.slice(MAX_TOOL_RESULTS);
+      keysToRemove.forEach(key => {
+        delete toolResultsRef.current[key];
+      });
+
+      if (keysToRemove.length > 0) {
+        console.log(`🧹 MEMORY: Cleaned up ${keysToRemove.length} old tool results`);
+      }
+    }
+  }, [messages]);
+
+  // Memory management: Trim old messages
+  const trimOldMessages = useCallback((messageList: Message[]) => {
+    if (messageList.length > MAX_MESSAGES_IN_MEMORY) {
+      const trimmed = messageList.slice(-MAX_MESSAGES_IN_MEMORY);
+      console.log(`🧹 MEMORY: Trimmed messages: ${messageList.length} -> ${trimmed.length}`);
+      return trimmed;
+    }
+    return messageList;
+  }, []);
+
+  // Enhanced memory monitoring and cleanup
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      // Record memory usage before cleanup
+      recordMemoryUsage();
+
+      // Clean up old tool results
+      cleanupToolResults();
+
+      // Trim messages if too many in memory
+      setMessages(prev => trimOldMessages(prev));
+
+      // Force garbage collection and measure impact
+      const gcResult = forceGC();
+
+      // Record memory usage after cleanup
+      recordMemoryUsage();
+
+      // Take memory snapshot and analyze for leaks
+      const snapshot = takeSnapshot();
+      if (snapshot && snapshot.heapUsed > 200) {
+        console.warn(`⚠️ MEMORY LEAK ALERT: High usage after cleanup: ${snapshot.heapUsed.toFixed(1)}MB`);
+
+        // Analyze leak patterns
+        const leakPatterns = analyzeLeaks();
+        if (leakPatterns.length > 0) {
+          console.error('🚨 MEMORY LEAK PATTERNS DETECTED:');
+          leakPatterns.forEach((pattern, i) => {
+            console.error(`  ${i + 1}. [${pattern.severity.toUpperCase()}] ${pattern.type}: ${pattern.description}`);
+            console.error(`     💡 ${pattern.recommendation}`);
+          });
+
+          // Log detailed state for critical leaks
+          if (leakPatterns.some(p => p.severity === 'critical')) {
+            logState();
+          }
+        }
+      }
+
+      console.log(`🧹 MEMORY: Cleanup completed. Messages: ${messages.length}, Tool results: ${Object.keys(toolResultsRef.current).length}`);
+    }, 2 * 60 * 1000); // Every 2 minutes (more aggressive)
+
+    return () => clearInterval(cleanupInterval);
+  }, [cleanupToolResults, trimOldMessages, messages.length, recordMemoryUsage]);
+
   // Component mount/unmount tracking
   useEffect(() => {
     return () => {
       // Cleanup if needed
+      console.log('🧹 CHAT: Component unmounting - cleaning up memory');
+      
+      // Clear all messages to free memory
+      setMessages([]);
+      
+      // Clear all refs
+      toolResultsRef.current = {};
+      streamingMessageIdRef.current = null;
+      databaseMessageIdRef.current = null;
+      conversationIdRef.current = null;
+      lastSentMessageRef.current = null;
+      
+      // Force garbage collection on unmount
+      if (global.gc) {
+        global.gc();
+        console.log('🗑️ MEMORY: Forced garbage collection on component unmount');
+      }
     };
   }, []);
 
@@ -515,7 +626,8 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
 
   const { 
     isStreaming, 
-    streamingText, 
+    streamingText, // Keep for backward compatibility in logs
+    displayedText, // New optimized display text
     error: streamError, 
     startStream, 
     abortStream,
@@ -588,46 +700,56 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
       
       // Store tool results in a ref to track them
       toolResultsRef.current[targetMessageId] = toolResultsRef.current[targetMessageId] || {};
-      toolResultsRef.current[targetMessageId][toolResult.name] = {
-        called_at: new Date().toISOString(),
-        success: true,
-        data: null
-      };
       
-      if (toolResult.name === 'tripplanner') {
-        try {
-          const toolData = JSON.parse(toolResult.content);
-          console.log('🔧 CHAT: Parsed tool data success:', toolData.success);
-          console.log('🔧 CHAT: Tool data has data field:', !!toolData.data);
+      // Parse tool result content for all tools
+      try {
+        const toolData = JSON.parse(toolResult.content);
+        console.log('🔧 CHAT: Parsed tool data for', toolResult.name, '- success:', toolData.success);
+        console.log('🔧 CHAT: Tool data has data field:', !!toolData.data);
+        
+        // Store the tool result with parsed data
+        toolResultsRef.current[targetMessageId][toolResult.name] = {
+          called_at: new Date().toISOString(),
+          success: toolData.success || false,
+          data: toolData.data || null
+        };
+
+        // Trigger re-render to update streaming message with tool results
+        setToolResultsVersion(prev => prev + 1);
+        
+        // Special handling for specific tools that need UI updates
+        if (toolResult.name === 'tripplanner' && toolData.success && toolData.data) {
+          console.log('🔧 CHAT: Attaching tripplanner toolResponse to message:', targetMessageId);
           
-          if (toolData.success && toolData.data) {
-            console.log('🔧 CHAT: Attaching toolResponse to message:', targetMessageId);
-            
-            // Update tool results ref with actual data
-            toolResultsRef.current[targetMessageId][toolResult.name].data = toolData.data;
-            
-            setMessages(prev => {
-              const updated = prev.map(m => 
-                m.id === targetMessageId 
-                  ? { 
-                      ...m, 
-                      toolResponse: {
-                        type: 'tripplanner',
-                        data: toolData.data
-                      }
+          setMessages(prev => {
+            const updated = prev.map(m => 
+              m.id === targetMessageId 
+                ? { 
+                    ...m, 
+                    toolResponse: {
+                      type: 'tripplanner',
+                      data: toolData.data
                     }
-                  : m
-              );
-              console.log('🔧 CHAT: Updated message with toolResponse:', updated.find(m => m.id === targetMessageId)?.toolResponse);
-              return updated;
-            });
-          } else {
-            console.error('🔧 CHAT: Tool data missing success or data field');
-          }
-        } catch (error) {
-          console.error('🔧 CHAT: Failed to parse tool result:', error);
-          console.error('🔧 CHAT: Raw content:', toolResult.content);
+                  }
+                : m
+            );
+            console.log('🔧 CHAT: Updated message with toolResponse:', updated.find(m => m.id === targetMessageId)?.toolResponse);
+            return updated;
+          });
         }
+      } catch (error) {
+        console.error('🔧 CHAT: Failed to parse tool result for', toolResult.name, ':', error);
+        console.error('🔧 CHAT: Raw content:', toolResult.content);
+        
+        // Store as failed tool result
+        toolResultsRef.current[targetMessageId][toolResult.name] = {
+          called_at: new Date().toISOString(),
+          success: false,
+          data: null
+        };
+
+        // Trigger re-render to update streaming message with tool results
+        setToolResultsVersion(prev => prev + 1);
       }
     },
     onComplete: async (usage, finalContent) => {
@@ -639,6 +761,7 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
       console.log('🏁 CHAT: targetMessageId:', targetMessageId);
       console.log('🏁 CHAT: dbMessageId:', dbMessageId);
       console.log('🏁 CHAT: streamingText length:', streamingText?.length);
+      console.log('🏁 CHAT: displayedText length:', displayedText?.length);
       console.log('🏁 CHAT: finalContent length:', finalContent?.length);
       console.log('🏁 CHAT: finalContent preview:', finalContent?.substring(0, 100));
 
@@ -646,8 +769,8 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         // Get the final message content and tool calls
         const toolCalls = toolResultsRef.current[targetMessageId];
 
-        // ✅ Use finalContent from useStream ref, fallback to streamingText
-        const content = finalContent || streamingText || '';
+        // ✅ Use finalContent from useStream ref, fallback to displayedText
+        const content = finalContent || displayedText || '';
 
         console.log('🏁 CHAT: Using content length:', content.length);
         console.log('🏁 CHAT: Content preview:', content.substring(0, 100));
@@ -679,12 +802,18 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
             console.log('💾 CHAT: Content length:', content.length);
             console.log('💾 CHAT: Tool calls object:', toolCalls);
 
-            // Only use fallback text if we have tool calls but no content
-            // For normal text responses, empty content might indicate an error
-            const shouldUseFallback = !content.trim() && toolCalls && Object.keys(toolCalls).length > 0;
-            
+            // Tools with custom UI components - don't use fallback text, let UI components render
+            const toolsWithCustomUI = ['tripplanner', 'weather', 'wiki', 'convert', 'nutrition', 'summarise'];
+            const hasCustomUITools = toolCalls && Object.keys(toolCalls).some(toolName =>
+              toolsWithCustomUI.includes(toolName)
+            );
+
+            // Only use fallback text if we have tool calls but no content AND no custom UI tools
+            // For tools with custom UI, empty content is fine - the UI components will render
+            const shouldUseFallback = !content.trim() && toolCalls && Object.keys(toolCalls).length > 0 && !hasCustomUITools;
+
             const updateData: any = {
-              content: content.trim() || (shouldUseFallback ? 'Tool executed successfully' : '[Empty response]')
+              content: content.trim() || (shouldUseFallback ? 'Tool executed successfully' : '')
             };
             
             // Only add tool_calls if we have them
@@ -703,6 +832,18 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
             } else {
               console.log('✅ CHAT: Successfully updated assistant message');
               console.log('✅ CHAT: Updated data:', data);
+
+              // CRITICAL FIX: Update tool results reference to use database ID instead of streaming ID
+              if (targetMessageId && dbMessageId && targetMessageId !== dbMessageId) {
+                const toolResults = toolResultsRef.current[targetMessageId];
+                if (toolResults) {
+                  console.log('🔄 CHAT: Moving tool results from streaming ID to database ID');
+                  console.log('🔄 CHAT: From:', targetMessageId, 'To:', dbMessageId);
+                  toolResultsRef.current[dbMessageId] = toolResults;
+                  delete toolResultsRef.current[targetMessageId];
+                  setToolResultsVersion(prev => prev + 1); // Trigger re-render
+                }
+              }
             }
           } catch (error) {
             console.error('❌ CHAT: Failed to update assistant message:', error);
@@ -733,6 +874,20 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
       setTimeout(() => scrollToBottom(true), 100);
     }
   });
+
+  // Memory leak detection - now that all variables are available
+  const { takeSnapshot, analyzeLeaks, logState, forceGC } = useMemoryLeakDetection({
+    messagesCount: messages.length,
+    toolResultsCount: Object.keys(toolResultsRef.current).length,
+    streamingTextLength: displayedText?.length || 0, // Use optimized displayedText
+    isStreaming: isStreaming,
+    conversationId: currentConversationId
+  });
+
+  // Take memory snapshots during key operations
+  useEffect(() => {
+    takeSnapshot();
+  }, [messages.length, isStreaming, takeSnapshot]);
 
   // Remove the effect that was updating messages during streaming
   // The StreamingMessage component now handles this internally
@@ -961,35 +1116,15 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
 
       const newMessages = [...deduplicatedPrev, userMessage, assistantMessage];
 
-      // Clean up message state if it gets too bloated (more than 30 messages)
-      if (newMessages.length > 30) {
-        console.log('🧹 CHAT: Message state cleanup - removing old messages');
-        const cleaned = newMessages.filter(m => {
-          // Always keep recent messages (last 20)
-          if (newMessages.indexOf(m) >= newMessages.length - 20) {
-            return true;
-          }
-          
-          // For older messages, only keep high-quality ones
-          if (m.role === 'assistant') {
-            return m.text && m.text.trim() !== '' && 
-                   m.text !== '[Empty response]' && 
-                   m.text !== 'Tool executed successfully' &&
-                   m.text.length > 20; // Keep substantial responses
-          }
-          
-          if (m.role === 'user') {
-            return m.text && m.text.trim().length > 3; // Keep meaningful user messages
-          }
-          
-          return true;
-        });
-        
-        console.log(`🧹 CHAT: State cleanup: ${newMessages.length} -> ${cleaned.length} messages`);
-        return cleaned;
-      }
-      
-      return newMessages;
+      // Apply memory management: trim messages and clean up tool results
+      const trimmedMessages = trimOldMessages(newMessages);
+
+      // Clean up tool results after message trimming
+      setTimeout(() => {
+        cleanupToolResults();
+      }, 100);
+
+      return trimmedMessages;
     });
     
     setStreamingMessageId(assistantMessageId);
@@ -1031,48 +1166,117 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
       });
     }
     
-    // Filter out low-quality messages before optimization
-    const qualityFilteredMessages = messages.filter(m => {
-      // Remove empty or failed assistant responses
-      if (m.role === 'assistant') {
-        if (!m.text || m.text.trim() === '' || 
-            m.text === '[Empty response]' || 
-            m.text === 'Tool executed successfully') {
-          console.log('🚫 CHAT: Filtering out failed assistant message:', m.id, `"${m.text}"`);
-          return false;
-        }
-      }
+    // Tool names for context optimization
+    const availableToolNames = ['weather', 'wiki', 'nutrition', 'convert', 'flights', 'summarise', 'moodmusic', 'code_search', 'md2slides', 'tripplanner'];
+    
+    // Detect if this is likely a tool-based query by checking for tool-related patterns
+    const toolKeywords = [
+      'weather', 'temperature', 'forecast', 'climate',
+      'wikipedia', 'wiki', 'search', 'information about',
+      'nutrition', 'calories', 'protein', 'carbs', 'fat',
+      'convert', 'conversion', 'exchange rate', 'currency',
+      'flight', 'flights', 'airplane', 'airline',
+      'summarize', 'summarise', 'summary', 'extract',
+      'music', 'song', 'playlist', 'mood',
+      'trip', 'travel', 'itinerary', 'plan'
+    ];
+    
+    const isLikelyToolQuery = toolKeywords.some(keyword => 
+      text.toLowerCase().includes(keyword)
+    );
+    
+    // For likely tool queries, use minimal context to prevent LLM from re-executing old tool calls
+    if (isLikelyToolQuery) {
+      console.log('🔧 CHAT: Likely tool query detected - using minimal context to prevent duplicate executions');
       
-      // Remove user messages that are just repeated "hello" or very short
-      if (m.role === 'user') {
-        const text = m.text?.toLowerCase().trim();
-        // Count how many times this exact message appears
-        const duplicateCount = messages.filter(msg => 
-          msg.role === 'user' && msg.text?.toLowerCase().trim() === text
-        ).length;
-        
-        // If it's a simple greeting repeated more than 2 times, filter out the extras
-        if ((text === 'hello' || text === 'hi' || text === 'hey') && duplicateCount > 2) {
-          // Keep only the first 2 instances
-          const sameMessages = messages.filter(msg => 
-            msg.role === 'user' && msg.text?.toLowerCase().trim() === text
+      // Only include system prompt and current message - no history
+      // This prevents the LLM from seeing previous unanswered tool queries
+      console.log('🔧 CHAT: Skipping conversation history for tool query to prevent duplicates');
+    } else {
+      // For conversational queries, use existing optimization logic
+      console.log('🔧 CHAT: Conversational query - using full context optimization');
+      
+      const qualityFilteredMessages = messages.filter(m => {
+        // Remove empty or failed assistant responses
+        if (m.role === 'assistant') {
+          // Check if this message has tool calls with custom UI
+          const toolsWithCustomUI = ['tripplanner', 'weather', 'wiki', 'convert', 'nutrition', 'summarise'];
+          const hasCustomUITools = m.toolCalls && Object.keys(m.toolCalls).some(toolName =>
+            toolsWithCustomUI.includes(toolName)
           );
-          const isFirstTwo = sameMessages.indexOf(m) < 2;
-          if (!isFirstTwo) {
-            console.log('🚫 CHAT: Filtering out duplicate greeting:', m.id, `"${m.text}"`);
+
+          // Don't filter out messages with custom UI tools, even if content is empty
+          if (hasCustomUITools) {
+            return true;
+          }
+
+          // Filter out empty or failed responses for non-tool messages
+          if (!m.text || m.text.trim() === '' ||
+              m.text === '[Empty response]' ||
+              m.text === 'Tool executed successfully') {
+            console.log('🚫 CHAT: Filtering out failed assistant message:', m.id, `"${m.text}"`);
             return false;
           }
         }
-      }
+        
+        // Remove user messages that are just repeated "hello" or very short
+        if (m.role === 'user') {
+          const text = m.text?.toLowerCase().trim();
+          // Count how many times this exact message appears
+          const duplicateCount = messages.filter(msg => 
+            msg.role === 'user' && msg.text?.toLowerCase().trim() === text
+          ).length;
+          
+          // If it's a simple greeting repeated more than 2 times, filter out the extras
+          if ((text === 'hello' || text === 'hi' || text === 'hey') && duplicateCount > 2) {
+            // Keep only the first 2 instances
+            const sameMessages = messages.filter(msg => 
+              msg.role === 'user' && msg.text?.toLowerCase().trim() === text
+            );
+            const isFirstTwo = sameMessages.indexOf(m) < 2;
+            if (!isFirstTwo) {
+              console.log('🚫 CHAT: Filtering out duplicate greeting:', m.id, `"${m.text}"`);
+              return false;
+            }
+          }
+        }
+        
+        return true;
+      });
       
-      return true;
-    });
-    
-    console.log(`🧹 CHAT: Quality filter: ${messages.length} -> ${qualityFilteredMessages.length} messages`);
-    
-    // Add conversation history with intelligent truncation
-    const optimizedHistory = optimizeConversationHistory(qualityFilteredMessages, currentPersona?.system_prompt || '', text);
-    streamMessages.push(...optimizedHistory.map(m => ({ role: m.role, content: m.text })));
+      console.log(`🧹 CHAT: Quality filter: ${messages.length} -> ${qualityFilteredMessages.length} messages`);
+      
+      // Add conversation history with intelligent truncation
+      const optimizedHistory = optimizeConversationHistory(qualityFilteredMessages, currentPersona?.system_prompt || '', text);
+
+      // Filter out incomplete exchanges - only include user messages that have corresponding assistant responses
+      const completeExchanges: StreamMessage[] = [];
+      for (let i = 0; i < optimizedHistory.length; i++) {
+        const message = optimizedHistory[i];
+
+        if (message.role === 'user') {
+          // Look for the next assistant message
+          const nextMessage = optimizedHistory[i + 1];
+          if (nextMessage && nextMessage.role === 'assistant') {
+            // Complete exchange - include both user and assistant messages
+            completeExchanges.push({ role: message.role, content: message.text });
+            completeExchanges.push({ role: nextMessage.role, content: nextMessage.text });
+            i++; // Skip the assistant message since we already processed it
+          }
+          // If no assistant response, drop the user message (incomplete exchange)
+        } else if (message.role === 'assistant') {
+          // Standalone assistant message (shouldn't happen in normal flow, but handle gracefully)
+          // Only include if it has meaningful content
+          if (message.text.trim()) {
+            completeExchanges.push({ role: message.role, content: message.text });
+          }
+        }
+      }
+
+      streamMessages.push(...completeExchanges);
+
+      console.log(`🧹 CHAT: Filtered conversation history: ${optimizedHistory.length} -> ${completeExchanges.length} messages (complete exchanges only)`);
+    }
     
     // Add current user message
     streamMessages.push({ role: 'user', content: text });
@@ -1100,16 +1304,35 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
   const renderMessage: ListRenderItem<Message> = useCallback(({ item }: { item: Message }) => {
     // Use StreamingMessage for the actively streaming message
     if (item.id === streamingMessageId && isStreaming) {
+      // Get tool results for the streaming message (could be under streaming ID or database ID)
+      const toolCalls = toolResultsRef.current[item.id] as { [toolName: string]: { called_at: string; success: boolean; data?: any } } || {};
+
       return (
         <StreamingMessage
           message={item}
-          streamingText={streamingText}
+          streamingText={displayedText} // Use optimized displayedText
           isStreaming={isStreaming}
+          toolCalls={toolCalls}
         />
       );
     }
+
+    // For non-streaming messages, check if we have tool results stored under this message ID
+    const hasStoredToolResults = toolResultsRef.current[item.id];
+    if (hasStoredToolResults) {
+      // Create a message with the stored tool results
+      const messageWithToolResults = {
+        ...item,
+        toolCalls: {
+          ...item.toolCalls,
+          ...toolResultsRef.current[item.id]
+        }
+      };
+      return <MessageBubble message={messageWithToolResults} />;
+    }
+
     return <MessageBubble message={item} />;
-  }, [streamingMessageId, isStreaming, streamingText]);
+  }, [streamingMessageId, isStreaming, displayedText, toolResultsVersion]); // Use optimized displayedText
 
   const handleSuggestionPress = useCallback((suggestion: string) => {
     // Store the suggestion to pass to ChatInputBar
@@ -1252,18 +1475,18 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           // Performance optimizations to prevent jumping
-          removeClippedSubviews={false}
-          windowSize={10}
-          maxToRenderPerBatch={10}
-          initialNumToRender={20}
-          updateCellsBatchingPeriod={50}
+          removeClippedSubviews={true} // Enable clipping for better memory management
+          windowSize={5} // Reduced window size for memory efficiency
+          maxToRenderPerBatch={5} // Render fewer items per batch
+          initialNumToRender={10} // Render fewer items initially
+          updateCellsBatchingPeriod={100} // Longer batching period to reduce updates
           getItemLayout={null} // Let FlatList calculate automatically
           // Prevent layout jumps during typing
           inverted={false}
           // Keep content stable during updates
           extraData={streamingMessageId}
-          // Reduce layout recalculations
-          disableVirtualization={messages.length < 50}
+          // Enable virtualization for better memory management
+          disableVirtualization={false} // Always enable virtualization
         />
 
         {/* Input Bar */}
