@@ -22,11 +22,19 @@ import { useProfile } from '../hooks/useProfile';
 export interface MessageBubbleProps {
   message: Message;
   style?: ViewStyle;
+  showAvatar?: boolean;
+  showTimestamp?: boolean;
+  isLastInGroup?: boolean;
+  isFirstInGroup?: boolean;
 }
 
 const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
   message,
   style,
+  showAvatar = true,
+  showTimestamp = true,
+  isLastInGroup = true,
+  isFirstInGroup = true,
 }) => {
   const { theme } = useTheme();
   const { currentPersona } = usePersona();
@@ -72,7 +80,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
 
   const getBubbleStyle = (): ViewStyle => {
     const baseStyle: ViewStyle = {
-      marginBottom: 16,
+      marginBottom: isLastInGroup ? 16 : 4, // Smaller gap between grouped messages
       width: '100%',
       flexDirection: 'column',
     };
@@ -113,36 +121,36 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
 
   const getMarkdownStyles = () => ({
     body: {
-      color: isUser ? '#FFFFFF' : theme.colors.textPrimary,
+      color: theme.colors.textPrimary,
       fontSize: theme.typography.scale.bodyMd.fontSize,
       lineHeight: theme.typography.scale.bodyMd.lineHeight,
       fontFamily: theme.typography.fontFamily.regular,
       margin: 0,
     },
     heading1: {
-      color: isUser ? '#FFFFFF' : theme.colors.textPrimary,
+      color: theme.colors.textPrimary,
       fontSize: theme.typography.scale.h4.fontSize,
       fontWeight: theme.typography.weight.bold,
       marginBottom: theme.spacing.xs,
       marginTop: theme.spacing.xs,
     },
     heading2: {
-      color: isUser ? '#FFFFFF' : theme.colors.textPrimary,
+      color: theme.colors.textPrimary,
       fontSize: theme.typography.scale.h5.fontSize,
       fontWeight: theme.typography.weight.semibold,
       marginBottom: theme.spacing.xs,
       marginTop: theme.spacing.xs,
     },
     paragraph: {
-      color: isUser ? '#FFFFFF' : theme.colors.textPrimary,
+      color: theme.colors.textPrimary,
       fontSize: theme.typography.scale.bodyMd.fontSize,
       lineHeight: theme.typography.scale.bodyMd.lineHeight,
       marginBottom: theme.spacing.xs,
       marginTop: 0,
     },
     code_inline: {
-      backgroundColor: isUser ? 'rgba(255,255,255,0.2)' : theme.colors.gray['200'],
-      color: isUser ? '#FFFFFF' : theme.colors.textPrimary,
+      backgroundColor: isUser ? 'rgba(0,0,0,0.1)' : theme.colors.gray['200'],
+      color: theme.colors.textPrimary,
       paddingHorizontal: 4,
       paddingVertical: 2,
       borderRadius: 4,
@@ -150,8 +158,8 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
       fontFamily: 'Courier',
     },
     code_block: {
-      backgroundColor: isUser ? 'rgba(255,255,255,0.1)' : theme.colors.gray['100'],
-      color: isUser ? '#FFFFFF' : theme.colors.textPrimary,
+      backgroundColor: isUser ? 'rgba(0,0,0,0.05)' : theme.colors.gray['100'],
+      color: theme.colors.textPrimary,
       padding: theme.spacing.sm,
       borderRadius: 8,
       fontSize: theme.typography.scale.bodySm.fontSize,
@@ -161,8 +169,8 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
       flexShrink: 1, // Allow shrinking if needed
     },
     fence: {
-      backgroundColor: isUser ? 'rgba(255,255,255,0.1)' : theme.colors.gray['100'],
-      color: isUser ? '#FFFFFF' : theme.colors.textPrimary,
+      backgroundColor: isUser ? 'rgba(0,0,0,0.05)' : theme.colors.gray['100'],
+      color: theme.colors.textPrimary,
       padding: theme.spacing.sm,
       borderRadius: 8,
       fontSize: theme.typography.scale.bodySm.fontSize,
@@ -172,7 +180,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
       flexShrink: 1, // Allow shrinking if needed
     },
     list_item: {
-      color: isUser ? '#FFFFFF' : theme.colors.textPrimary,
+      color: theme.colors.textPrimary,
       fontSize: theme.typography.scale.bodyMd.fontSize,
       lineHeight: theme.typography.scale.bodyMd.lineHeight,
     },
@@ -691,7 +699,8 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
       ] as any}
     >
       <View style={styles.messageColumn}>
-        {/* Avatar with name for both user and assistant messages */}
+        {/* Avatar with name for both user and assistant messages - only show for first in group */}
+        {showAvatar && isFirstInGroup && (
         <View style={[styles.avatarWithName, { alignSelf: isUser ? 'flex-end' : 'flex-start' }]}>
           {isUser ? (
             /* User: Name on left, avatar on right */
@@ -753,13 +762,14 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
             </View>
           )}
         </View>
+        )}
 
         {isUser ? (
           <View style={styles.userMessageContainer}>
             <LinearGradient
               colors={[
-                theme.colors.brand['400'],
-                theme.colors.brand['600'],
+                theme.colors.brand['200'],
+                theme.colors.brand['300'],
               ]}
               style={[
                 styles.bubble,
@@ -775,10 +785,10 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
               </Markdown>
             </View>
 
-            {!isStreaming && (
+            {!isStreaming && showTimestamp && isLastInGroup && (
               <Typography
                 variant="caption"
-                color="rgba(255,255,255,0.8)"
+                color="rgba(0,0,0,0.6)"
                 align="right"
                 style={styles.timestamp}
               >
@@ -970,7 +980,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                 return null;
               })()}
 
-              {!isStreaming && (
+              {!isStreaming && showTimestamp && isLastInGroup && (
                 <Typography
                   variant="caption"
                   color={theme.colors.textSecondary}
@@ -1044,7 +1054,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: 'rgba(0,0,0,0.1)',
+    borderColor: 'rgba(255,255,255,0.15)', // Subtle glassmorphism border
+    // Modern elevated styling
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   personaIcon: {
     fontSize: 18,
@@ -1062,11 +1084,15 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'flex-end', // Align user messages to the right
     alignSelf: 'flex-end',
+    // Enhanced spacing for better visual hierarchy
+    marginBottom: 4,
   },
   aiMessageContainer: {
     width: '100%',
     alignItems: 'flex-start', // Align AI messages to the left
     alignSelf: 'flex-start',
+    // Enhanced spacing for better visual hierarchy
+    marginBottom: 4,
   },
   aiAvatar: {
     marginRight: 10,
@@ -1077,15 +1103,16 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
+    // Modern elevated avatar styling
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
       },
       android: {
-        elevation: 2,
+        elevation: 4,
       },
     }),
   },
@@ -1101,23 +1128,48 @@ const styles = StyleSheet.create({
     minHeight: 40,
     // Better text wrapping
     overflow: 'hidden',
-  },
-  userBubble: {
-    borderTopRightRadius: 4,
+    // Modern subtle shadow for elevation
     ...Platform.select({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
       },
       android: {
-        elevation: 3,
+        elevation: 2,
+      },
+    }),
+  },
+  userBubble: {
+    borderTopRightRadius: 4,
+    // Enhanced gradient effect for user messages
+    ...Platform.select({
+      ios: {
+        shadowColor: '#3970FF', // Brand blue shadow
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 4,
       },
     }),
   },
   aiBubble: {
     borderTopLeftRadius: 4,
+    // Enhanced AI bubble with glassmorphism effect
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.12,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   streamingBubble: {
     minHeight: 40,

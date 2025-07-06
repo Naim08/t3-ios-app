@@ -7,6 +7,7 @@ import {
   ViewStyle,
   TextStyle,
   AccessibilityProps,
+  Platform,
 } from 'react-native';
 import { Eye, EyeOff } from 'lucide-react-native';
 import { useTheme } from '../../components/ThemeProvider';
@@ -86,15 +87,29 @@ export const TextField: React.FC<TextFieldProps> = ({
   const getContainerStyle = (): ViewStyle => {
     const baseStyle = {
       borderWidth: 1,
-      borderRadius: 8,
+      borderRadius: 12, // More modern rounded corners
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.surface,
+      // Modern transition-like effect
+      ...(Platform.OS === 'ios' && {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+      }),
     };
 
     if (showError) {
       return {
         ...baseStyle,
         borderColor: theme.colors.danger['600'],
+        borderWidth: 2,
+        // Error state glow
+        ...(Platform.OS === 'ios' && {
+          shadowColor: theme.colors.danger['600'],
+          shadowOpacity: 0.15,
+          shadowRadius: 4,
+        }),
       };
     }
 
@@ -103,6 +118,12 @@ export const TextField: React.FC<TextFieldProps> = ({
         ...baseStyle,
         borderColor: theme.colors.brand['500'],
         borderWidth: 2,
+        // Focused state glow
+        ...(Platform.OS === 'ios' && {
+          shadowColor: theme.colors.brand['500'],
+          shadowOpacity: 0.2,
+          shadowRadius: 6,
+        }),
       };
     }
 

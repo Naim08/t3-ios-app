@@ -47,7 +47,33 @@ export const IconButton: React.FC<IconButtonProps> = ({
   testID,
   ...accessibilityProps
 }) => {
-  const { theme } = useTheme();
+  const themeContext = useTheme();
+  
+  // Add safety check for theme
+  if (!themeContext || !themeContext.theme) {
+    console.error('IconButton: Theme context not available');
+    // Return a basic button without theme styling as fallback
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        disabled={disabled}
+        style={[{
+          width: 44,
+          height: 44,
+          borderRadius: 22,
+          backgroundColor: '#3970FF',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }, style]}
+        testID={testID}
+        {...accessibilityProps}
+      >
+        {getIconComponent(icon, 20, '#FFFFFF')}
+      </TouchableOpacity>
+    );
+  }
+  
+  const { theme } = themeContext;
 
   const sizeConfig = {
     sm: {
@@ -86,18 +112,18 @@ export const IconButton: React.FC<IconButtonProps> = ({
     
     return Platform.select({
       ios: {
-        shadowColor: theme.colors.brand['500'],
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.25,
-        shadowRadius: 8,
+        shadowColor: variant === 'gradient' ? theme.colors.brand['500'] : '#000',
+        shadowOffset: { width: 0, height: variant === 'gradient' ? 6 : 4 },
+        shadowOpacity: variant === 'gradient' ? 0.3 : 0.15,
+        shadowRadius: variant === 'gradient' ? 12 : 8,
       },
       android: {
-        elevation: 6,
+        elevation: variant === 'gradient' ? 8 : 6,
       },
     }) || {};
   };
 
-  const getGradientColors = () => {
+  const getGradientColors = (): [string, string] => {
     if (disabled) {
       return [theme.colors.gray['200'], theme.colors.gray['300']];
     }
@@ -170,7 +196,7 @@ export const IconButton: React.FC<IconButtonProps> = ({
         onPress={onPress}
         disabled={disabled}
         activeOpacity={0.8}
-        style={buttonStyles}
+        style={[buttonStyles, { transform: [{ scale: disabled ? 1 : 1 }] }]}
         testID={testID}
         {...accessibilityProps}
       >
@@ -190,7 +216,7 @@ export const IconButton: React.FC<IconButtonProps> = ({
       onPress={onPress}
       disabled={disabled}
       activeOpacity={0.7}
-      style={buttonStyles}
+      style={[buttonStyles, { transform: [{ scale: disabled ? 1 : 1 }] }]}
       testID={testID}
       {...accessibilityProps}
     >

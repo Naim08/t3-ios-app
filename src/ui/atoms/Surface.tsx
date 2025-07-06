@@ -6,6 +6,15 @@ import {
 } from 'react-native';
 import { useTheme } from '../../components/ThemeProvider';
 
+// Conditional imports for glassmorphism effects
+let BlurView: any;
+try {
+  const blurLib = require('expo-blur');
+  BlurView = blurLib.BlurView;
+} catch {
+  BlurView = ({ children, style, ...props }: any) => React.createElement(View, { style, ...props }, children);
+}
+
 export interface SurfaceProps extends AccessibilityProps {
   children: React.ReactNode;
   elevation?: 0 | 1 | 2 | 3 | 4 | 5;
@@ -15,6 +24,8 @@ export interface SurfaceProps extends AccessibilityProps {
   style?: ViewStyle;
   className?: string; // TailwindCSS classes
   testID?: string;
+  glass?: boolean; // Enable glassmorphism effect
+  blur?: boolean; // Enable blur effect
 }
 
 export const Surface: React.FC<SurfaceProps> = ({
@@ -26,6 +37,8 @@ export const Surface: React.FC<SurfaceProps> = ({
   style,
   className,
   testID,
+  glass = false,
+  blur = false,
   ...accessibilityProps
 }) => {
   const { theme, colorScheme } = useTheme();

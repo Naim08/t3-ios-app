@@ -21,8 +21,8 @@ import { IconButton, Typography } from '../ui/atoms';
 const Stack = createNativeStackNavigator();
 
 // Memoized header button styles to prevent re-creation
-const headerLeftStyle = { marginLeft: 10 };
-const headerRightStyle = { marginRight: 10 };
+const headerLeftStyle = { marginLeft: 16 };
+const headerRightStyle = { marginRight: 16 };
 
 export const RootNavigator = () => {
   const { theme, colorScheme } = useTheme();
@@ -52,6 +52,7 @@ export const RootNavigator = () => {
         icon="settings"
         onPress={() => navigation.navigate('Settings')}
         variant="gradient"
+        size="sm"
         style={headerLeftStyle}
       />
     ),
@@ -60,6 +61,7 @@ export const RootNavigator = () => {
         icon="plus"
         onPress={() => navigation.navigate('PersonaPicker')}
         variant="gradient"
+        size="sm"
         style={headerRightStyle}
       />
     ),
@@ -72,6 +74,7 @@ export const RootNavigator = () => {
         icon="chevron-left"
         onPress={() => navigation.goBack()}
         variant="ghost"
+        size="sm"
         style={headerLeftStyle}
       />
     ),
@@ -83,6 +86,7 @@ export const RootNavigator = () => {
           // This is a placeholder that will be overridden by the screen
         }}
         variant="ghost"
+        size="sm"
         style={headerRightStyle}
       />
     ),

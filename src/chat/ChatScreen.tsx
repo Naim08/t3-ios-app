@@ -12,6 +12,8 @@ import {
   Keyboard,
   Animated,
   Dimensions,
+  TouchableOpacity,
+  Vibration,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // Conditional imports for gradients
@@ -40,7 +42,7 @@ import { useStream, StreamMessage } from './useStream';
 // Removed unused translation import
 import { usePersona } from '../context/PersonaContext';
 import { supabase } from '../lib/supabase';
-import { isModelPremium } from '../utils/modelUtils';
+import { isModelPremium } from '../config/models';
 import { ConversationService } from '../services/conversationService';
 import { usePerformanceMonitor } from '../utils/performanceMonitor';
 import { useMemoryLeakDetection } from '../utils/memoryLeakDetector';
@@ -209,6 +211,8 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
   const [keyboardHeight, setKeyboardHeight] = useState<number>(0);
   const [pendingSuggestion, setPendingSuggestion] = useState<string>('');
   const [isLoadingConversation, setIsLoadingConversation] = useState(false);
+  const [showJumpToBottom, setShowJumpToBottom] = useState(false);
+  const jumpButtonAnim = useRef(new Animated.Value(0)).current;
   
   // Pagination state - Start with false for new conversations
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
@@ -393,29 +397,36 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         <View style={styles.headerTitleContainer}>
           <View style={styles.headerTitleContent}>
             {currentPersona && (
-              <Typography variant="bodyLg" style={{ marginRight: 3 }}>
-                {currentPersona.icon}
-              </Typography>
+              <View style={styles.personaIconContainer}>
+                <Typography variant="bodyMd">
+                  {currentPersona.icon}
+                </Typography>
+              </View>
             )}
-            <Typography
-              variant="bodyLg"
-              weight="semibold"
-              color={theme.colors.textPrimary}
-              numberOfLines={1}
-              style={styles.headerTitleText}
-            >
-              {currentPersona?.display_name || 'Chat'}
-            </Typography>
+            <View style={styles.headerTextContainer}>
+              <Typography
+                variant="bodyLg"
+                weight="semibold"
+                color={theme.colors.textPrimary}
+                numberOfLines={1}
+                style={styles.headerTitleText}
+              >
+                {currentPersona?.display_name || 'Chat'}
+              </Typography>
+            </View>
           </View>
         </View>
       ),
       headerRight: () => (
-        <IconButton
-          icon="settings"
-          onPress={() => chatSettingsModalRef.current?.present()}
-          variant="gradient"
-          style={{ marginRight: 10 }}
-        />
+        <View style={styles.headerRightContainer}>
+          <IconButton
+            icon="settings"
+            onPress={() => chatSettingsModalRef.current?.present()}
+            variant="ghost"
+            size="md"
+            style={styles.headerSettingsButton}
+          />
+        </View>
       )
     });
   }, [currentPersona?.display_name, navigation, theme.colors.textPrimary, theme.colors.brand]);
@@ -1301,7 +1312,18 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
     }
   }, [currentModel, remainingTokens, isSubscriber, hasCustomKey, streamingMessageId, currentPersona, messages, navigation, saveMessage, scrollToBottom, startStream, isStreaming, isLoadingConversation]);
 
-  const renderMessage: ListRenderItem<Message> = useCallback(({ item }: { item: Message }) => {
+  const renderMessage: ListRenderItem<Message> = useCallback(({ item, index }: { item: Message; index: number }) => {
+    // Determine if this message is part of a group (consecutive messages from same sender)
+    const prevMessage = index > 0 ? messages[index - 1] : null;
+    const nextMessage = index < messages.length - 1 ? messages[index + 1] : null;
+    
+    const isFirstInGroup = !prevMessage || prevMessage.role !== item.role;
+    const isLastInGroup = !nextMessage || nextMessage.role !== item.role;
+    
+    // For streaming messages, always show avatar and timestamp
+    const showAvatar = isFirstInGroup || item.isStreaming;
+    const showTimestamp = isLastInGroup || item.isStreaming;
+
     // Use StreamingMessage for the actively streaming message
     if (item.id === streamingMessageId && isStreaming) {
       // Get tool results for the streaming message (could be under streaming ID or database ID)
@@ -1328,11 +1350,27 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
           ...toolResultsRef.current[item.id]
         }
       };
-      return <MessageBubble message={messageWithToolResults} />;
+      return (
+        <MessageBubble 
+          message={messageWithToolResults} 
+          showAvatar={showAvatar}
+          showTimestamp={showTimestamp}
+          isFirstInGroup={isFirstInGroup}
+          isLastInGroup={isLastInGroup}
+        />
+      );
     }
 
-    return <MessageBubble message={item} />;
-  }, [streamingMessageId, isStreaming, displayedText, toolResultsVersion]); // Use optimized displayedText
+    return (
+      <MessageBubble 
+        message={item} 
+        showAvatar={showAvatar}
+        showTimestamp={showTimestamp}
+        isFirstInGroup={isFirstInGroup}
+        isLastInGroup={isLastInGroup}
+      />
+    );
+  }, [streamingMessageId, isStreaming, displayedText, toolResultsVersion, messages]); // Add messages dependency
 
   const handleSuggestionPress = useCallback((suggestion: string) => {
     // Store the suggestion to pass to ChatInputBar
@@ -1387,20 +1425,10 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Gradient Background */}
-      <LinearGradient
-        colors={[
-          theme.colors.brand['500'] + '08',
-          theme.colors.accent['500'] + '05',
-          theme.colors.background,
-        ]}
-        style={styles.gradientBackground}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      />
-      
+      {/* Clean Light Background */}
+      <View style={[styles.cleanBackground, { backgroundColor: theme.colors.background }]} />
 
-      {/* Content with KeyboardAvoidingView */}
+      {/* Content with Enhanced KeyboardAvoidingView */}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -1456,17 +1484,27 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
             { 
               useNativeDriver: true,
               listener: (event: any) => {
-                const { contentOffset } = event.nativeEvent;
+                const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+                
                 // Load more when scrolled near the top (within 100px)
-                // Add additional checks to prevent infinite loops
                 if (contentOffset.y < 100 && hasMoreMessages && !isLoadingMore && !isLoadingMoreRef.current && !isLoadingConversation && messages.length > 0) {
                   console.log('📄 SCROLL: Triggering loadMoreMessages from scroll listener');
-                  console.log('📄 SCROLL: contentOffset.y:', contentOffset.y);
-                  console.log('📄 SCROLL: hasMoreMessages:', hasMoreMessages);
-                  console.log('📄 SCROLL: isLoadingMore:', isLoadingMore);
-                  console.log('📄 SCROLL: isLoadingConversation:', isLoadingConversation);
-                  console.log('📄 SCROLL: messages.length:', messages.length);
                   loadMoreMessages();
+                }
+                
+                // Show/hide jump to bottom button based on scroll position
+                const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
+                const shouldShow = distanceFromBottom > 200; // Show when 200px from bottom
+                
+                if (shouldShow !== showJumpToBottom) {
+                  setShowJumpToBottom(shouldShow);
+                  // Animate jump button appearance
+                  Animated.spring(jumpButtonAnim, {
+                    toValue: shouldShow ? 1 : 0,
+                    tension: 100,
+                    friction: 8,
+                    useNativeDriver: true,
+                  }).start();
                 }
               }
             }
@@ -1488,6 +1526,46 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
           // Enable virtualization for better memory management
           disableVirtualization={false} // Always enable virtualization
         />
+
+        {/* Jump to Bottom Button */}
+        <Animated.View
+          style={[
+            styles.jumpToBottomButton,
+            { 
+              backgroundColor: theme.colors.brand['500'],
+              shadowColor: theme.colors.brand['600'],
+              opacity: jumpButtonAnim,
+              transform: [
+                {
+                  scale: jumpButtonAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.8, 1],
+                  }),
+                },
+                {
+                  translateY: jumpButtonAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0],
+                  }),
+                },
+              ],
+            }
+          ]}
+          pointerEvents={showJumpToBottom ? 'auto' : 'none'}
+        >
+          <TouchableOpacity
+            style={styles.jumpToBottomButtonTouchable}
+            onPress={() => {
+              Vibration.vibrate(50); // Light haptic feedback
+              scrollToBottom(true);
+            }}
+            activeOpacity={0.8}
+          >
+            <Typography variant="h4" color="#FFFFFF" style={{ fontSize: 20 }}>
+              ↓
+            </Typography>
+          </TouchableOpacity>
+        </Animated.View>
 
         {/* Input Bar */}
         <ChatInputBar
@@ -1533,24 +1611,32 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  gradientBackground: {
+  cleanBackground: {
     ...StyleSheet.absoluteFillObject,
   },
   headerTitleContainer: {
+    flex: 1,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    maxWidth: '100%',
-    width: '100%',
+    alignItems: 'center',
   },
   headerTitleContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     maxWidth: '100%',
   },
   headerTitleText: {
     flexShrink: 1,
-    textAlign: 'center',
+    textAlign: 'left',
+  },
+  headerRightContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 8,
+  },
+  headerSettingsButton: {
+    marginLeft: 8,
   },
   messagesList: {
     flex: 1,
@@ -1662,5 +1748,52 @@ const styles = StyleSheet.create({
   },
   loadingMoreText: {
     marginLeft: 8,
+  },
+  personaIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(57, 112, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  headerTextContainer: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  headerSubtitle: {
+    marginTop: 2,
+  },
+  jumpToBottomButton: {
+    position: 'absolute',
+    bottom: 120,
+    right: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+    ...Platform.select({
+      ios: {
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  jumpToBottomButtonTouchable: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 24,
   },
 });

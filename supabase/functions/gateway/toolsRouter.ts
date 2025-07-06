@@ -1,5 +1,3 @@
-// Note: We'll use direct HTTP calls to Supabase instead of the client
-// to avoid import issues in the edge function environment
 
 interface ToolCall {
   id: string
@@ -8,7 +6,7 @@ interface ToolCall {
     name: string
     arguments: string
   }
-  // Gemini format
+
   name?: string
   args?: any
 }

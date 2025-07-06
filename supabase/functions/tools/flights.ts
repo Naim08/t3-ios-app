@@ -1,4 +1,3 @@
-// Flights tool for flight search and booking
 
 export interface FlightsRequest {
   // Flight search parameters

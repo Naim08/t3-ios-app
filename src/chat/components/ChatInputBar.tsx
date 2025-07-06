@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   Animated,
   Platform,
+  Vibration,
 } from 'react-native';
 import { Typography, TextField } from '../../ui/atoms';
 import { useTheme } from '../../components/ThemeProvider';
@@ -106,6 +107,9 @@ export const ChatInputBar = memo(({
     }
 
     animateSendButton();
+    // Add haptic feedback for send action
+    Vibration.vibrate(50);
+    
     const messageText = inputText.trim();
 
     // ✅ Send first, then clear input to prevent timing issues
@@ -122,12 +126,14 @@ export const ChatInputBar = memo(({
   const canSend = inputText.trim().length > 0 && !isStreaming && !disabled;
 
   return (
-    <BlurView intensity={90} style={styles.inputBarBlur}>
+    <BlurView intensity={95} style={styles.inputBarBlur}>
       <LinearGradient
         colors={[
           theme.colors.surface + 'F8',
-          theme.colors.surface + 'FA',
+          theme.colors.surface + 'FC',
+          theme.colors.surface + 'FF',
         ]}
+        locations={[0, 0.5, 1]}
         style={[
           styles.inputBar,
           { paddingBottom: Math.max(bottomInset, 12) },
@@ -143,15 +149,52 @@ export const ChatInputBar = memo(({
                 transform: [{
                   scale: typingAnimation.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [0.8, 1],
+                    outputRange: [0.8, 1.1],
                   }),
                 }],
               },
             ]}
           >
-            <View style={styles.typingDot} />
-            <View style={[styles.typingDot, { marginLeft: 4 }]} />
-            <View style={[styles.typingDot, { marginLeft: 4 }]} />
+            <Animated.View style={[
+              styles.typingDot,
+              {
+                backgroundColor: theme.colors.brand['500'],
+                transform: [{
+                  scale: typingAnimation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.8, 1.2],
+                  }),
+                }],
+              },
+            ]} />
+            <Animated.View style={[
+              styles.typingDot,
+              { 
+                marginLeft: 4,
+                backgroundColor: theme.colors.brand['400'],
+                transform: [{
+                  scale: typingAnimation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.8, 1.2],
+                    extrapolate: 'clamp',
+                  }),
+                }],
+              }
+            ]} />
+            <Animated.View style={[
+              styles.typingDot,
+              { 
+                marginLeft: 4,
+                backgroundColor: theme.colors.brand['300'],
+                transform: [{
+                  scale: typingAnimation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.8, 1.2],
+                    extrapolate: 'clamp',
+                  }),
+                }],
+              }
+            ]} />
           </Animated.View>
         )}
         
@@ -170,22 +213,27 @@ export const ChatInputBar = memo(({
           )}
           
           <View style={styles.inputWrapper}>
-            <TextField
-              value={inputText}
-              onChangeText={setInputText}
-              placeholder={disabled ? "Loading conversation..." : isStreaming ? "AI is typing..." : "Type your message..."}
-              multiline
-              numberOfLines={3}
-              style={{
-                ...styles.textInput,
-                backgroundColor: theme.colors.gray['50'],
+            <View style={[
+              styles.textInputContainer,
+              {
+                backgroundColor: theme.colors.surface + 'F0',
                 borderColor: inputText ? theme.colors.brand['300'] : theme.colors.border,
-              }}
-              inputStyle={styles.textInputStyle}
-              editable={!isStreaming && !disabled}
-              autoFocus={false}
-              onFocus={handleFocus}
-            />
+                shadowColor: inputText ? theme.colors.brand['500'] : theme.colors.gray['300'],
+              }
+            ]}>
+              <TextField
+                value={inputText}
+                onChangeText={setInputText}
+                placeholder={disabled ? "Loading conversation..." : isStreaming ? "AI is typing..." : "Type your message..."}
+                multiline
+                numberOfLines={3}
+                style={styles.textInput}
+                inputStyle={styles.textInputStyle}
+                editable={!isStreaming && !disabled}
+                autoFocus={false}
+                onFocus={handleFocus}
+              />
+            </View>
             
             <Animated.View style={{ transform: [{ scale: sendButtonScale }] }}>
               <TouchableOpacity
@@ -193,30 +241,34 @@ export const ChatInputBar = memo(({
                   styles.sendButton,
                   {
                     backgroundColor: canSend
-                      ? theme.colors.brand['500']
+                      ? 'transparent'
                       : isStreaming
                       ? theme.colors.danger['500']
                       : theme.colors.gray['300'],
+                    shadowColor: canSend ? theme.colors.brand['500'] : theme.colors.gray['400'],
                   },
                 ]}
                 onPress={isStreaming ? onAbortStream : handleSend}
                 disabled={!canSend && !isStreaming}
-                activeOpacity={0.7}
+                activeOpacity={0.8}
               >
                 {isStreaming ? (
-                  <Typography variant="h4">⏹</Typography>
-                ) : (
+                  <Typography variant="h4" style={{ fontSize: 20 }}>⏹</Typography>
+                ) : canSend ? (
                   <LinearGradient
-                    colors={[
-                      canSend ? theme.colors.brand['400'] : theme.colors.gray['300'],
-                      canSend ? theme.colors.brand['600'] : theme.colors.gray['400'],
-                    ]}
+                    colors={[theme.colors.brand['400'], theme.colors.brand['600']]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
                     style={styles.sendButtonGradient}
                   >
-                    <Typography variant="h4" color="#FFFFFF">
+                    <Typography variant="h4" color="#FFFFFF" style={{ fontSize: 20 }}>
                       ➤
                     </Typography>
                   </LinearGradient>
+                ) : (
+                  <Typography variant="h4" color={theme.colors.gray['500']} style={{ fontSize: 20 }}>
+                    ➤
+                  </Typography>
                 )}
               </TouchableOpacity>
             </Animated.View>
@@ -263,23 +315,54 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'rgba(57, 112, 255, 0.6)',
+    ...Platform.select({
+      ios: {
+        shadowColor: 'rgba(57, 112, 255, 0.8)',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.3,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   inputContainer: {
     gap: 12,
+    paddingTop: 8,
   },
   inputWrapper: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     gap: 12,
+    paddingVertical: 8,
+  },
+  textInputContainer: {
+    flex: 1,
+    borderRadius: 24,
+    borderWidth: 2,
+    overflow: 'hidden',
+    minHeight: 48,
+    justifyContent: 'center',
+    ...Platform.select({
+      ios: {
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   textInput: {
-    flex: 1,
     maxHeight: 100,
-    borderRadius: 20,
-    borderWidth: 2,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    minHeight: 48,
+    paddingHorizontal: 18,
+    paddingVertical: 0,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    textAlignVertical: 'center',
   },
   textInputStyle: {
     textAlignVertical: 'top',
@@ -292,8 +375,17 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 2,
     overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
   sendButtonGradient: {
     width: '100%',
@@ -306,16 +398,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
     marginBottom: 8,
-    borderRadius: 12,
+    borderRadius: 16,
     borderLeftWidth: 4,
-    borderLeftColor: 'rgba(255, 107, 107, 0.5)',
+    borderLeftColor: 'rgba(255, 107, 107, 0.7)',
+    ...Platform.select({
+      ios: {
+        shadowColor: 'rgba(255, 107, 107, 0.3)',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   retryButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    backgroundColor: 'rgba(57, 112, 255, 0.1)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 14,
+    backgroundColor: 'rgba(57, 112, 255, 0.15)',
+    ...Platform.select({
+      ios: {
+        shadowColor: 'rgba(57, 112, 255, 0.3)',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
 });

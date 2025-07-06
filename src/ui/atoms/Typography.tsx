@@ -19,6 +19,10 @@ export interface TypographyProps extends AccessibilityProps {
   style?: TextStyle;
   className?: string; // TailwindCSS classes
   testID?: string;
+  gradient?: boolean; // Enable gradient text effect
+  glow?: boolean; // Enable text glow effect
+  opacity?: number; // Text opacity
+  letterSpacing?: number; // Custom letter spacing
 }
 
 export const Typography: React.FC<TypographyProps> = ({
@@ -32,6 +36,10 @@ export const Typography: React.FC<TypographyProps> = ({
   style,
   className,
   testID,
+  gradient = false,
+  glow = false,
+  opacity = 1,
+  letterSpacing,
   accessibilityLabel,
   accessibilityHint,
   accessibilityRole,
@@ -39,13 +47,48 @@ export const Typography: React.FC<TypographyProps> = ({
 }) => {
   const { theme } = useTheme();
   
+  // Enhanced styling for modern effects
+  const getEnhancedStyle = (): TextStyle => {
+    const variantStyles = theme.typography.scale[variant];
+    const fontFamily = theme.typography.fontFamily[weight];
+    const fontWeight = theme.typography.weight[weight];
+    
+    let textColor = color || theme.colors.textPrimary;
+    
+    // Apply gradient text effect (approximated with color)
+    if (gradient && !color) {
+      textColor = theme.colors.brand['500'];
+    }
+    
+    const enhancedStyle: TextStyle = {
+      ...variantStyles,
+      fontFamily,
+      fontWeight,
+      color: textColor,
+      textAlign: align,
+      opacity,
+      letterSpacing: letterSpacing || 0,
+      // Enhanced line height for better readability
+      lineHeight: variantStyles.lineHeight ? variantStyles.lineHeight * 1.1 : undefined,
+    };
+    
+    // Add glow effect using shadow (iOS only, but gracefully degrades)
+    if (glow) {
+      enhancedStyle.textShadowColor = theme.colors.brand['500'] + '40';
+      enhancedStyle.textShadowOffset = { width: 0, height: 0 };
+      enhancedStyle.textShadowRadius = 8;
+    }
+    
+    return enhancedStyle;
+  };
+  
   // If className is provided, use TailwindCSS approach
   if (className) {
     return (
       <Text
         // @ts-ignore - NativeWind className prop
         className={className}
-        style={style}
+        style={[style, letterSpacing ? { letterSpacing } : undefined]}
         numberOfLines={numberOfLines}
         onPress={onPress}
         testID={testID}
@@ -53,7 +96,7 @@ export const Typography: React.FC<TypographyProps> = ({
         accessibilityHint={accessibilityHint}
         accessibilityRole={accessibilityRole || (onPress ? 'button' : 'text')}
         allowFontScaling={true}
-        maxFontSizeMultiplier={3}
+        maxFontSizeMultiplier={2.5} // Reduced for better design consistency
         {...accessibilityProps}
       >
         {children}
@@ -61,25 +104,12 @@ export const Typography: React.FC<TypographyProps> = ({
     );
   }
   
-  // Fallback to traditional theme approach
-  const variantStyles = theme.typography.scale[variant];
-  const fontFamily = theme.typography.fontFamily[weight];
-  const fontWeight = theme.typography.weight[weight];
-  
-  const textColor = color || theme.colors.textPrimary;
-  
-  const combinedStyle: TextStyle = {
-    ...variantStyles,
-    fontFamily,
-    fontWeight,
-    color: textColor,
-    textAlign: align,
-    ...style,
-  };
+  // Enhanced traditional theme approach
+  const combinedStyle = getEnhancedStyle();
 
   return (
     <Text
-      style={[styles.base, combinedStyle]}
+      style={[styles.base, combinedStyle, style]}
       numberOfLines={numberOfLines}
       onPress={onPress}
       testID={testID}
@@ -87,7 +117,7 @@ export const Typography: React.FC<TypographyProps> = ({
       accessibilityHint={accessibilityHint}
       accessibilityRole={accessibilityRole || (onPress ? 'button' : 'text')}
       allowFontScaling={true}
-      maxFontSizeMultiplier={3}
+      maxFontSizeMultiplier={2.5} // Better design consistency
       {...accessibilityProps}
     >
       {children}
@@ -98,5 +128,7 @@ export const Typography: React.FC<TypographyProps> = ({
 const styles = StyleSheet.create({
   base: {
     includeFontPadding: false,
+    // Enhanced default styling for better text rendering
+    textAlignVertical: 'center',
   },
 });

@@ -48,11 +48,55 @@ export const colors = {
       "800": "#E03131",
       "900": "#C92A2A"
     },
-    background: "#FFFFFF",
+    success: {
+      "50": "#F0FDF4",
+      "100": "#DCFCE7",
+      "200": "#BBF7D0",
+      "300": "#86EFAC",
+      "400": "#4ADE80",
+      "500": "#22C55E",
+      "600": "#16A34A",
+      "700": "#15803D",
+      "800": "#166534",
+      "900": "#14532D"
+    },
+    warning: {
+      "50": "#FFFBEB",
+      "100": "#FEF3C7",
+      "200": "#FDE68A",
+      "300": "#FCD34D",
+      "400": "#FBBF24",
+      "500": "#F59E0B",
+      "600": "#D97706",
+      "700": "#B45309",
+      "800": "#92400E",
+      "900": "#78350F"
+    },
+    info: {
+      "50": "#EFF6FF",
+      "100": "#DBEAFE",
+      "200": "#BFDBFE",
+      "300": "#93C5FD",
+      "400": "#60A5FA",
+      "500": "#3B82F6",
+      "600": "#2563EB",
+      "700": "#1D4ED8",
+      "800": "#1E40AF",
+      "900": "#1E3A8A"
+    },
+    background: "#FAFBFC",
     surface: "#FFFFFF",
-    textPrimary: "#212529",
-    textSecondary: "#6C757D",
-    border: "#CED4DA"
+    surfaceElevated: "#FFFFFF",
+    surfaceVariant: "#F8F9FA",
+    textPrimary: "#0F172A",
+    textSecondary: "#64748B",
+    textTertiary: "#94A3B8",
+    border: "#E2E8F0",
+    borderLight: "#F1F5F9",
+    borderStrong: "#CBD5E1",
+    shadow: "rgba(15, 23, 42, 0.08)",
+    shadowMedium: "rgba(15, 23, 42, 0.12)",
+    shadowStrong: "rgba(15, 23, 42, 0.20)"
   },
   dark: {
     brand: {

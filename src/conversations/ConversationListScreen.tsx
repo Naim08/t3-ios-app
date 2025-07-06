@@ -9,12 +9,13 @@ import {
   Alert,
   Animated,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useTheme } from '../components/ThemeProvider';
 import { usePersona } from '../context/PersonaContext';
-import { Typography, Surface, AILoadingAnimation } from '../ui/atoms';
+import { Typography, AILoadingAnimation } from '../ui/atoms';
 import { ConversationService, ConversationWithPersona } from '../services/conversationService';
 
 // Use the centralized Conversation interface
@@ -132,12 +133,13 @@ const ConversationItem = ({ conversation, onPress, onDelete }: ConversationItemP
   };
 
   const handleLongPress = () => {
+    const modelInfo = conversation.current_model ? `Model: ${conversation.current_model}` : 'No model info';
     Alert.alert(
-      'Delete Conversation',
-      'Are you sure you want to delete this conversation? This action cannot be undone.',
+      'Conversation Details',
+      `${modelInfo}\n${conversation.message_count} ${conversation.message_count !== 1 ? 'messages' : 'message'}\n\nLast updated: ${formatDate(conversation.updated_at)}`,
       [
-        { text: 'Cancel', style: 'cancel' },
         { text: 'Delete', style: 'destructive', onPress: onDelete },
+        { text: 'Cancel', style: 'cancel' },
       ]
     );
   };
@@ -147,72 +149,95 @@ const ConversationItem = ({ conversation, onPress, onDelete }: ConversationItemP
       onPress={onPress}
       onLongPress={handleLongPress}
       style={styles.conversationItem}
-      activeOpacity={0.7}
+      activeOpacity={0.9}
     >
-      <Surface elevation={1} padding="md" style={styles.conversationSurface}>
-        <View style={styles.conversationHeader}>
-          <View style={styles.conversationMeta}>
-            {conversation.personas && (
-              <View style={styles.personaInfo}>
-                <Typography variant="h4" style={styles.personaIcon}>
-                  {conversation.personas.icon}
-                </Typography>
+      <View style={[styles.conversationSurface, {
+        backgroundColor: theme.colors.surface,
+        borderRadius: 12,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        ...Platform.select({
+          ios: {
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.04,
+            shadowRadius: 4,
+          },
+          android: {
+            elevation: 2,
+          },
+        }),
+      }]}>
+        <View style={styles.personaIconContainer}>
+          <View style={[styles.personaIconBackground, { backgroundColor: theme.colors.brand['100'] }]}>
+            <Typography variant="h4" style={styles.personaIconText}>
+              {conversation.personas?.icon || '💬'}
+            </Typography>
+          </View>
+        </View>
+
+        <View style={styles.conversationContent}>
+          <View style={styles.conversationHeader}>
+            <View style={styles.conversationMeta}>
+              {conversation.personas && (
                 <Typography
                   variant="bodySm"
-                  color={theme.colors.textSecondary}
+                  weight="semibold"
+                  color={theme.colors.brand['600']}
                   style={styles.personaName}
                 >
                   {conversation.personas.display_name}
                 </Typography>
-              </View>
-            )}
+              )}
+              <Typography
+                variant="bodyMd"
+                weight="semibold"
+                color={theme.colors.textPrimary}
+                numberOfLines={1}
+                style={styles.conversationTitle}
+              >
+                {conversation.title}
+              </Typography>
+            </View>
+            <Typography
+              variant="caption"
+              color={theme.colors.textTertiary}
+              style={styles.timestamp}
+            >
+              {formatDate(conversation.updated_at)}
+            </Typography>
           </View>
-          <Typography
-            variant="caption"
-            color={theme.colors.textSecondary}
-            style={styles.timestamp}
-          >
-            {formatDate(conversation.updated_at)}
-          </Typography>
+          
+          {conversation.last_message_preview && (
+            <Typography
+              variant="bodySm"
+              color={theme.colors.textSecondary}
+              numberOfLines={2}
+              style={styles.lastMessage}
+            >
+              {conversation.last_message_preview}
+            </Typography>
+          )}
+          
+          <View style={styles.conversationFooter}>
+            <Typography
+              variant="caption"
+              color={theme.colors.textTertiary}
+              weight="medium"
+            >
+              {conversation.message_count} {conversation.message_count !== 1 ? 'messages' : 'message'}
+            </Typography>
+          </View>
         </View>
-        
-        <Typography
-          variant="bodyMd"
-          weight="semibold"
-          color={theme.colors.textPrimary}
-          numberOfLines={1}
-          style={styles.conversationTitle}
-        >
-          {conversation.title}
-        </Typography>
-        
-        {conversation.last_message_preview && (
-          <Typography
-            variant="bodySm"
-            color={theme.colors.textSecondary}
-            numberOfLines={2}
-            style={styles.lastMessage}
-          >
-            {conversation.last_message_preview}
-          </Typography>
-        )}
-        
-        <View style={styles.conversationFooter}>
-          <Typography
-            variant="caption"
-            color={theme.colors.textSecondary}
-          >
-            {conversation.message_count} message{conversation.message_count !== 1 ? 's' : ''}
-          </Typography>
-        </View>
-      </Surface>
+      </View>
     </TouchableOpacity>
   );
 };
 
 export const ConversationListScreen = ({ navigation }: any) => {
   const { theme } = useTheme();
-  const { setCurrentPersona } = usePersona();
+  const { } = usePersona();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -287,9 +312,16 @@ export const ConversationListScreen = ({ navigation }: any) => {
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Typography variant="h1" style={styles.emptyIcon}>
-        💬
-      </Typography>
+      <View style={styles.emptyIllustration}>
+        <Typography variant="h1" style={styles.emptyIcon}>
+          💭
+        </Typography>
+        <View style={styles.emptyBubbles}>
+          <View style={[styles.chatBubble, styles.chatBubble1, { backgroundColor: theme.colors.gray['300'] }]} />
+          <View style={[styles.chatBubble, styles.chatBubble2, { backgroundColor: theme.colors.gray['300'] }]} />
+          <View style={[styles.chatBubble, styles.chatBubble3, { backgroundColor: theme.colors.gray['300'] }]} />
+        </View>
+      </View>
       <Typography
         variant="h3"
         weight="semibold"
@@ -297,7 +329,7 @@ export const ConversationListScreen = ({ navigation }: any) => {
         align="center"
         style={styles.emptyTitle}
       >
-        No conversations yet
+        Start your first chat
       </Typography>
       <Typography
         variant="bodyLg"
@@ -305,8 +337,21 @@ export const ConversationListScreen = ({ navigation }: any) => {
         align="center"
         style={styles.emptySubtitle}
       >
-        Start a new conversation with an assistant
+        Choose an AI assistant and begin a conversation
       </Typography>
+      <TouchableOpacity
+        style={[styles.emptyCTA, { backgroundColor: theme.colors.brand['500'] }]}
+        onPress={handleNewChat}
+        activeOpacity={0.8}
+      >
+        <Typography
+          variant="bodyMd"
+          weight="semibold"
+          color="#FFFFFF"
+        >
+          Start chatting
+        </Typography>
+      </TouchableOpacity>
     </View>
   );
 
@@ -325,6 +370,9 @@ export const ConversationListScreen = ({ navigation }: any) => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* Clean neutral background */}
+      <View style={[styles.neutralBackground, { backgroundColor: theme.colors.background }]} />
+
       <FlatList
         data={conversations}
         renderItem={renderConversation}
@@ -353,6 +401,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  neutralBackground: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -362,14 +417,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    padding: 16,
+    paddingVertical: 16,
   },
   emptyContent: {
     flex: 1,
     justifyContent: 'center',
   },
   swipeContainer: {
-    marginBottom: 12,
+    marginBottom: 8,
+    marginHorizontal: 8,
     position: 'relative',
   },
   deleteBackground: {
@@ -381,6 +437,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 12,
+    marginVertical: 4,
   },
   swipeableItem: {
     backgroundColor: 'transparent',
@@ -389,12 +446,40 @@ const styles = StyleSheet.create({
     // marginBottom: 12, // moved to swipeContainer
   },
   conversationSurface: {
-    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  personaIconContainer: {
+    marginRight: 12,
+  },
+  personaIconBackground: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.06,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  personaIconText: {
+    fontSize: 20,
+  },
+  conversationContent: {
+    flex: 1,
   },
   conversationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'baseline',
     marginBottom: 8,
   },
   conversationMeta: {
@@ -409,10 +494,11 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   personaName: {
-    fontWeight: '500',
+    marginBottom: 2,
   },
   timestamp: {
     marginLeft: 12,
+    textAlign: 'right',
   },
   conversationTitle: {
     marginBottom: 4,
@@ -422,23 +508,60 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   conversationFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    marginTop: 4,
   },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 48,
+    paddingHorizontal: 32,
+  },
+  emptyIllustration: {
+    alignItems: 'center',
+    marginBottom: 24,
+    position: 'relative',
   },
   emptyIcon: {
     fontSize: 64,
     marginBottom: 16,
+  },
+  emptyBubbles: {
+    position: 'absolute',
+    top: 20,
+    left: 80,
+    width: 60,
+    height: 40,
+  },
+  chatBubble: {
+    position: 'absolute',
+    borderRadius: 8,
+  },
+  chatBubble1: {
+    width: 16,
+    height: 12,
+    top: 0,
+    left: 0,
+  },
+  chatBubble2: {
+    width: 20,
+    height: 14,
+    top: 8,
+    left: 20,
+  },
+  chatBubble3: {
+    width: 12,
+    height: 10,
+    top: 16,
+    left: 8,
   },
   emptyTitle: {
     marginBottom: 8,
   },
   emptySubtitle: {
     marginBottom: 24,
-    paddingHorizontal: 32,
+  },
+  emptyCTA: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
   },
 });

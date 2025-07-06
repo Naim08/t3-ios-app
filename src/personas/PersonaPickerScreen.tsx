@@ -14,7 +14,7 @@ import { usePersona, Persona, PersonaCategory } from '../context/PersonaContext'
 import { useEntitlements } from '../hooks/useEntitlements';
 import { Typography, Surface, AILoadingAnimation } from '../ui/atoms';
 import { supabase } from '../lib/supabase';
-import { isModelPremium } from '../utils/modelUtils';
+import { isModelPremium } from '../config/models';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 2; // 2 columns with padding

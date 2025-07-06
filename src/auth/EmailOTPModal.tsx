@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { SignInModal } from './SignInModal';
-import { SignUpModal } from './SignUpModal';
-import { MagicLinkModal } from './MagicLinkModal';
+// Using new refactored components for testing
+import { NewSignInModal } from './NewSignInModal';
+import { NewSignUpModal } from './NewSignUpModal';
+import { NewMagicLinkModal } from './NewMagicLinkModal';
 
 interface EmailOTPModalProps {
   visible: boolean;
@@ -28,28 +29,38 @@ export const EmailOTPModal: React.FC<EmailOTPModalProps> = ({ visible, onClose }
     onClose();
   };
 
-  return (
-    <>
-      <SignInModal
-        visible={visible && currentMode === 'signin'}
-        onClose={handleClose}
-        onSuccess={handleSuccess}
-        onSwitchMode={handleSwitchMode}
-      />
-      
-      <SignUpModal
-        visible={visible && currentMode === 'signup'}
-        onClose={handleClose}
-        onSuccess={handleSuccess}
-        onSwitchMode={handleSwitchMode}
-      />
-      
-      <MagicLinkModal
-        visible={visible && currentMode === 'magic'}
-        onClose={handleClose}
-        onSuccess={handleSuccess}
-        onSwitchMode={handleSwitchMode}
-      />
-    </>
-  );
+  // Only render the active modal to avoid animation conflicts
+  if (!visible) return null;
+
+  switch (currentMode) {
+    case 'signin':
+      return (
+        <NewSignInModal
+          visible={visible}
+          onClose={handleClose}
+          onSuccess={handleSuccess}
+          onSwitchMode={handleSwitchMode}
+        />
+      );
+    case 'signup':
+      return (
+        <NewSignUpModal
+          visible={visible}
+          onClose={handleClose}
+          onSuccess={handleSuccess}
+          onSwitchMode={handleSwitchMode}
+        />
+      );
+    case 'magic':
+      return (
+        <NewMagicLinkModal
+          visible={visible}
+          onClose={handleClose}
+          onSuccess={handleSuccess}
+          onSwitchMode={handleSwitchMode}
+        />
+      );
+    default:
+      return null;
+  }
 };
