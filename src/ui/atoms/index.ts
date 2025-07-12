@@ -17,3 +17,6 @@ export { Avatar } from './Avatar';
 export type { AvatarProps } from './Avatar';
 
 export { AILoadingAnimation } from './AILoadingAnimation';
+
+export { Card } from './Card';
+export type { CardProps } from './Card';

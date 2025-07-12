@@ -116,6 +116,8 @@ module.exports = {
         'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
         'glass-dark': '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
         'glow': '0 0 20px rgba(57, 112, 255, 0.3)',
+        'glow-brand': '0 0 30px rgba(57, 112, 255, 0.4)',
+        'glow-subtle': '0 0 15px rgba(57, 112, 255, 0.2)',
         'glow-accent': '0 0 20px rgba(22, 199, 155, 0.3)',
         'card': '0 4px 16px rgba(0, 0, 0, 0.1)',
         'card-dark': '0 4px 16px rgba(0, 0, 0, 0.3)',
@@ -224,6 +226,11 @@ module.exports = {
         '100': '25rem',
         '112': '28rem',
         '128': '32rem'
+      },
+      // Transform scale utilities for press feedback
+      scale: {
+        '98': '0.98',
+        '102': '1.02'
       }
     },
   },

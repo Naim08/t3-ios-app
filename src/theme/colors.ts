@@ -149,9 +149,17 @@ export const colors = {
     },
     background: "#0E0F11",
     surface: "#141518",
+    surfaceElevated: "#1B1D20",
+    surfaceVariant: "#222428",
     textPrimary: "#E3E8FF",
     textSecondary: "#9A9EA5",
-    border: "#1B1D20"
+    textTertiary: "#6C7077",
+    border: "#2C2F33",
+    borderLight: "#222428",
+    borderStrong: "#3A3D42",
+    shadow: "rgba(0, 0, 0, 0.3)",
+    shadowMedium: "rgba(0, 0, 0, 0.4)",
+    shadowStrong: "rgba(0, 0, 0, 0.6)"
   }
 };
 

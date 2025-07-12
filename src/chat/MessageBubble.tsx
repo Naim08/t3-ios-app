@@ -12,7 +12,7 @@ try {
   LinearGradient = ({ children, style, ...props }) => React.createElement(View, { style, ...props }, children);
 }
 import { useTheme } from '../components/ThemeProvider';
-import { Surface, Typography, Avatar, AILoadingAnimation } from '../ui/atoms';
+import { Surface, Typography, Avatar, AILoadingAnimation, Card } from '../ui/atoms';
 import { Message, TripPlannerResponse } from './types';
 import { TripPlannerTool } from './components/TripPlannerTool';
 import { FullScreenMapModal } from './components/FullScreenMapModal';
@@ -92,13 +92,27 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
     return isUser
       ? {
           backgroundColor: 'transparent',
-          borderBottomRightRadius: 4,
         }
       : {
-          backgroundColor: theme.colors.surface,
-          borderBottomLeftRadius: 4,
-          borderWidth: 1,
-          borderColor: theme.colors.border,
+          backgroundColor: theme.colors.surface + 'E8', // More transparent for better glassmorphism
+          borderWidth: 1.5,
+          borderColor: 'rgba(255,255,255,0.2)', // Enhanced glassmorphism border
+          borderRadius: 24,
+          shadowColor: theme.colors.gray['500'],
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          elevation: 4,
+          // Enhanced glassmorphism effect
+          ...Platform.select({
+            ios: {
+              backdropFilter: 'blur(20px)',
+            },
+            android: {
+              // Android fallback with enhanced opacity
+              backgroundColor: theme.colors.surface + 'F0',
+            },
+          }),
         };
   };
 
@@ -121,36 +135,36 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
 
   const getMarkdownStyles = () => ({
     body: {
-      color: theme.colors.textPrimary,
+      color: isUser ? '#FFFFFF' : theme.colors.textPrimary,
       fontSize: theme.typography.scale.bodyMd.fontSize,
       lineHeight: theme.typography.scale.bodyMd.lineHeight,
       fontFamily: theme.typography.fontFamily.regular,
       margin: 0,
     },
     heading1: {
-      color: theme.colors.textPrimary,
+      color: isUser ? '#FFFFFF' : theme.colors.textPrimary,
       fontSize: theme.typography.scale.h4.fontSize,
       fontWeight: theme.typography.weight.bold,
       marginBottom: theme.spacing.xs,
       marginTop: theme.spacing.xs,
     },
     heading2: {
-      color: theme.colors.textPrimary,
+      color: isUser ? '#FFFFFF' : theme.colors.textPrimary,
       fontSize: theme.typography.scale.h5.fontSize,
       fontWeight: theme.typography.weight.semibold,
       marginBottom: theme.spacing.xs,
       marginTop: theme.spacing.xs,
     },
     paragraph: {
-      color: theme.colors.textPrimary,
+      color: isUser ? '#FFFFFF' : theme.colors.textPrimary,
       fontSize: theme.typography.scale.bodyMd.fontSize,
       lineHeight: theme.typography.scale.bodyMd.lineHeight,
       marginBottom: theme.spacing.xs,
       marginTop: 0,
     },
     code_inline: {
-      backgroundColor: isUser ? 'rgba(0,0,0,0.1)' : theme.colors.gray['200'],
-      color: theme.colors.textPrimary,
+      backgroundColor: isUser ? 'rgba(0,0,0,0.15)' : theme.colors.gray['200'],
+      color: isUser ? '#FFFFFF' : theme.colors.textPrimary,
       paddingHorizontal: 4,
       paddingVertical: 2,
       borderRadius: 4,
@@ -158,8 +172,8 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
       fontFamily: 'Courier',
     },
     code_block: {
-      backgroundColor: isUser ? 'rgba(0,0,0,0.05)' : theme.colors.gray['100'],
-      color: theme.colors.textPrimary,
+      backgroundColor: isUser ? 'rgba(0,0,0,0.1)' : theme.colors.gray['100'],
+      color: isUser ? '#FFFFFF' : theme.colors.textPrimary,
       padding: theme.spacing.sm,
       borderRadius: 8,
       fontSize: theme.typography.scale.bodySm.fontSize,
@@ -169,8 +183,8 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
       flexShrink: 1, // Allow shrinking if needed
     },
     fence: {
-      backgroundColor: isUser ? 'rgba(0,0,0,0.05)' : theme.colors.gray['100'],
-      color: theme.colors.textPrimary,
+      backgroundColor: isUser ? 'rgba(0,0,0,0.1)' : theme.colors.gray['100'],
+      color: isUser ? '#FFFFFF' : theme.colors.textPrimary,
       padding: theme.spacing.sm,
       borderRadius: 8,
       fontSize: theme.typography.scale.bodySm.fontSize,
@@ -180,7 +194,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
       flexShrink: 1, // Allow shrinking if needed
     },
     list_item: {
-      color: theme.colors.textPrimary,
+      color: isUser ? '#FFFFFF' : theme.colors.textPrimary,
       fontSize: theme.typography.scale.bodyMd.fontSize,
       lineHeight: theme.typography.scale.bodyMd.lineHeight,
     },
@@ -260,18 +274,28 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
 
     return (
       <View style={styles.toolResponseContainer}>
-        <View style={{
-          padding: 12,
-          backgroundColor: theme.colors.surface,
-          borderRadius: 8,
-          borderLeftWidth: 4,
-          borderLeftColor: theme.colors.brand['500']
-        }}>
-          <Typography variant="caption" color={theme.colors.brand['600']}>
-            {getToolIcon(toolType)} {getToolName(toolType)}
-          </Typography>
+        <Card 
+          variant="glass" 
+          className="p-4 rounded-2xl border-l-4 border-brand-500"
+          style={{
+            borderLeftColor: theme.colors.brand['500'],
+            backgroundColor: theme.colors.surface + 'E8',
+          }}
+        >
+          <View className="flex-row items-center mb-3">
+            <View className={`w-8 h-8 rounded-full items-center justify-center mr-3 ${
+              theme.colors.brand['500'] ? 'bg-brand-500/20' : 'bg-gray-200'
+            }`}>
+              <Typography variant="caption" style={{ fontSize: 16 }}>
+                {getToolIcon(toolType)}
+              </Typography>
+            </View>
+            <Typography variant="bodyMd" weight="semibold" color={theme.colors.brand['600']}>
+              {getToolName(toolType)}
+            </Typography>
+          </View>
           {renderToolContent(toolType, toolData)}
-        </View>
+        </Card>
       </View>
     );
   };
@@ -309,29 +333,34 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
     }
 
     return (
-      <View style={{ marginTop: 8 }}>
+      <View>
         {data.results.slice(0, 2).map((result: any, index: number) => (
-          <View key={index} style={{
-            marginBottom: index < data.results.length - 1 ? 12 : 0,
-            padding: 8,
-            backgroundColor: theme.colors.background,
-            borderRadius: 6,
-          }}>
-            <Typography variant="bodyMd" weight="semibold" color={theme.colors.textPrimary} style={{ marginBottom: 4 }}>
+          <Card 
+            key={index} 
+            variant="outlined"
+            className={`p-3 rounded-xl ${index < data.results.slice(0, 2).length - 1 ? 'mb-3' : ''}`}
+            style={{
+              backgroundColor: theme.colors.background + 'F8',
+              borderColor: theme.colors.border + '60',
+            }}
+          >
+            <Typography variant="bodyMd" weight="semibold" color={theme.colors.textPrimary} className="mb-2">
               {result.title}
             </Typography>
-            <Typography variant="bodySm" color={theme.colors.textSecondary} style={{ lineHeight: 18 }}>
+            <Typography variant="bodySm" color={theme.colors.textSecondary} style={{ lineHeight: 20 }}>
               {result.extract ? result.extract.substring(0, 200) + (result.extract.length > 200 ? '...' : '') : 'No description available.'}
             </Typography>
             {result.url && (
-              <Typography variant="caption" color={theme.colors.brand['500']} style={{ marginTop: 4 }}>
-                📖 Read more on Wikipedia
-              </Typography>
+              <View className="flex-row items-center mt-2">
+                <Typography variant="caption" color={theme.colors.brand['500']} weight="medium">
+                  📖 Read more on Wikipedia
+                </Typography>
+              </View>
             )}
-          </View>
+          </Card>
         ))}
         {data.total_results > 2 && (
-          <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 8, fontStyle: 'italic' }}>
+          <Typography variant="caption" color={theme.colors.textSecondary} className="mt-3 italic text-center">
             +{data.total_results - 2} more results available
           </Typography>
         )}
@@ -350,53 +379,65 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
     }
 
     return (
-      <View style={{ marginTop: 8 }}>
+      <View>
         {data.location && (
-          <Typography variant="bodyMd" weight="semibold" color={theme.colors.textPrimary} style={{ marginBottom: 8 }}>
-            📍 {data.location}
-          </Typography>
-        )}
-
-        {data.current && (
-          <View style={{
-            padding: 8,
-            backgroundColor: theme.colors.background,
-            borderRadius: 6,
-            marginBottom: 8
-          }}>
-            <Typography variant="bodyLg" weight="semibold" color={theme.colors.textPrimary}>
-              🌡️ {data.current.temperature}°{data.current.unit || 'C'}
+          <View className="flex-row items-center mb-3">
+            <Typography variant="bodyMd" weight="semibold" color={theme.colors.textPrimary}>
+              📍 {data.location}
             </Typography>
-            <Typography variant="bodySm" color={theme.colors.textSecondary}>
-              {data.current.condition || data.current.description}
-            </Typography>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 4 }}>
-              {data.current.humidity && (
-                <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginRight: 12 }}>
-                  💧 Humidity: {data.current.humidity}%
-                </Typography>
-              )}
-              {data.current.wind_speed && (
-                <Typography variant="caption" color={theme.colors.textSecondary}>
-                  💨 Wind: {data.current.wind_speed} km/h
-                </Typography>
-              )}
-            </View>
           </View>
         )}
 
+        {data.current && (
+          <Card 
+            variant="gradient"
+            className="p-4 rounded-xl mb-3"
+            style={{
+              backgroundColor: theme.colors.brand['500'] + '15',
+              borderWidth: 1,
+              borderColor: theme.colors.brand['300'] + '40',
+            }}
+          >
+            <Typography variant="h6" weight="bold" color={theme.colors.textPrimary} className="mb-1">
+              🌡️ {data.current.temperature}°{data.current.unit || 'C'}
+            </Typography>
+            <Typography variant="bodyMd" color={theme.colors.textSecondary} className="mb-3">
+              {data.current.condition || data.current.description}
+            </Typography>
+            <View className="flex-row flex-wrap">
+              {data.current.humidity && (
+                <View className="flex-row items-center mr-4 mb-1">
+                  <Typography variant="caption" color={theme.colors.textSecondary}>
+                    💧 {data.current.humidity}%
+                  </Typography>
+                </View>
+              )}
+              {data.current.wind_speed && (
+                <View className="flex-row items-center mb-1">
+                  <Typography variant="caption" color={theme.colors.textSecondary}>
+                    💨 {data.current.wind_speed} km/h
+                  </Typography>
+                </View>
+              )}
+            </View>
+          </Card>
+        )}
+
         {data.forecast && Array.isArray(data.forecast) && data.forecast.length > 0 && (
-          <View>
-            <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginBottom: 4 }}>
-              📅 Forecast:
+          <Card 
+            variant="outlined"
+            className="p-3 rounded-xl"
+            style={{
+              backgroundColor: theme.colors.background + 'F8',
+              borderColor: theme.colors.border + '60',
+            }}
+          >
+            <Typography variant="caption" color={theme.colors.textSecondary} weight="semibold" className="mb-2">
+              📅 Forecast
             </Typography>
             {data.forecast.slice(0, 3).map((day: any, index: number) => (
-              <View key={index} style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                paddingVertical: 2
-              }}>
-                <Typography variant="caption" color={theme.colors.textPrimary}>
+              <View key={index} className="flex-row justify-between items-center py-1">
+                <Typography variant="caption" color={theme.colors.textPrimary} weight="medium">
                   {day.date || `Day ${index + 1}`}
                 </Typography>
                 <Typography variant="caption" color={theme.colors.textSecondary}>
@@ -404,7 +445,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                 </Typography>
               </View>
             ))}
-          </View>
+          </Card>
         )}
       </View>
     );
@@ -459,42 +500,41 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
     };
 
     return (
-      <View style={{ marginTop: 8 }}>
-        <View style={{
-          padding: 12,
-          backgroundColor: theme.colors.background,
-          borderRadius: 8,
-          alignItems: 'center'
-        }}>
-          <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginBottom: 8 }}>
-            {getConversionIcon(data.conversion_type)} {data.conversion_type?.charAt(0).toUpperCase() + data.conversion_type?.slice(1) || 'Unit'} Conversion
+      <Card 
+        variant="elevated"
+        className="p-4 rounded-xl items-center"
+        style={{
+          backgroundColor: theme.colors.background + 'F8',
+        }}
+      >
+        <Typography variant="caption" color={theme.colors.textSecondary} weight="semibold" className="mb-3">
+          {getConversionIcon(data.conversion_type)} {data.conversion_type?.charAt(0).toUpperCase() + data.conversion_type?.slice(1) || 'Unit'} Conversion
+        </Typography>
+
+        <View className="flex-row items-center mb-3">
+          <Typography variant="bodyLg" weight="semibold" color={theme.colors.textPrimary}>
+            {formatAmount(data.original_amount || 1, data.original_unit)}
           </Typography>
-
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-            <Typography variant="bodyLg" weight="semibold" color={theme.colors.textPrimary}>
-              {formatAmount(data.original_amount || 1, data.original_unit)}
-            </Typography>
-            <Typography variant="bodyMd" color={theme.colors.textSecondary} style={{ marginHorizontal: 12 }}>
-              →
-            </Typography>
-            <Typography variant="bodyLg" weight="semibold" color={theme.colors.brand['600']}>
-              {formatAmount(data.converted_amount, data.converted_unit)}
-            </Typography>
-          </View>
-
-          {data.conversion_rate && (
-            <Typography variant="caption" color={theme.colors.textSecondary}>
-              Rate: 1 {data.original_unit} = {data.conversion_rate.toLocaleString()} {data.converted_unit}
-            </Typography>
-          )}
-
-          {data.timestamp && (
-            <Typography variant="caption" color={theme.colors.textSecondary} style={{ marginTop: 4 }}>
-              📅 {data.timestamp}
-            </Typography>
-          )}
+          <Typography variant="bodyMd" color={theme.colors.textSecondary} className="mx-3">
+            →
+          </Typography>
+          <Typography variant="bodyLg" weight="semibold" color={theme.colors.brand['600']}>
+            {formatAmount(data.converted_amount, data.converted_unit)}
+          </Typography>
         </View>
-      </View>
+
+        {data.conversion_rate && (
+          <Typography variant="caption" color={theme.colors.textSecondary}>
+            Rate: 1 {data.original_unit} = {data.conversion_rate.toLocaleString()} {data.converted_unit}
+          </Typography>
+        )}
+
+        {data.timestamp && (
+          <Typography variant="caption" color={theme.colors.textSecondary} className="mt-2">
+            📅 {data.timestamp}
+          </Typography>
+        )}
+      </Card>
     );
   };
 
@@ -724,10 +764,23 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
             <View style={styles.assistantAvatarRow}>
               <View style={styles.assistantAvatarContainer}>
                 {currentPersona?.icon ? (
-                  <View style={[styles.personaAvatar, { backgroundColor: theme.colors.surface }]}>
+                  <View style={[
+                    styles.personaAvatar, 
+                    { 
+                      backgroundColor: theme.colors.surface,
+                      borderRadius: 20,
+                      shadowColor: theme.colors.brand['500'],
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.15,
+                      shadowRadius: 6,
+                      elevation: 3,
+                      borderWidth: 2,
+                      borderColor: 'rgba(255,255,255,0.2)',
+                    }
+                  ]}>
                     <Typography
                       variant="bodyLg"
-                      style={styles.personaIcon}
+                      style={{ ...styles.personaIcon, fontSize: 20 }}
                     >
                       {currentPersona.icon}
                     </Typography>
@@ -736,15 +789,31 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                   <LinearGradient
                     colors={[
                       theme.colors.accent['400'],
+                      theme.colors.accent['500'],
                       theme.colors.accent['600'],
                     ]}
-                    style={[styles.avatar, { width: 32, height: 32, borderRadius: 16 }]}
+                    style={[
+                      styles.avatar, 
+                      { 
+                        width: 36, 
+                        height: 36, 
+                        borderRadius: 18,
+                        shadowColor: theme.colors.accent['500'],
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.25,
+                        shadowRadius: 6,
+                        elevation: 4,
+                        borderWidth: 2,
+                        borderColor: 'rgba(255,255,255,0.3)',
+                      }
+                    ]}
                   >
                     <Typography
                       variant="bodySm"
                       weight="bold"
                       color="#FFFFFF"
                       align="center"
+                      style={{ fontSize: 14 }}
                     >
                       AI
                     </Typography>
@@ -768,13 +837,24 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
           <View style={styles.userMessageContainer}>
             <LinearGradient
               colors={[
-                theme.colors.brand['200'],
-                theme.colors.brand['300'],
+                theme.colors.brand['400'],
+                theme.colors.brand['500'],
+                theme.colors.accent['600'],
+                theme.colors.brand['600'],
               ]}
+              locations={[0, 0.3, 0.7, 1]}
               style={[
                 styles.bubble,
                 styles.userBubble,
                 isStreaming && styles.streamingBubble,
+                {
+                  borderRadius: 24,
+                  shadowColor: theme.colors.brand['500'],
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.25,
+                  shadowRadius: 12,
+                  elevation: 8,
+                },
               ]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -788,7 +868,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
             {!isStreaming && showTimestamp && isLastInGroup && (
               <Typography
                 variant="caption"
-                color="rgba(0,0,0,0.6)"
+                color="rgba(255,255,255,0.8)"
                 align="right"
                 style={styles.timestamp}
               >
@@ -1117,57 +1197,55 @@ const styles = StyleSheet.create({
     }),
   },
   bubble: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 20,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderRadius: 24,
     minWidth: 50,
     width: '100%',
     flex: 1,
     flexShrink: 1,
     // Ensure minimum height
-    minHeight: 40,
+    minHeight: 44,
     // Better text wrapping
     overflow: 'hidden',
     // Modern subtle shadow for elevation
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.12,
+        shadowRadius: 12,
       },
       android: {
-        elevation: 2,
+        elevation: 3,
       },
     }),
   },
   userBubble: {
-    borderTopRightRadius: 4,
     // Enhanced gradient effect for user messages
     ...Platform.select({
       ios: {
         shadowColor: '#3970FF', // Brand blue shadow
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.25,
+        shadowRadius: 16,
       },
       android: {
-        elevation: 4,
+        elevation: 6,
       },
     }),
   },
   aiBubble: {
-    borderTopLeftRadius: 4,
     // Enhanced AI bubble with glassmorphism effect
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.12,
-        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 14,
       },
       android: {
-        elevation: 3,
+        elevation: 4,
       },
     }),
   },

@@ -126,14 +126,15 @@ export const ChatInputBar = memo(({
   const canSend = inputText.trim().length > 0 && !isStreaming && !disabled;
 
   return (
-    <BlurView intensity={95} style={styles.inputBarBlur}>
+    <BlurView intensity={100} style={styles.inputBarBlur}>
       <LinearGradient
         colors={[
+          theme.colors.surface + 'F0',
           theme.colors.surface + 'F8',
-          theme.colors.surface + 'FC',
           theme.colors.surface + 'FF',
+          theme.colors.surface + 'FC',
         ]}
-        locations={[0, 0.5, 1]}
+        locations={[0, 0.3, 0.7, 1]}
         style={[
           styles.inputBar,
           { paddingBottom: Math.max(bottomInset, 12) },
@@ -216,8 +217,8 @@ export const ChatInputBar = memo(({
             <View style={[
               styles.textInputContainer,
               {
-                backgroundColor: theme.colors.surface + 'F0',
-                borderColor: inputText ? theme.colors.brand['300'] : theme.colors.border,
+                backgroundColor: theme.colors.surface + 'E8',
+                borderColor: inputText ? theme.colors.brand['400'] + '80' : 'rgba(255,255,255,0.15)',
                 shadowColor: inputText ? theme.colors.brand['500'] : theme.colors.gray['300'],
               }
             ]}>
@@ -256,7 +257,13 @@ export const ChatInputBar = memo(({
                   <Typography variant="h4" style={{ fontSize: 20 }}>⏹</Typography>
                 ) : canSend ? (
                   <LinearGradient
-                    colors={[theme.colors.brand['400'], theme.colors.brand['600']]}
+                    colors={[
+                      theme.colors.brand['400'],
+                      theme.colors.brand['500'],
+                      theme.colors.accent['600'],
+                      theme.colors.brand['700'],
+                    ]}
+                    locations={[0, 0.3, 0.7, 1]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.sendButtonGradient}

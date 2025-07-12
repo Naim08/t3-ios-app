@@ -397,8 +397,15 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         <View style={styles.headerTitleContainer}>
           <View style={styles.headerTitleContent}>
             {currentPersona && (
-              <View style={styles.personaIconContainer}>
-                <Typography variant="bodyMd">
+              <View style={[
+                styles.personaIconContainer,
+                {
+                  backgroundColor: theme.colors.brand['500'] + '20',
+                  borderColor: theme.colors.brand['400'] + '40',
+                  shadowColor: theme.colors.brand['500'],
+                }
+              ]}>
+                <Typography variant="h4" style={{ fontSize: 18 }}>
                   {currentPersona.icon}
                 </Typography>
               </View>
@@ -1750,16 +1757,24 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   personaIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(57, 112, 255, 0.1)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 2,
+    ...Platform.select({
+      ios: {
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   headerTextContainer: {
     flex: 1,

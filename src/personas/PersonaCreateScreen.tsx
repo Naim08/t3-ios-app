@@ -72,7 +72,7 @@ const EMOJI_SUGGESTIONS = [
   '👨‍💼', '👩‍🏫', '👨‍⚕️', '👩‍🍳', '👨‍🎨', '👩‍💻', '🧙‍♂️', '🦸‍♀️'
 ];
 
-export const PersonaCreateScreen = ({ navigation, route }: any) => {
+export const PersonaCreateScreen = ({ navigation }: any) => {
   console.log('🎭 PersonaCreateScreen rendering');
   const { theme, colorScheme } = useTheme();
   const { categories, refreshPersonaData } = usePersona();

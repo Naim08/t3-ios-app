@@ -7,17 +7,9 @@ import {
 } from 'react-native';
 import { useTheme } from '../../components/ThemeProvider';
 
-// Conditional imports for glassmorphism effects
-let LinearGradient: any, BlurView: any;
-try {
-  const gradientLib = require('expo-linear-gradient');
-  LinearGradient = gradientLib.LinearGradient;
-  const blurLib = require('expo-blur');
-  BlurView = blurLib.BlurView;
-} catch {
-  LinearGradient = ({ children, style, ...props }: any) => React.createElement(View, { style, ...props }, children);
-  BlurView = ({ children, style, ...props }: any) => React.createElement(View, { style, ...props }, children);
-}
+// Import glassmorphism effects
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 
 export interface CardProps extends AccessibilityProps {
   children: React.ReactNode;
@@ -73,17 +65,17 @@ export const Card: React.FC<CardProps> = ({
   // Enhanced styling with theme system
   const getEnhancedStyles = (): ViewStyle => {
     const baseStyles: ViewStyle = {
-      borderRadius: theme.borderRadius[borderRadius],
+      borderRadius: getBorderRadiusValue(borderRadius),
       overflow: 'hidden',
     };
 
     // Padding styles
     const paddingMap = {
       none: 0,
-      sm: theme.spacing[3],
-      md: theme.spacing[4],
-      lg: theme.spacing[6],
-      xl: theme.spacing[8],
+      sm: theme.spacing.sm,
+      md: theme.spacing.md,
+      lg: theme.spacing.lg,
+      xl: 20,
     };
     baseStyles.padding = paddingMap[padding];
 
@@ -177,7 +169,7 @@ export const Card: React.FC<CardProps> = ({
   const enhancedStyles = getEnhancedStyles();
 
   // Special handling for glass variant with BlurView
-  if (variant === 'glass' && BlurView !== View) {
+  if (variant === 'glass') {
     return (
       <BlurView
         intensity={20}
@@ -192,7 +184,7 @@ export const Card: React.FC<CardProps> = ({
   }
 
   // Special handling for gradient variant
-  if (variant === 'gradient' && LinearGradient !== View) {
+  if (variant === 'gradient') {
     const gradientColors = colorScheme === 'dark'
       ? [theme.colors.gray['800'], theme.colors.gray['900']]
       : [theme.colors.brand['50'], theme.colors.accent['50']];

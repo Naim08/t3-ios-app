@@ -12,7 +12,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../components/ThemeProvider';
 import { usePersona, Persona, PersonaCategory } from '../context/PersonaContext';
 import { useEntitlements } from '../hooks/useEntitlements';
-import { Typography, Surface, AILoadingAnimation } from '../ui/atoms';
+import { Typography, Surface, Card, AILoadingAnimation } from '../ui/atoms';
 import { supabase } from '../lib/supabase';
 import { isModelPremium } from '../config/models';
 
@@ -31,16 +31,16 @@ const PersonaCard = ({ persona, onPress, isPremiumLocked, isFavorite = false }: 
 
   return (
     <TouchableOpacity
-      className={`mb-4 ${isPremiumLocked ? 'opacity-70' : ''}`}
-      style={{ width: cardWidth }}
+      className={`mb-4 ${isPremiumLocked ? 'opacity-80' : ''}`}
+      style={{ width: cardWidth, height: cardWidth * 1.5 }}
       onPress={() => onPress(persona)}
-      disabled={isPremiumLocked}
     >
-      <Surface
-        className={`rounded-2xl min-h-[180px] justify-center items-center p-4 shadow-md ${
+      <Card
+        variant="glass"
+        className={`h-full justify-start items-center p-5 rounded-3xl ${
           isPremiumLocked
-            ? colorScheme === 'dark' ? 'bg-gray-700' : 'bg-gray-100'
-            : colorScheme === 'dark' ? 'bg-gray-800' : 'bg-white'
+            ? colorScheme === 'dark' ? 'bg-gray-800/40' : 'bg-gray-100/60'
+            : colorScheme === 'dark' ? 'bg-gray-800/60' : 'bg-white/80'
         }`}
       >
         <View className="relative mb-3">
@@ -74,33 +74,31 @@ const PersonaCard = ({ persona, onPress, isPremiumLocked, isFavorite = false }: 
         {persona.description && (
           <Typography
             variant="caption"
-            className={`text-center mt-1 mb-2 ${
+            className={`text-center mt-1 mb-3 ${
               colorScheme === 'dark' ? 'text-gray-400' : 'text-gray-500'
             }`}
-            numberOfLines={2}
+            numberOfLines={4}
           >
             {persona.description}
           </Typography>
         )}
         
-        <Typography
-          variant="bodySm"
-          className={`text-center mt-1 ${
-            colorScheme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-          }`}
-        >
-          {persona.default_model}
-        </Typography>
-        
-        {isPremiumLocked && (
+        <View className={`px-3 py-2 rounded-xl bg-gradient-to-r ${
+          colorScheme === 'dark' 
+            ? 'from-brand-500/20 to-purple-500/20 border border-brand-400/30' 
+            : 'from-brand-100 to-purple-100 border border-brand-300'
+        }`}>
           <Typography
-            variant="bodySm"
-            className="text-brand-500 text-center mt-1 font-semibold"
+            variant="bodyMd"
+            weight="semibold"
+            className={`text-center ${
+              colorScheme === 'dark' ? 'text-brand-400' : 'text-brand-600'
+            }`}
           >
-            Premium
+            {persona.default_model}
           </Typography>
-        )}
-      </Surface>
+        </View>
+      </Card>
     </TouchableOpacity>
   );
 };
