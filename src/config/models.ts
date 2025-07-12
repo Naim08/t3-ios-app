@@ -6,7 +6,7 @@ export interface ModelOption {
   icon?: string;
   provider?: 'openai' | 'anthropic' | 'google';
   category?: 'fast' | 'balanced' | 'advanced' | Array<'fast' | 'balanced' | 'advanced'>;
-  capabilities?: Array<'text' | 'audio-input' | 'audio-output' | 'image-input' | 'video-input'>;
+  capabilities?: Array<'text' | 'audio-input' | 'audio-output' | 'image-input' | 'video-input' | 'image-output'>;
   audioModelType?: 'transcription' | 'tts' | 'multimodal';
   pricing?: {
     inputTokens?: number; // per million tokens
@@ -227,6 +227,15 @@ export const AI_MODELS: ModelOption[] = [
     capabilities: ['text', 'image-input'],
   },
   {
+    id: 'gemini-2.0-flash-preview-image-generation',
+    name: 'Gemini 2.0 Flash Image Generation',
+    description: 'Specialized model for generating images alongside text responses',
+    isPremium: false,
+    provider: 'google',
+    category: 'advanced',
+    capabilities: ['text', 'image-input', 'image-output'],
+  },
+  {
     id: 'gemini-2.0-flash-lite',
     name: 'Gemini 2.0 Flash Lite',
     description: 'Lightweight version of Gemini 2.0 Flash',
@@ -363,6 +372,29 @@ export const getMultimodalAudioModels = (): ModelOption[] => {
   return AI_MODELS.filter(model => model.audioModelType === 'multimodal');
 };
 
+// Image-specific filtering functions
+export const getImageCapableModels = (): ModelOption[] => {
+  return AI_MODELS.filter(model => 
+    model.capabilities?.some(cap => cap.includes('image'))
+  );
+};
+
+export const getImageInputModels = (): ModelOption[] => {
+  return AI_MODELS.filter(model => 
+    model.capabilities?.includes('image-input')
+  );
+};
+
+export const getImageOutputModels = (): ModelOption[] => {
+  return AI_MODELS.filter(model => 
+    model.capabilities?.includes('image-output')
+  );
+};
+
+export const getImageGenerationModels = (): ModelOption[] => {
+  return getImageOutputModels(); // Alias for clarity
+};
+
 export const isModelPremium = (modelId: string): boolean => {
   // Resolve aliases first
   const resolvedId = resolveModelId(modelId);
@@ -379,6 +411,7 @@ export const isModelPremium = (modelId: string): boolean => {
     'gemini-1.5-flash-8b',
     'gemini-2.0-flash',
     'gemini-2.0-flash-lite',
+    'gemini-2.0-flash-preview-image-generation',
     'gemini-2.5-flash-preview',
     'gemini-2.5-flash-preview-05-20',
     'gemini-2.5-pro-preview',

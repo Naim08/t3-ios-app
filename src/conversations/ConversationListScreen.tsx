@@ -15,7 +15,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useTheme } from '../components/ThemeProvider';
 import { usePersona } from '../context/PersonaContext';
-import { Typography, AILoadingAnimation } from '../ui/atoms';
+import { Typography, AILoadingAnimation, Card } from '../ui/atoms';
 import { ConversationService, ConversationWithPersona } from '../services/conversationService';
 
 // Use the centralized Conversation interface
@@ -149,32 +149,31 @@ const ConversationItem = ({ conversation, onPress, onDelete }: ConversationItemP
       onPress={onPress}
       onLongPress={handleLongPress}
       style={styles.conversationItem}
-      activeOpacity={0.9}
+      activeOpacity={0.95}
     >
-      <View style={[styles.conversationSurface, {
-        backgroundColor: theme.colors.surface,
-        borderRadius: 12,
-        padding: 16,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        ...Platform.select({
-          ios: {
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.04,
-            shadowRadius: 4,
-          },
-          android: {
-            elevation: 2,
-          },
-        }),
-      }]}>
+      <Card
+        variant="glass"
+        className="p-4 rounded-2xl"
+        style={{
+          backgroundColor: theme.colors.surface + 'F0',
+          borderWidth: 1,
+          borderColor: theme.colors.border + '60',
+        }}
+      >
         <View style={styles.personaIconContainer}>
-          <View style={[styles.personaIconBackground, { backgroundColor: theme.colors.brand['100'] }]}>
-            <Typography variant="h4" style={styles.personaIconText}>
+          <Card 
+            variant="floating"
+            className="w-12 h-12 rounded-2xl items-center justify-center"
+            style={{
+              backgroundColor: theme.colors.brand['500'] + '20',
+              borderWidth: 2,
+              borderColor: theme.colors.brand['400'] + '40',
+            }}
+          >
+            <Typography variant="h4" style={{ fontSize: 20 }}>
               {conversation.personas?.icon || '💬'}
             </Typography>
-          </View>
+          </Card>
         </View>
 
         <View style={styles.conversationContent}>
@@ -230,7 +229,7 @@ const ConversationItem = ({ conversation, onPress, onDelete }: ConversationItemP
             </Typography>
           </View>
         </View>
-      </View>
+      </Card>
     </TouchableOpacity>
   );
 };
@@ -312,46 +311,69 @@ export const ConversationListScreen = ({ navigation }: any) => {
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <View style={styles.emptyIllustration}>
-        <Typography variant="h1" style={styles.emptyIcon}>
-          💭
-        </Typography>
-        <View style={styles.emptyBubbles}>
-          <View style={[styles.chatBubble, styles.chatBubble1, { backgroundColor: theme.colors.gray['300'] }]} />
-          <View style={[styles.chatBubble, styles.chatBubble2, { backgroundColor: theme.colors.gray['300'] }]} />
-          <View style={[styles.chatBubble, styles.chatBubble3, { backgroundColor: theme.colors.gray['300'] }]} />
+      <Card 
+        variant="glass"
+        className="p-8 rounded-3xl items-center mx-4"
+        style={{
+          backgroundColor: theme.colors.surface + 'E8',
+          borderWidth: 1,
+          borderColor: theme.colors.border + '40',
+        }}
+      >
+        <View style={styles.emptyIllustration}>
+          <Typography variant="h1" style={styles.emptyIcon}>
+            💭
+          </Typography>
+          <View style={styles.emptyBubbles}>
+            <View style={[styles.chatBubble, styles.chatBubble1, { 
+              backgroundColor: theme.colors.brand['500'] + '40' 
+            }]} />
+            <View style={[styles.chatBubble, styles.chatBubble2, { 
+              backgroundColor: theme.colors.brand['400'] + '60' 
+            }]} />
+            <View style={[styles.chatBubble, styles.chatBubble3, { 
+              backgroundColor: theme.colors.accent['500'] + '50' 
+            }]} />
+          </View>
         </View>
-      </View>
-      <Typography
-        variant="h3"
-        weight="semibold"
-        color={theme.colors.textPrimary}
-        align="center"
-        style={styles.emptyTitle}
-      >
-        Start your first chat
-      </Typography>
-      <Typography
-        variant="bodyLg"
-        color={theme.colors.textSecondary}
-        align="center"
-        style={styles.emptySubtitle}
-      >
-        Choose an AI assistant and begin a conversation
-      </Typography>
-      <TouchableOpacity
-        style={[styles.emptyCTA, { backgroundColor: theme.colors.brand['500'] }]}
-        onPress={handleNewChat}
-        activeOpacity={0.8}
-      >
         <Typography
-          variant="bodyMd"
+          variant="h3"
           weight="semibold"
-          color="#FFFFFF"
+          color={theme.colors.textPrimary}
+          align="center"
+          style={styles.emptyTitle}
         >
-          Start chatting
+          Start your first chat
         </Typography>
-      </TouchableOpacity>
+        <Typography
+          variant="bodyLg"
+          color={theme.colors.textSecondary}
+          align="center"
+          style={styles.emptySubtitle}
+        >
+          Choose an AI assistant and begin a conversation
+        </Typography>
+        <Card
+          variant="floating"
+          className="px-6 py-4 rounded-2xl mt-4"
+          style={{
+            backgroundColor: theme.colors.brand['500'],
+          }}
+        >
+          <TouchableOpacity
+            onPress={handleNewChat}
+            activeOpacity={0.8}
+          >
+            <Typography
+              variant="bodyMd"
+              weight="semibold"
+              color="#FFFFFF"
+            >
+              ✨ Start chatting
+            </Typography>
+          </TouchableOpacity>
+        </Card>
+      </Card>
     </View>
   );
 
@@ -384,6 +406,7 @@ export const ConversationListScreen = ({ navigation }: any) => {
         style={styles.list}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={renderEmptyState}
+        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -417,15 +440,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 24,
   },
   emptyContent: {
     flex: 1,
     justifyContent: 'center',
   },
   swipeContainer: {
-    marginBottom: 8,
-    marginHorizontal: 8,
     position: 'relative',
   },
   deleteBackground: {

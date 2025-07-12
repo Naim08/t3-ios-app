@@ -1,4 +1,4 @@
-import React, { useState, useRef, useLayoutEffect } from 'react';
+import { useState, useRef, useLayoutEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -9,13 +9,16 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Animated,
+  Easing,
 } from 'react-native';
 import { useTheme } from '../components/ThemeProvider';
-import { usePersona, PersonaCategory } from '../context/PersonaContext';
-import { Typography, Surface } from '../ui/atoms';
+import { usePersona } from '../context/PersonaContext';
+import { Typography, Card } from '../ui/atoms';
 import { ToolSelector } from '../components/ToolSelector';
 import { supabase } from '../lib/supabase';
 import { AI_MODELS } from '../config/models';
+import { SuccessModal, SuccessModalRef } from '../components/SuccessModal';
 
 interface PersonaTemplate {
   id: string;
@@ -74,7 +77,7 @@ const EMOJI_SUGGESTIONS = [
 
 export const PersonaCreateScreen = ({ navigation }: any) => {
   console.log('🎭 PersonaCreateScreen rendering');
-  const { theme, colorScheme } = useTheme();
+  const { theme } = useTheme();
   const { categories, refreshPersonaData } = usePersona();
   const [loading, setLoading] = useState(false);
   
@@ -89,18 +92,48 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [step, setStep] = useState<'template' | 'details' | 'tools' | 'prompt'>('template');
+  const [displayStep, setDisplayStep] = useState<'template' | 'details' | 'tools' | 'prompt'>('template');
 
   const scrollViewRef = useRef<ScrollView>(null);
+  const successModalRef = useRef<SuccessModalRef>(null);
+  
+  // Animation values for smooth step transitions
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  const animateStepTransition = (newStep: 'template' | 'details' | 'tools' | 'prompt') => {
+    // Smooth fade out animation
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 250,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      // Change both the logic step and display step
+      setStep(newStep);
+      setDisplayStep(newStep);
+      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+      
+      // Small delay before fade in to ensure content has changed
+      setTimeout(() => {
+        // Fade in new content
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }).start();
+      }, 50);
+    });
+  };
 
   const handleBack = () => {
     if (step === 'prompt') {
-      setStep('tools');
+      animateStepTransition('tools');
     } else if (step === 'tools') {
-      setStep('details');
+      animateStepTransition('details');
     } else if (step === 'details') {
-      setStep('template');
+      animateStepTransition('template');
     }
-    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
   };
 
   // Configure navigation header with custom back button
@@ -126,7 +159,6 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
     setCategoryId(template.category_id);
     setDefaultModel(template.default_model);
     setSelectedTools([]);
-    setStep('details');
   };
 
   const handleNext = () => {
@@ -135,11 +167,9 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
         Alert.alert('Error', 'Please enter a name for your persona');
         return;
       }
-      setStep('tools');
-      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      animateStepTransition('tools');
     } else if (step === 'tools') {
-      setStep('prompt');
-      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      animateStepTransition('prompt');
     }
   };
 
@@ -158,7 +188,7 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
       }
 
       // Generate a unique ID
-      const personaId = `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const personaId = `custom-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 
       const { error } = await supabase
         .from('personas')
@@ -188,16 +218,8 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
       // Refresh persona data
       await refreshPersonaData();
 
-      Alert.alert(
-        'Success!',
-        'Your custom persona has been created.',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.goBack()
-          }
-        ]
-      );
+      // Show success modal
+      successModalRef.current?.present();
     } catch (error) {
       console.error('Error creating persona:', error);
       Alert.alert('Error', 'Failed to create persona. Please try again.');
@@ -209,121 +231,190 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
   const renderTemplateCard = (template: PersonaTemplate) => (
     <TouchableOpacity
       key={template.id}
-      className={`p-4 rounded-2xl border-2 mb-4 ${
-        selectedTemplate?.id === template.id
-          ? 'border-brand-500'
-          : colorScheme === 'dark'
-            ? 'border-gray-700 bg-gray-800'
-            : 'border-gray-200 bg-white'
-      }`}
       onPress={() => handleTemplateSelect(template)}
+      activeOpacity={0.8}
+      style={{ marginBottom: 16 }}
     >
-      <Typography variant="h2" className="text-4xl text-center mb-3">
-        {template.icon}
-      </Typography>
-      <Typography
-        variant="h6"
-        weight="semibold"
-        className={`text-center mb-2 ${
-          colorScheme === 'dark' ? 'text-white' : 'text-gray-900'
-        }`}
+      <Card
+        variant={selectedTemplate?.id === template.id ? "floating" : "elevated"}
+        padding="lg"
+        borderRadius="2xl"
+        glow={selectedTemplate?.id === template.id}
+        style={{
+          borderWidth: 2,
+          borderColor: selectedTemplate?.id === template.id
+            ? theme.colors.brand['500']
+            : theme.colors.border,
+          backgroundColor: selectedTemplate?.id === template.id
+            ? theme.colors.brand['50']
+            : theme.colors.surface,
+        }}
       >
-        {template.name}
-      </Typography>
-      <Typography
-        variant="bodySm"
-        className={`text-center ${
-          colorScheme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-        }`}
-      >
-        {template.description}
-      </Typography>
+        <Typography 
+          variant="h2" 
+          style={{ 
+            fontSize: 48, 
+            textAlign: 'center', 
+            marginBottom: 12 
+          }}
+        >
+          {template.icon}
+        </Typography>
+        <Typography
+          variant="h6"
+          weight="semibold"
+          color={theme.colors.textPrimary}
+          style={{ textAlign: 'center', marginBottom: 8 }}
+        >
+          {template.name}
+        </Typography>
+        <Typography
+          variant="bodySm"
+          color={theme.colors.textSecondary}
+          style={{ textAlign: 'center', lineHeight: 18 }}
+        >
+          {template.description}
+        </Typography>
+      </Card>
     </TouchableOpacity>
   );
 
   const renderEmojiPicker = () => (
-    <View className={`p-3 rounded-xl mt-2 ${
-      colorScheme === 'dark' ? 'bg-gray-800' : 'bg-white'
-    }`}>
+    <Card
+      variant="glass"
+      padding="md"
+      borderRadius="xl"
+      style={{ marginTop: 8 }}
+    >
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerClassName="gap-2"
+        contentContainerStyle={{ gap: 8 }}
       >
         {EMOJI_SUGGESTIONS.map((emoji, index) => (
           <TouchableOpacity
             key={index}
-            className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700"
             onPress={() => {
               setIcon(emoji);
               setShowEmojiPicker(false);
             }}
+            activeOpacity={0.7}
           >
-            <Typography variant="h4" className="text-2xl">{emoji}</Typography>
+            <Card
+              variant="elevated"
+              padding="sm"
+              borderRadius="lg"
+              style={{
+                minWidth: 44,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Typography variant="h4" style={{ fontSize: 24 }}>
+                {emoji}
+              </Typography>
+            </Card>
           </TouchableOpacity>
         ))}
       </ScrollView>
-    </View>
+    </Card>
   );
 
   return (
-    <SafeAreaView className={`flex-1 ${
-      colorScheme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'
-    }`}>
+    <SafeAreaView style={[{ flex: 1 }, { backgroundColor: theme.colors.background }]}>
       <KeyboardAvoidingView 
-        className="flex-1"
+        style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
 
         {/* Progress Indicator */}
-        <View className="flex-row justify-center items-center py-4 px-6">
-          {['template', 'details', 'tools', 'prompt'].map((stepName, index) => (
-            <View key={stepName} className="flex-1 items-center">
-              <View
-                className={`w-3 h-3 rounded-full ${
-                  step === stepName || index < ['template', 'details', 'tools', 'prompt'].indexOf(step)
-                    ? 'bg-brand-500'
-                    : colorScheme === 'dark' ? 'bg-gray-700' : 'bg-gray-300'
-                }`}
-              />
-              <Typography
-                variant="caption"
-                className={`mt-1 text-center ${
-                  step === stepName 
-                    ? 'text-brand-500' 
-                    : colorScheme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                }`}
-              >
-                {stepName === 'template' ? 'Template' : 
-                 stepName === 'details' ? 'Details' : 
-                 stepName === 'tools' ? 'Tools' : 'Prompt'}
-              </Typography>
-            </View>
-          ))}
-        </View>
+        <Card
+          variant="glass"
+          padding="md"
+          style={{ marginHorizontal: 16, marginVertical: 8 }}
+        >
+          <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
+            {['template', 'details', 'tools', 'prompt'].map((stepName, index) => {
+              const isActive = step === stepName;
+              const isCompleted = index < ['template', 'details', 'tools', 'prompt'].indexOf(step);
+              
+              return (
+                <View key={stepName} style={{ flex: 1, alignItems: 'center' }}>
+                  <View
+                    style={{
+                      width: 12,
+                      height: 12,
+                      borderRadius: 6,
+                      backgroundColor: isActive || isCompleted
+                        ? theme.colors.brand['500']
+                        : theme.colors.gray['300'],
+                      marginBottom: 4,
+                    }}
+                  />
+                  <Typography
+                    variant="caption"
+                    weight={isActive ? 'semibold' : 'regular'}
+                    color={isActive 
+                      ? theme.colors.brand['500'] 
+                      : theme.colors.textTertiary
+                    }
+                    style={{ textAlign: 'center' }}
+                  >
+                    {stepName === 'template' ? 'Template' : 
+                     stepName === 'details' ? 'Details' : 
+                     stepName === 'tools' ? 'Tools' : 'Prompt'}
+                  </Typography>
+                </View>
+              );
+            })}
+          </View>
+        </Card>
 
         <ScrollView
           ref={scrollViewRef}
           style={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          {step === 'template' && (
+          <Animated.View
+            style={{
+              opacity: fadeAnim,
+            }}
+          >
+          {displayStep === 'template' && (
             <View>
-              <Typography
-                variant="h6"
-                weight="semibold"
-                color={theme.colors.textPrimary}
-                style={styles.stepTitle}
+              <Card
+                variant="floating"
+                padding="lg"
+                borderRadius="2xl"
+                glow
+                style={{
+                  marginBottom: 24,
+                  backgroundColor: theme.colors.brand['50'],
+                }}
               >
-                Choose a Starting Template
-              </Typography>
-              <Typography
-                variant="bodyMd"
-                color={theme.colors.textSecondary}
-                style={styles.stepDescription}
-              >
-                Select a template to get started quickly, or choose blank to create from scratch
-              </Typography>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <Typography
+                    variant="h1"
+                    style={{ fontSize: 32, marginRight: 12 }}
+                  >
+                    🎭
+                  </Typography>
+                  <Typography
+                    variant="h5"
+                    weight="bold"
+                    color={theme.colors.brand['700']}
+                  >
+                    Choose a Starting Template
+                  </Typography>
+                </View>
+                <Typography
+                  variant="bodyMd"
+                  color={theme.colors.brand['600']}
+                  style={{ lineHeight: 22 }}
+                >
+                  Select a template to get started quickly, or choose blank to create from scratch. Each template provides a foundation you can customize.
+                </Typography>
+              </Card>
 
               <View style={styles.templatesGrid}>
                 {PERSONA_TEMPLATES.map(renderTemplateCard)}
@@ -331,23 +422,41 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
             </View>
           )}
 
-          {step === 'details' && (
+          {displayStep === 'details' && (
             <View>
-              <Typography
-                variant="h6"
-                weight="semibold"
-                color={theme.colors.textPrimary}
-                style={styles.stepTitle}
+              <Card
+                variant="floating"
+                padding="lg"
+                borderRadius="2xl"
+                glow
+                style={{
+                  marginBottom: 24,
+                  backgroundColor: theme.colors.accent['50'],
+                }}
               >
-                Persona Details
-              </Typography>
-              <Typography
-                variant="bodyMd"
-                color={theme.colors.textSecondary}
-                style={styles.stepDescription}
-              >
-                Customize your persona's appearance and basic information
-              </Typography>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <Typography
+                    variant="h1"
+                    style={{ fontSize: 32, marginRight: 12 }}
+                  >
+                    ✨
+                  </Typography>
+                  <Typography
+                    variant="h5"
+                    weight="bold"
+                    color={theme.colors.accent['700']}
+                  >
+                    Persona Details
+                  </Typography>
+                </View>
+                <Typography
+                  variant="bodyMd"
+                  color={theme.colors.accent['600']}
+                  style={{ lineHeight: 22 }}
+                >
+                  Customize your persona's appearance, name, and basic information. This helps users identify and connect with your AI assistant.
+                </Typography>
+              </Card>
 
               {/* Icon Selection */}
               <View style={styles.fieldContainer}>
@@ -360,15 +469,28 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
                   Icon
                 </Typography>
                 <TouchableOpacity
-                  style={[styles.iconSelector, { backgroundColor: theme.colors.surface }]}
                   onPress={() => setShowEmojiPicker(!showEmojiPicker)}
+                  activeOpacity={0.8}
                 >
-                  <Typography variant="h1" style={styles.selectedIcon}>
-                    {icon}
-                  </Typography>
-                  <Typography variant="bodyMd" color={theme.colors.textSecondary}>
-                    Tap to change
-                  </Typography>
+                  <Card
+                    variant="outlined"
+                    padding="lg"
+                    borderRadius="xl"
+                    style={{
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minHeight: 100,
+                      backgroundColor: theme.colors.surface,
+                      borderColor: theme.colors.border,
+                    }}
+                  >
+                    <Typography variant="h1" style={{ fontSize: 48, marginBottom: 8 }}>
+                      {icon}
+                    </Typography>
+                    <Typography variant="bodyMd" color={theme.colors.textSecondary}>
+                      Tap to change
+                    </Typography>
+                  </Card>
                 </TouchableOpacity>
                 {showEmojiPicker && renderEmojiPicker()}
               </View>
@@ -383,17 +505,29 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
                 >
                   Name *
                 </Typography>
-                <TextInput
-                  style={[styles.textInput, { 
+                <Card
+                  variant="outlined"
+                  padding="none"
+                  borderRadius="xl"
+                  style={{
                     backgroundColor: theme.colors.surface,
-                    color: theme.colors.textPrimary,
                     borderColor: theme.colors.border,
-                  }]}
-                  value={displayName}
-                  onChangeText={setDisplayName}
-                  placeholder="Enter persona name"
-                  placeholderTextColor={theme.colors.textSecondary}
-                />
+                  }}
+                >
+                  <TextInput
+                    style={{
+                      paddingHorizontal: 16,
+                      paddingVertical: 12,
+                      fontSize: 16,
+                      color: theme.colors.textPrimary,
+                      minHeight: 48,
+                    }}
+                    value={displayName}
+                    onChangeText={setDisplayName}
+                    placeholder="Enter persona name"
+                    placeholderTextColor={theme.colors.textSecondary}
+                  />
+                </Card>
               </View>
 
               {/* Description */}
@@ -406,20 +540,31 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
                 >
                   Description
                 </Typography>
-                <TextInput
-                  style={[styles.textInput, { 
+                <Card
+                  variant="outlined"
+                  padding="none"
+                  borderRadius="xl"
+                  style={{
                     backgroundColor: theme.colors.surface,
-                    color: theme.colors.textPrimary,
                     borderColor: theme.colors.border,
-                    minHeight: 80,
-                  }]}
-                  value={description}
-                  onChangeText={setDescription}
-                  placeholder="Brief description of your persona"
-                  placeholderTextColor={theme.colors.textSecondary}
-                  multiline
-                  textAlignVertical="top"
-                />
+                  }}
+                >
+                  <TextInput
+                    style={{
+                      paddingHorizontal: 16,
+                      paddingVertical: 12,
+                      fontSize: 16,
+                      color: theme.colors.textPrimary,
+                      minHeight: 80,
+                    }}
+                    value={description}
+                    onChangeText={setDescription}
+                    placeholder="Brief description of your persona"
+                    placeholderTextColor={theme.colors.textSecondary}
+                    multiline
+                    textAlignVertical="top"
+                  />
+                </Card>
               </View>
 
               {/* Category */}
@@ -440,29 +585,40 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
                   {categories.map((category) => (
                     <TouchableOpacity
                       key={category.id}
-                      style={[
-                        styles.categoryChip,
-                        {
+                      onPress={() => setCategoryId(category.id)}
+                      activeOpacity={0.8}
+                      style={{ marginRight: 8 }}
+                    >
+                      <Card
+                        variant={categoryId === category.id ? "floating" : "outlined"}
+                        padding="sm"
+                        borderRadius="2xl"
+                        glow={categoryId === category.id}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
                           backgroundColor: categoryId === category.id
                             ? theme.colors.brand['500']
                             : theme.colors.surface,
                           borderColor: categoryId === category.id
                             ? theme.colors.brand['500']
                             : theme.colors.border,
-                        }
-                      ]}
-                      onPress={() => setCategoryId(category.id)}
-                    >
-                      <Typography variant="bodyMd" style={styles.categoryIcon}>
-                        {category.icon}
-                      </Typography>
-                      <Typography
-                        variant="bodySm"
-                        weight="medium"
-                        color={categoryId === category.id ? '#FFFFFF' : theme.colors.textPrimary}
+                          paddingHorizontal: 12,
+                          paddingVertical: 8,
+                          gap: 6,
+                        }}
                       >
-                        {category.name}
-                      </Typography>
+                        <Typography variant="bodyMd" style={{ fontSize: 16 }}>
+                          {category.icon}
+                        </Typography>
+                        <Typography
+                          variant="bodySm"
+                          weight="medium"
+                          color={categoryId === category.id ? '#FFFFFF' : theme.colors.textPrimary}
+                        >
+                          {category.name}
+                        </Typography>
+                      </Card>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
@@ -481,76 +637,109 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
                 {AI_MODELS.map((model) => (
                   <TouchableOpacity
                     key={model.id}
-                    style={[
-                      styles.modelOption,
-                      {
+                    onPress={() => setDefaultModel(model.id)}
+                    activeOpacity={0.8}
+                    style={{ marginBottom: 8 }}
+                  >
+                    <Card
+                      variant={defaultModel === model.id ? "floating" : "outlined"}
+                      padding="md"
+                      borderRadius="xl"
+                      glow={defaultModel === model.id}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
                         backgroundColor: defaultModel === model.id
                           ? theme.colors.brand['100']
                           : theme.colors.surface,
                         borderColor: defaultModel === model.id
                           ? theme.colors.brand['500']
                           : theme.colors.border,
-                      }
-                    ]}
-                    onPress={() => setDefaultModel(model.id)}
-                  >
-                    <View style={styles.modelInfo}>
-                      <Typography
-                        variant="bodyMd"
-                        weight="semibold"
-                        color={theme.colors.textPrimary}
-                      >
-                        {model.name}
-                      </Typography>
-                      <Typography
-                        variant="bodySm"
-                        color={theme.colors.textSecondary}
-                      >
-                        {model.description}
-                      </Typography>
-                    </View>
-                    <View
-                      style={[
-                        styles.radioButton,
-                        {
+                        borderWidth: 2,
+                      }}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Typography
+                          variant="bodyMd"
+                          weight="semibold"
+                          color={theme.colors.textPrimary}
+                        >
+                          {model.name}
+                        </Typography>
+                        <Typography
+                          variant="bodySm"
+                          color={theme.colors.textSecondary}
+                          style={{ marginTop: 2 }}
+                        >
+                          {model.description}
+                        </Typography>
+                      </View>
+                      <View
+                        style={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: 10,
+                          borderWidth: 2,
                           borderColor: defaultModel === model.id
                             ? theme.colors.brand['500']
                             : theme.colors.border,
-                        }
-                      ]}
-                    >
-                      {defaultModel === model.id && (
-                        <View
-                          style={[
-                            styles.radioButtonInner,
-                            { backgroundColor: theme.colors.brand['500'] }
-                          ]}
-                        />
-                      )}
-                    </View>
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        {defaultModel === model.id && (
+                          <View
+                            style={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: 5,
+                              backgroundColor: theme.colors.brand['500'],
+                            }}
+                          />
+                        )}
+                      </View>
+                    </Card>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
           )}
 
-          {step === 'tools' && (
+          {displayStep === 'tools' && (
             <View>
-              <Typography
-                variant="h6"
-                weight="semibold"
-                color={theme.colors.textPrimary}
-                style={styles.stepTitle}
+              <Card
+                variant="floating"
+                padding="lg"
+                borderRadius="2xl"
+                glow
+                style={{
+                  marginBottom: 24,
+                  backgroundColor: theme.colors.brand['50'],
+                }}
               >
-                Tools & Capabilities
-              </Typography>
-              <Typography
-                variant="bodyMd"
-                color={theme.colors.textSecondary}
-                style={styles.stepDescription}
-              >
-                Choose which tools your persona can access during conversations. Tools allow your persona to search the web, get weather information, and more.
-              </Typography>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <Typography
+                    variant="h1"
+                    style={{ fontSize: 32, marginRight: 12 }}
+                  >
+                    🛠️
+                  </Typography>
+                  <Typography
+                    variant="h5"
+                    weight="bold"
+                    color={theme.colors.brand['700']}
+                  >
+                    Tools & Capabilities
+                  </Typography>
+                </View>
+                <Typography
+                  variant="bodyMd"
+                  color={theme.colors.brand['600']}
+                  style={{ lineHeight: 22 }}
+                >
+                  Choose which tools your persona can access during conversations. Tools enable web search, weather information, and specialized functions.
+                </Typography>
+              </Card>
 
               <ToolSelector
                 selectedTools={selectedTools}
@@ -560,26 +749,44 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
             </View>
           )}
 
-          {step === 'prompt' && (
+          {displayStep === 'prompt' && (
             <View>
-              <Typography
-                variant="h6"
-                weight="semibold"
-                color={theme.colors.textPrimary}
-                style={styles.stepTitle}
+              <Card
+                variant="floating"
+                padding="lg"
+                borderRadius="2xl"
+                glow
+                style={{
+                  marginBottom: 24,
+                  backgroundColor: theme.colors.accent['50'],
+                }}
               >
-                System Prompt
-              </Typography>
-              <Typography
-                variant="bodyMd"
-                color={theme.colors.textSecondary}
-                style={styles.stepDescription}
-              >
-                Define how your persona should behave and respond. This is the most important part!
-                {selectedTools.length > 0 && (
-                  `\n\n💡 Your persona has ${selectedTools.length} tool${selectedTools.length === 1 ? '' : 's'} available. Consider mentioning how they should use these capabilities in your prompt.`
-                )}
-              </Typography>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <Typography
+                    variant="h1"
+                    style={{ fontSize: 32, marginRight: 12 }}
+                  >
+                    🧠
+                  </Typography>
+                  <Typography
+                    variant="h5"
+                    weight="bold"
+                    color={theme.colors.accent['700']}
+                  >
+                    System Prompt
+                  </Typography>
+                </View>
+                <Typography
+                  variant="bodyMd"
+                  color={theme.colors.accent['600']}
+                  style={{ lineHeight: 22 }}
+                >
+                  Define how your persona should behave and respond. This is the most important part that shapes your AI's personality!
+                  {selectedTools.length > 0 && (
+                    `\n\n💡 Your persona has ${selectedTools.length} tool${selectedTools.length === 1 ? '' : 's'} available. Consider mentioning how they should use these capabilities in your prompt.`
+                  )}
+                </Typography>
+              </Card>
 
               <View style={styles.fieldContainer}>
                 <Typography
@@ -590,41 +797,55 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
                 >
                   System Prompt
                 </Typography>
-                <TextInput
-                  style={[styles.promptInput, { 
+                <Card
+                  variant="outlined"
+                  padding="none"
+                  borderRadius="xl"
+                  style={{
                     backgroundColor: theme.colors.surface,
-                    color: theme.colors.textPrimary,
                     borderColor: theme.colors.border,
-                  }]}
-                  value={systemPrompt}
-                  onChangeText={setSystemPrompt}
-                  placeholder="Describe your persona's role, expertise, personality, and how it should interact..."
-                  placeholderTextColor={theme.colors.textSecondary}
-                  multiline
-                  textAlignVertical="top"
-                />
+                  }}
+                >
+                  <TextInput
+                    style={{
+                      paddingHorizontal: 16,
+                      paddingVertical: 12,
+                      fontSize: 16,
+                      color: theme.colors.textPrimary,
+                      minHeight: 200,
+                    }}
+                    value={systemPrompt}
+                    onChangeText={setSystemPrompt}
+                    placeholder="Describe your persona's role, expertise, personality, and how it should interact..."
+                    placeholderTextColor={theme.colors.textSecondary}
+                    multiline
+                    textAlignVertical="top"
+                  />
+                </Card>
               </View>
 
               {/* Prompt Tips */}
-              <Surface
+              <Card
+                variant="gradient"
                 padding="lg"
+                borderRadius="xl"
                 style={{
-                  ...styles.tipsContainer,
-                  backgroundColor: theme.colors.brand['50'] || '#f0f7ff'
+                  marginTop: 16,
+                  backgroundColor: theme.colors.brand['50'] || '#f0f7ff',
                 }}
               >
                 <Typography
                   variant="bodyMd"
                   weight="semibold"
                   color={theme.colors.brand['700']}
-                  style={styles.tipsTitle}
+                  style={{ marginBottom: 8 }}
                 >
                   💡 Prompt Tips
                 </Typography>
                 <Typography
                   variant="bodySm"
                   color={theme.colors.brand['600']}
-                  style={styles.tipsText}
+                  style={{ lineHeight: 18 }}
                 >
                   • Start with "You are..." to define the role{'\n'}
                   • Include expertise areas and background{'\n'}
@@ -632,71 +853,123 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
                   • Specify how to handle different types of questions{'\n'}
                   • Be specific but not overly restrictive
                 </Typography>
-              </Surface>
+              </Card>
             </View>
           )}
+          </Animated.View>
         </ScrollView>
 
         {/* Footer */}
-        <View style={[styles.footer, { borderTopColor: theme.colors.border }]}>
+        <Card
+          variant="glass"
+          padding="md"
+          style={{
+            marginHorizontal: 16,
+            marginBottom: 16,
+            borderTopWidth: 1,
+            borderTopColor: theme.colors.border + '30',
+          }}
+        >
           {step === 'template' ? (
             <TouchableOpacity
-              style={[styles.continueButton, { backgroundColor: theme.colors.brand['500'] }]}
-              onPress={() => handleTemplateSelect(PERSONA_TEMPLATES[0])}
+              onPress={selectedTemplate ? () => animateStepTransition('details') : () => handleTemplateSelect(PERSONA_TEMPLATES[0])}
+              activeOpacity={0.8}
             >
-              <Typography variant="bodyMd" weight="semibold" color="#FFFFFF">
-                Start with Blank Template
-              </Typography>
+              <Card
+                variant="floating"
+                padding="md"
+                borderRadius="xl"
+                glow
+                style={{
+                  backgroundColor: theme.colors.brand['500'],
+                  alignItems: 'center',
+                }}
+              >
+                <Typography variant="bodyMd" weight="semibold" color="#FFFFFF">
+                  {selectedTemplate ? 'Next' : 'Start with Blank Template'}
+                </Typography>
+              </Card>
             </TouchableOpacity>
           ) : step === 'details' ? (
             <TouchableOpacity
-              style={[
-                styles.continueButton,
-                {
+              onPress={handleNext}
+              disabled={!displayName.trim()}
+              activeOpacity={0.8}
+            >
+              <Card
+                variant="floating"
+                padding="md"
+                borderRadius="xl"
+                glow={!!displayName.trim()}
+                style={{
                   backgroundColor: displayName.trim() 
                     ? theme.colors.brand['500'] 
                     : theme.colors.gray['300'],
-                }
-              ]}
-              onPress={handleNext}
-              disabled={!displayName.trim()}
-            >
-              <Typography variant="bodyMd" weight="semibold" color="#FFFFFF">
-                Continue to Tools
-              </Typography>
+                  alignItems: 'center',
+                  opacity: displayName.trim() ? 1 : 0.6,
+                }}
+              >
+                <Typography variant="bodyMd" weight="semibold" color="#FFFFFF">
+                  Continue to Tools
+                </Typography>
+              </Card>
             </TouchableOpacity>
           ) : step === 'tools' ? (
             <TouchableOpacity
-              style={[
-                styles.continueButton,
-                { backgroundColor: theme.colors.brand['500'] }
-              ]}
               onPress={handleNext}
+              activeOpacity={0.8}
             >
-              <Typography variant="bodyMd" weight="semibold" color="#FFFFFF">
-                Continue to Prompt
-              </Typography>
+              <Card
+                variant="floating"
+                padding="md"
+                borderRadius="xl"
+                glow
+                style={{
+                  backgroundColor: theme.colors.brand['500'],
+                  alignItems: 'center',
+                }}
+              >
+                <Typography variant="bodyMd" weight="semibold" color="#FFFFFF">
+                  Continue to Prompt
+                </Typography>
+              </Card>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
-              style={[
-                styles.continueButton,
-                {
+              onPress={handleCreate}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              <Card
+                variant="floating"
+                padding="md"
+                borderRadius="xl"
+                glow={!loading ? true : false}
+                style={{
                   backgroundColor: !loading 
                     ? theme.colors.brand['500'] 
                     : theme.colors.gray['300'],
-                }
-              ]}
-              onPress={handleCreate}
-              disabled={loading}
-            >
-              <Typography variant="bodyMd" weight="semibold" color="#FFFFFF">
-                {loading ? 'Creating...' : 'Create Persona'}
-              </Typography>
+                  alignItems: 'center',
+                  opacity: !loading ? 1 : 0.6,
+                }}
+              >
+                <Typography variant="bodyMd" weight="semibold" color="#FFFFFF">
+                  {loading ? 'Creating...' : 'Create Persona'}
+                </Typography>
+              </Card>
             </TouchableOpacity>
           )}
-        </View>
+        </Card>
       </KeyboardAvoidingView>
+
+      <SuccessModal
+        ref={successModalRef}
+        title="Persona Created! 🎉"
+        message={`"${displayName}" has been successfully created and is ready to chat with you.`}
+        buttonText="Start Chatting"
+        icon="🎭"
+        onButtonPress={() => navigation.goBack()}
+      />
     </SafeAreaView>
   );
 };

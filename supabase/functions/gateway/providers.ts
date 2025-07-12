@@ -11,6 +11,8 @@ export interface ProviderConfig {
   streaming: boolean;
 }
 
+
+
 export function getProviderConfig(modelId: string, hasCustomKey: boolean, customApiKey?: string): ProviderConfig | null {
   const baseConfig = {
     maxTokens: 2000,
@@ -149,6 +151,21 @@ export function getProviderConfig(modelId: string, hasCustomKey: boolean, custom
         model: 'gemini-2.0-flash-lite',
       };
 
+    case 'gemini-2.0-flash-preview-image-generation': {
+      const google2FlashImageApiKey = hasCustomKey && customApiKey ? customApiKey : Deno.env.get('GOOGLE_API_KEY_SERVER');
+      
+      if (!google2FlashImageApiKey) {
+        throw new Error('Google API key is required for Gemini models. Please set GOOGLE_API_KEY_SERVER environment variable or provide a custom API key.');
+      }
+      
+      return {
+        ...baseConfig,
+        baseURL: 'https://generativelanguage.googleapis.com/v1beta',
+        apiKey: google2FlashImageApiKey,
+        model: 'gemini-2.0-flash-preview-image-generation',
+      };
+    }
+
     case 'gemini-2.5-flash-preview-05-20':
     case 'gemini-2.5-flash-preview': {
       const google25FlashApiKey = hasCustomKey && customApiKey ? customApiKey : Deno.env.get('GOOGLE_API_KEY_SERVER');
@@ -274,7 +291,7 @@ export function getProviderConfig(modelId: string, hasCustomKey: boolean, custom
         streaming: false, // AQA models may not support streaming
       };
     }
-
+    
     default:
       return null;
   }
@@ -291,6 +308,7 @@ export function isModelPremium(modelId: string): boolean {
     'gemini-1.5-flash-8b',
     'gemini-2.0-flash',
     'gemini-2.0-flash-lite',
+    'gemini-2.0-flash-preview-image-generation',
     'gemini-2.5-flash-preview',
     'gemini-2.5-flash-preview-05-20',
     'gemini-2.5-pro-preview',

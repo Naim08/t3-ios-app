@@ -1,103 +1,107 @@
-// Token cost mapping per 1K tokens (in credits)
+// Token cost mapping per 1K tokens (in credits) - Updated January 2025 with 50% overhead markup
 export const TOKEN_COSTS = {
-  // OpenAI Models
+  // OpenAI Models - Updated pricing with overhead
   'gpt-3.5-turbo': {
-    input: 0.5,  // $0.0005 per 1K tokens
-    output: 1.5, // $0.0015 per 1K tokens
+    input: 0.75,  // $0.0005 per 1K tokens + 50% overhead
+    output: 2.25, // $0.0015 per 1K tokens + 50% overhead
   },
   'gpt-4o': {
-    input: 2.5,  // $0.0025 per 1K tokens  
-    output: 10,  // $0.01 per 1K tokens
+    input: 7.5,   // $0.005 per 1K tokens + 50% overhead  
+    output: 22.5, // $0.015 per 1K tokens + 50% overhead
   },
   'gpt-4': {
-    input: 30,   // $0.03 per 1K tokens
-    output: 60,  // $0.06 per 1K tokens
+    input: 45,    // $0.03 per 1K tokens + 50% overhead
+    output: 90,   // $0.06 per 1K tokens + 50% overhead
   },
   
-  // Anthropic Models
+  // Anthropic Models - Updated pricing with overhead
   'claude-3-sonnet': {
-    input: 3,    // $0.003 per 1K tokens
-    output: 15,  // $0.015 per 1K tokens
+    input: 4.5,   // $0.003 per 1K tokens + 50% overhead
+    output: 22.5, // $0.015 per 1K tokens + 50% overhead
   },
   'claude-3-haiku': {
-    input: 0.25, // $0.00025 per 1K tokens
-    output: 1.25, // $0.00125 per 1K tokens
+    input: 1.2,   // $0.0008 per 1K tokens + 50% overhead  
+    output: 6,    // $0.004 per 1K tokens + 50% overhead
   },
   
-  // Google Models - Gemini
+  // Google Models - Gemini - Updated pricing with overhead
   'gemini-pro': {
-    input: 0.5,   // Free tier pricing converted to credits
+    input: 0.5,   // Free tier pricing converted to credits (legacy)
     output: 1.5,
   },
   'gemini-1.5-pro': {
-    input: 3.5,   // $0.0035 per 1K tokens
-    output: 10.5, // $0.0105 per 1K tokens
+    input: 1.875, // $0.00125 per 1K tokens + 50% overhead (≤128k tokens)
+    output: 7.5,  // $0.005 per 1K tokens + 50% overhead
   },
   'gemini-1.5-flash': {
-    input: 0.075, // $0.000075 per 1K tokens
-    output: 0.3,  // $0.0003 per 1K tokens
+    input: 0.1125, // $0.000075 per 1K tokens + 50% overhead
+    output: 0.45,   // $0.0003 per 1K tokens + 50% overhead
   },
   'gemini-1.5-flash-8b': {
-    input: 0.0375, // $0.0000375 per 1K tokens
-    output: 0.15,  // $0.00015 per 1K tokens
+    input: 0.1125, // Same as 1.5-flash + 50% overhead
+    output: 0.45,
   },
   'gemini-2.0-flash': {
-    input: 0.075, // Same as 1.5-flash
-    output: 0.3,
+    input: 0.225,  // $0.00015 per 1K tokens + 50% overhead
+    output: 0.9,   // $0.0006 per 1K tokens + 50% overhead
   },
   'gemini-2.0-flash-lite': {
-    input: 0.0375, // Same as 1.5-flash-8b
-    output: 0.15,
+    input: 0.1125, // $0.000075 per 1K tokens + 50% overhead
+    output: 0.45,   // $0.0003 per 1K tokens + 50% overhead
+  },
+  'gemini-2.0-flash-preview-image-generation': {
+    input: 0.225,  // Same as 2.0-flash + 50% overhead
+    output: 0.9,   // Plus image generation capability
   },
   'gemini-2.5-flash-preview-05-20': {
-    input: 0.075, // Preview pricing similar to flash
-    output: 0.3,
+    input: 0.1125, // Preview pricing similar to flash + 50% overhead
+    output: 0.45,
   },
   'gemini-2.5-flash-preview': {
-    input: 0.075, // Preview pricing similar to flash
-    output: 0.3,
+    input: 0.1125, // Preview pricing similar to flash + 50% overhead
+    output: 0.45,
   },
   'gemini-2.5-pro-preview': {
-    input: 3.5, // Similar to 1.5-pro
-    output: 10.5,
+    input: 1.875, // Similar to 1.5-pro + 50% overhead
+    output: 7.5,
   },
   'gemini-2.5-pro-preview-06-05': {
-    input: 3.5, // Similar to 1.5-pro
-    output: 10.5,
+    input: 1.875, // Similar to 1.5-pro + 50% overhead
+    output: 7.5,
   },
   'text-embedding-004': {
-    input: 0.01, // Very low cost for embeddings
-    output: 0.01,
+    input: 0.015, // Very low cost for embeddings + 50% overhead
+    output: 0.015,
   },
   'gemini-embedding-exp-03-07': {
-    input: 0.01, // Very low cost for embeddings
-    output: 0.01,
+    input: 0.015, // Very low cost for embeddings + 50% overhead
+    output: 0.015,
   },
   'aqa': {
-    input: 1.0, // Conservative estimate for QA model
-    output: 2.0,
+    input: 1.5, // Conservative estimate for QA model + 50% overhead
+    output: 3.0,
   },
   'gemma-3': {
-    input: 0.05, // Very low cost for open source model
-    output: 0.1,
+    input: 0.075, // Very low cost for open source model + 50% overhead
+    output: 0.15,
   },
   'gemma-3n': {
-    input: 0.025, // Even lower for compact model
-    output: 0.05,
+    input: 0.0375, // Even lower for compact model + 50% overhead
+    output: 0.075,
   },
   
-  // Model aliases
+  // Model aliases - Updated with overhead
   'gpt-3.5': {
-    input: 0.5,
-    output: 1.5,
+    input: 0.75,
+    output: 2.25,
   },
   'claude-sonnet': {
-    input: 3,
-    output: 15,
+    input: 4.5,
+    output: 22.5,
   },
   'gemini-flash': {
-    input: 0.075,
-    output: 0.3,
+    input: 0.1125,
+    output: 0.45,
   },
 } as const;
 
