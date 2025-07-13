@@ -46,7 +46,7 @@ export const RootNavigator = () => {
 
   // Memoize screen options to prevent re-creation
   const conversationListOptions = useCallback(({ navigation }: any) => ({
-    title: 'Chats',
+    title: 'Conversations',
     headerLeft: () => (
       <IconButton
         icon="settings"

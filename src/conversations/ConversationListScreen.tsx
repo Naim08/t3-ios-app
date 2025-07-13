@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { useTheme } from '../components/ThemeProvider';
 import { usePersona } from '../context/PersonaContext';
 import { Typography, AILoadingAnimation, Card } from '../ui/atoms';
@@ -116,7 +118,7 @@ const SwipeableConversationItem = ({ conversation, onPress, onDelete }: Conversa
 };
 
 const ConversationItem = ({ conversation, onPress, onDelete }: ConversationItemProps) => {
-  const { theme } = useTheme();
+  const { theme, colorScheme } = useTheme();
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -144,6 +146,13 @@ const ConversationItem = ({ conversation, onPress, onDelete }: ConversationItemP
     );
   };
 
+  const getPersonaGradient = (): [string, string] => {
+    const colors: [string, string] = colorScheme === 'dark' 
+      ? [theme.colors.brand['400'], theme.colors.brand['600']] 
+      : [theme.colors.brand['300'], theme.colors.brand['500']];
+    return colors;
+  };
+
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -151,85 +160,182 @@ const ConversationItem = ({ conversation, onPress, onDelete }: ConversationItemP
       style={styles.conversationItem}
       activeOpacity={0.95}
     >
-      <Card
-        variant="glass"
-        className="p-4 rounded-2xl"
-        style={{
-          backgroundColor: theme.colors.surface + 'F0',
-          borderWidth: 1,
-          borderColor: theme.colors.border + '60',
-        }}
-      >
-        <View style={styles.personaIconContainer}>
-          <Card 
-            variant="floating"
-            className="w-12 h-12 rounded-2xl items-center justify-center"
-            style={{
-              backgroundColor: theme.colors.brand['500'] + '20',
-              borderWidth: 2,
-              borderColor: theme.colors.brand['400'] + '40',
-            }}
-          >
-            <Typography variant="h4" style={{ fontSize: 20 }}>
-              {conversation.personas?.icon || '💬'}
-            </Typography>
-          </Card>
-        </View>
+      <View style={styles.cardContainer}>
+        {/* Clean Card with consistent styling */}
+        <Card
+          variant="elevated"
+          style={{
+            ...styles.modernCard,
+            backgroundColor: colorScheme === 'dark' 
+              ? theme.colors.surface
+              : '#FFFFFF',
+            borderWidth: 0.5,
+            borderColor: colorScheme === 'dark'
+              ? theme.colors.border + '40'
+              : theme.colors.border + '60',
+            ...Platform.select({
+              ios: {
+                shadowColor: '#000000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: colorScheme === 'dark' ? 0.1 : 0.05,
+                shadowRadius: 8,
+              },
+              android: {
+                elevation: 3,
+              },
+            }),
+          }}
+        >
+          <View style={styles.cardContent}>
+            {/* Enhanced Persona Icon with gradient background */}
+            <View style={styles.personaIconContainer}>
+              <View style={styles.personaIconWrapper}>
+                <LinearGradient
+                  colors={getPersonaGradient()}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.personaIconGradient}
+                >
+                  <View style={[
+                    styles.personaIconInner,
+                    {
+                      backgroundColor: colorScheme === 'dark' 
+                        ? theme.colors.surface + 'CC' 
+                        : '#FFFFFF' + 'DD',
+                    }
+                  ]}>
+                    <Typography variant="h4" style={styles.personaEmoji}>
+                      {conversation.personas?.icon || '💬'}
+                    </Typography>
+                  </View>
+                </LinearGradient>
+                
+                {/* Remove the floating activity indicator */}
+              </View>
+            </View>
 
-        <View style={styles.conversationContent}>
-          <View style={styles.conversationHeader}>
-            <View style={styles.conversationMeta}>
-              {conversation.personas && (
+            <View style={styles.conversationContent}>
+              <View style={styles.conversationHeader}>
+                <View style={styles.conversationMeta}>
+                  {conversation.personas && (
+                    <View style={styles.personaNameContainer}>
+                      <Typography
+                        variant="caption"
+                        weight="semibold"
+                        style={{
+                          ...styles.personaName,
+                          color: colorScheme === 'dark' 
+                            ? theme.colors.brand['400'] 
+                            : theme.colors.brand['600'],
+                        }}
+                      >
+                        {conversation.personas.display_name}
+                      </Typography>
+                      <View style={[
+                        styles.personaBadge,
+                        {
+                          backgroundColor: colorScheme === 'dark' 
+                            ? theme.colors.brand['500'] + '20' 
+                            : theme.colors.brand['400'] + '15',
+                        }
+                      ]} />
+                    </View>
+                  )}
+                  <Typography
+                    variant="bodyMd"
+                    weight="semibold"
+                    color={theme.colors.textPrimary}
+                    numberOfLines={1}
+                    style={styles.conversationTitle}
+                  >
+                    {conversation.title}
+                  </Typography>
+                </View>
+                <View style={styles.timestampContainer}>
+                  <Typography
+                    variant="caption"
+                    weight="medium"
+                    style={{
+                      ...styles.timestamp,
+                      color: colorScheme === 'dark' 
+                        ? theme.colors.textTertiary 
+                        : theme.colors.textSecondary,
+                    }}
+                  >
+                    {formatDate(conversation.updated_at)}
+                  </Typography>
+                </View>
+              </View>
+              
+              {conversation.last_message_preview && (
                 <Typography
                   variant="bodySm"
-                  weight="semibold"
-                  color={theme.colors.brand['600']}
-                  style={styles.personaName}
+                  numberOfLines={2}
+                  style={{
+                    ...styles.lastMessage,
+                    color: colorScheme === 'dark' 
+                      ? theme.colors.textSecondary 
+                      : theme.colors.textTertiary,
+                  }}
                 >
-                  {conversation.personas.display_name}
+                  {conversation.last_message_preview}
                 </Typography>
               )}
-              <Typography
-                variant="bodyMd"
-                weight="semibold"
-                color={theme.colors.textPrimary}
-                numberOfLines={1}
-                style={styles.conversationTitle}
-              >
-                {conversation.title}
-              </Typography>
+              
+              <View style={styles.conversationFooter}>
+                <View style={styles.messageCountContainer}>
+                  <View style={[
+                    styles.messageCountBadge,
+                    {
+                      backgroundColor: colorScheme === 'dark' 
+                        ? theme.colors.brand['600'] + '25' 
+                        : theme.colors.brand['400'] + '20',
+                    }
+                  ]}>
+                    <Typography
+                      variant="caption"
+                      weight="semibold"
+                      style={{
+                        ...styles.messageCountText,
+                        color: colorScheme === 'dark' 
+                          ? theme.colors.brand['400'] 
+                          : theme.colors.brand['600'],
+                      }}
+                    >
+                      {conversation.message_count}
+                    </Typography>
+                  </View>
+                  <Typography
+                    variant="caption"
+                    color={theme.colors.textTertiary}
+                    weight="medium"
+                    style={styles.messageLabel}
+                  >
+                    {conversation.message_count !== 1 ? 'messages' : 'message'}
+                  </Typography>
+                </View>
+                
+                {/* Modern visual indicator for active status */}
+                <View style={styles.statusIndicators}>
+                  <View style={[
+                    styles.statusDot,
+                    {
+                      backgroundColor: theme.colors.brand['500'] + '40',
+                    }
+                  ]} />
+                  <View style={[
+                    styles.statusDot,
+                    { 
+                      backgroundColor: theme.colors.brand['500'] + '30',
+                      transform: [{ scale: 0.7 }],
+                    }
+                  ]} />
+                </View>
+              </View>
             </View>
-            <Typography
-              variant="caption"
-              color={theme.colors.textTertiary}
-              style={styles.timestamp}
-            >
-              {formatDate(conversation.updated_at)}
-            </Typography>
           </View>
-          
-          {conversation.last_message_preview && (
-            <Typography
-              variant="bodySm"
-              color={theme.colors.textSecondary}
-              numberOfLines={2}
-              style={styles.lastMessage}
-            >
-              {conversation.last_message_preview}
-            </Typography>
-          )}
-          
-          <View style={styles.conversationFooter}>
-            <Typography
-              variant="caption"
-              color={theme.colors.textTertiary}
-              weight="medium"
-            >
-              {conversation.message_count} {conversation.message_count !== 1 ? 'messages' : 'message'}
-            </Typography>
-          </View>
-        </View>
-      </Card>
+        </Card>
+      </View>
     </TouchableOpacity>
   );
 };
@@ -332,7 +438,7 @@ export const ConversationListScreen = ({ navigation }: any) => {
               backgroundColor: theme.colors.brand['400'] + '60' 
             }]} />
             <View style={[styles.chatBubble, styles.chatBubble3, { 
-              backgroundColor: theme.colors.accent['500'] + '50' 
+              backgroundColor: theme.colors.brand['500'] + '50' 
             }]} />
           </View>
         </View>
@@ -406,7 +512,7 @@ export const ConversationListScreen = ({ navigation }: any) => {
         style={styles.list}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={renderEmptyState}
-        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -466,14 +572,138 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   conversationItem: {
-    // marginBottom: 12, // moved to swipeContainer
+    marginBottom: 8,
+  },
+  cardContainer: {
+    // Container for the card
+  },
+  modernCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    minHeight: 100, // Ensure consistent minimum height
+  },
+  cardContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: 16,
+    minHeight: 100, // Match card minimum height
+  },
+  personaIconContainer: {
+    marginRight: 16,
+  },
+  personaIconWrapper: {
+    position: 'relative',
+  },
+  personaIconGradient: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 2,
+  },
+  personaIconInner: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  personaEmoji: {
+    fontSize: 20,
+  },
+  activityIndicator: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  conversationContent: {
+    flex: 1,
+    justifyContent: 'space-between', // Distribute content evenly
+    minHeight: 68, // Consistent content height
+  },
+  conversationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 6,
+  },
+  conversationMeta: {
+    flex: 1,
+  },
+  personaNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  personaName: {
+    fontSize: 12,
+    marginRight: 6,
+  },
+  personaBadge: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+  timestampContainer: {
+    marginLeft: 12,
+  },
+  timestamp: {
+    fontSize: 12,
+  },
+  conversationTitle: {
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  lastMessage: {
+    fontSize: 14,
+    lineHeight: 18,
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  conversationFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  messageCountContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  messageCountBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginRight: 6,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  messageCountText: {
+    fontSize: 11,
+  },
+  messageLabel: {
+    fontSize: 11,
+  },
+  statusIndicators: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginLeft: 4,
   },
   conversationSurface: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-  },
-  personaIconContainer: {
-    marginRight: 12,
   },
   personaIconBackground: {
     width: 48,
@@ -496,18 +726,6 @@ const styles = StyleSheet.create({
   personaIconText: {
     fontSize: 20,
   },
-  conversationContent: {
-    flex: 1,
-  },
-  conversationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginBottom: 8,
-  },
-  conversationMeta: {
-    flex: 1,
-  },
   personaInfo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -515,23 +733,6 @@ const styles = StyleSheet.create({
   },
   personaIcon: {
     marginRight: 6,
-  },
-  personaName: {
-    marginBottom: 2,
-  },
-  timestamp: {
-    marginLeft: 12,
-    textAlign: 'right',
-  },
-  conversationTitle: {
-    marginBottom: 4,
-  },
-  lastMessage: {
-    marginBottom: 8,
-    lineHeight: 18,
-  },
-  conversationFooter: {
-    marginTop: 4,
   },
   emptyState: {
     alignItems: 'center',
