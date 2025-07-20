@@ -9,13 +9,13 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Animated,
-  Easing,
 } from 'react-native';
 import { useTheme } from '../components/ThemeProvider';
 import { usePersona } from '../context/PersonaContext';
-import { Typography, Card } from '../ui/atoms';
+import { Typography, Card, AnimatedTouchable, TransitionView, LoadingStateManager, FadeInView } from '../ui/atoms';
 import { ToolSelector } from '../components/ToolSelector';
+import { ModelProviderLogo, getProviderFromModelId } from '../components/ModelProviderLogo';
+import { ModelCapabilityIcons, detectModelCapabilities } from '../components/ModelCapabilityIcons';
 import { supabase } from '../lib/supabase';
 import { AI_MODELS } from '../config/models';
 import { SuccessModal, SuccessModalRef } from '../components/SuccessModal';
@@ -97,33 +97,10 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
   const scrollViewRef = useRef<ScrollView>(null);
   const successModalRef = useRef<SuccessModalRef>(null);
   
-  // Animation values for smooth step transitions
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-
   const animateStepTransition = (newStep: 'template' | 'details' | 'tools' | 'prompt') => {
-    // Smooth fade out animation
-    Animated.timing(fadeAnim, {
-      toValue: 0,
-      duration: 250,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start(() => {
-      // Change both the logic step and display step
-      setStep(newStep);
-      setDisplayStep(newStep);
-      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
-      
-      // Small delay before fade in to ensure content has changed
-      setTimeout(() => {
-        // Fade in new content
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }).start();
-      }, 50);
-    });
+    setStep(newStep);
+    setDisplayStep(newStep);
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
   };
 
   const handleBack = () => {
@@ -375,10 +352,10 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
           style={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          <Animated.View
-            style={{
-              opacity: fadeAnim,
-            }}
+          <TransitionView
+            visible={true}
+            type="fade"
+            duration={300}
           >
           {displayStep === 'template' && (
             <View>
@@ -468,9 +445,11 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
                 >
                   Icon
                 </Typography>
-                <TouchableOpacity
+                <AnimatedTouchable
                   onPress={() => setShowEmojiPicker(!showEmojiPicker)}
-                  activeOpacity={0.8}
+                  animationType="scale"
+                  scaleValue={0.98}
+                  hapticFeedback={true}
                 >
                   <Card
                     variant="outlined"
@@ -491,7 +470,7 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
                       Tap to change
                     </Typography>
                   </Card>
-                </TouchableOpacity>
+                </AnimatedTouchable>
                 {showEmojiPicker && renderEmojiPicker()}
               </View>
 
@@ -658,16 +637,28 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
                         borderWidth: 2,
                       }}
                     >
+                      <ModelProviderLogo
+                        provider={getProviderFromModelId(model.id)}
+                        size={24}
+                        style={{ marginRight: 12 }}
+                      />
                       <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <Typography
+                            variant="bodySm"
+                            weight="semibold"
+                            color={theme.colors.textPrimary}
+                          >
+                            {model.name}
+                          </Typography>
+                          <ModelCapabilityIcons
+                            capabilities={detectModelCapabilities(model.id, model.capabilities)}
+                            iconSize={14}
+                            maxIcons={3}
+                          />
+                        </View>
                         <Typography
-                          variant="bodyMd"
-                          weight="semibold"
-                          color={theme.colors.textPrimary}
-                        >
-                          {model.name}
-                        </Typography>
-                        <Typography
-                          variant="bodySm"
+                          variant="caption"
                           color={theme.colors.textSecondary}
                           style={{ marginTop: 2 }}
                         >
@@ -856,7 +847,7 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
               </Card>
             </View>
           )}
-          </Animated.View>
+          </TransitionView>
         </ScrollView>
 
         {/* Footer */}

@@ -12,6 +12,8 @@ import { useTheme } from '../components/ThemeProvider';
 import { Typography, Surface } from '../ui/atoms';
 import { Lock, Check, AlertTriangle, Circle } from 'lucide-react-native';
 import { PremiumBadge } from './PremiumBadge';
+import { ModelProviderLogo, getProviderFromModelId } from '../components/ModelProviderLogo';
+import { ModelCapabilityIcons, getModelCapabilities } from '../components/ModelCapabilityIcons';
 import { useEntitlements } from '../hooks/useEntitlements';
 import { useTranslation } from 'react-i18next';
 import { usePersona } from '../context/PersonaContext';
@@ -113,16 +115,24 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
             <View style={styles.cardContent}>
               <View style={styles.cardHeader}>
                 <View style={styles.modelNameContainer}>
-                  <Typography
-                    variant="bodyMd"
-                    weight="semibold"
-                    style={{ 
-                      color: isDisabled || isLockedPremium
-                        ? theme.colors.textSecondary 
-                        : theme.colors.textPrimary 
-                    }}
-                  >
-                    {model.name}
+                  <View style={styles.modelTitleRow}>
+                    <ModelProviderLogo 
+                      provider={model.provider || getProviderFromModelId(model.id)} 
+                      size={20}
+                      style={{ marginRight: 8 }}
+                    />
+                    <Typography
+                      variant="bodyMd"
+                      weight="semibold"
+                      style={{ 
+                        color: isDisabled || isLockedPremium
+                          ? theme.colors.textSecondary 
+                          : theme.colors.textPrimary,
+                        flex: 1,
+                      }}
+                    >
+                      {model.name}
+                    </Typography>
                     {isLockedPremium && (
                       <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 4 }}>
                         <Lock size={12} color={theme.colors.brand['500']} strokeWidth={2} />
@@ -131,7 +141,7 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
                         </Typography>
                       </View>
                     )}
-                  </Typography>
+                  </View>
                   <View style={styles.badges}>
                     {isPersonaDefault && (
                       <View style={[styles.badge, { backgroundColor: theme.colors.accent['100'] }]}>
@@ -152,13 +162,21 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
                     )}
                   </View>
                 </View>
-                {showWarning && (
-                  <AlertTriangle 
-                    size={16} 
-                    color={theme.colors.danger['600']} 
-                    strokeWidth={2}
+                <View style={styles.rightSection}>
+                  <ModelCapabilityIcons 
+                    capabilities={getModelCapabilities(model)}
+                    iconSize={14}
+                    maxIcons={3}
+                    style={{ marginRight: 8 }}
                   />
-                )}
+                  {showWarning && (
+                    <AlertTriangle 
+                      size={16} 
+                      color={theme.colors.danger['600']} 
+                      strokeWidth={2}
+                    />
+                  )}
+                </View>
               </View>
               <Typography
                 variant="caption"
@@ -318,6 +336,14 @@ const styles = StyleSheet.create({
   },
   modelNameContainer: {
     flex: 1,
+  },
+  modelTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  rightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   badges: {
     flexDirection: 'row',

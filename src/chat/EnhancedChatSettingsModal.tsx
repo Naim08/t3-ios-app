@@ -16,6 +16,8 @@ try {
 import { useTheme } from '../components/ThemeProvider';
 import { Typography, Surface, Card } from '../ui/atoms';
 import { AnimatedTouchable, FadeInView, SlideInView } from '../ui/atoms';
+import { ModelProviderLogo, getProviderFromModelId } from '../components/ModelProviderLogo';
+import { ModelCapabilityIcons, getModelCapabilities } from '../components/ModelCapabilityIcons';
 import { CreditsDisplay } from '../credits/CreditsDisplay';
 import { AI_MODELS } from '../config/models';
 import { ConversationService } from '../services/conversationService';
@@ -95,34 +97,46 @@ const ModelCard = ({
             alignItems: 'center',
             marginRight: 12,
           }}>
-            {getModelIcon()}
+            <ModelProviderLogo 
+              provider={model.provider || getProviderFromModelId(model.id)} 
+              size={24}
+            />
           </View>
           <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Typography
-                variant="bodyLg"
-                weight="semibold"
-                color={isSelected ? theme.colors.brand['700'] : theme.colors.textPrimary}
-              >
-                {model.name}
-              </Typography>
-              {isPremium && (
-                <View style={{
-                  backgroundColor: theme.colors.yellow['100'],
-                  paddingHorizontal: 8,
-                  paddingVertical: 2,
-                  borderRadius: 8,
-                  marginLeft: 8,
-                }}>
-                  <Typography
-                    variant="caption"
-                    weight="semibold"
-                    color={theme.colors.yellow['800']}
-                  >
-                    PRO
-                  </Typography>
-                </View>
-              )}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flex: 1 }}>
+                <Typography
+                  variant="bodyLg"
+                  weight="semibold"
+                  color={isSelected ? theme.colors.brand['700'] : theme.colors.textPrimary}
+                >
+                  {model.name}
+                </Typography>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <ModelCapabilityIcons 
+                  capabilities={getModelCapabilities(model)}
+                  iconSize={14}
+                  maxIcons={3}
+                  style={{ marginRight: isPremium ? 8 : 0 }}
+                />
+                {isPremium && (
+                  <View style={{
+                    backgroundColor: theme.colors.yellow['100'],
+                    paddingHorizontal: 8,
+                    paddingVertical: 2,
+                    borderRadius: 8,
+                  }}>
+                    <Typography
+                      variant="caption"
+                      weight="semibold"
+                      color={theme.colors.yellow['800']}
+                    >
+                      PRO
+                    </Typography>
+                  </View>
+                )}
+              </View>
             </View>
             <Typography
               variant="bodySm"

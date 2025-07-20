@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -17,7 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '../components/ThemeProvider';
 import { usePersona } from '../context/PersonaContext';
-import { Typography, AILoadingAnimation, Card } from '../ui/atoms';
+import { Typography, Card, AnimatedTouchable, FadeInView, SkeletonLoader, LoadingStateManager } from '../ui/atoms';
 import { ConversationService, ConversationWithPersona } from '../services/conversationService';
 
 // Use the centralized Conversation interface
@@ -33,7 +33,7 @@ const { width: screenWidth } = Dimensions.get('window');
 const SWIPE_THRESHOLD = screenWidth * 0.25; // 25% of screen width
 
 const SwipeableConversationItem = ({ conversation, onPress, onDelete }: ConversationItemProps) => {
-  const translateX = new Animated.Value(0);
+  const translateX = useRef(new Animated.Value(0)).current;
   const { theme } = useTheme();
 
   const handleGestureEvent = Animated.event(
@@ -93,11 +93,33 @@ const SwipeableConversationItem = ({ conversation, onPress, onDelete }: Conversa
 
   return (
     <View style={styles.swipeContainer}>
-      {/* Delete background */}
-      <View style={[styles.deleteBackground, { backgroundColor: theme.colors.danger['500'] }]}>
-        <Typography variant="bodyMd" color="#FFFFFF" weight="semibold">
-          🗑️ Delete
-        </Typography>
+      {/* Delete background with enhanced styling */}
+      <View style={[
+        styles.deleteBackground, 
+        { 
+          backgroundColor: theme.colors.danger['500'],
+          shadowColor: theme.colors.danger['500'],
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
+          elevation: 4,
+        }
+      ]}>
+        <View style={{
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingVertical: 8,
+          paddingHorizontal: 16,
+          borderRadius: 12,
+          backgroundColor: 'rgba(255, 255, 255, 0.2)',
+        }}>
+          <Typography variant="h4" style={{ fontSize: 24, marginBottom: 4 }}>
+            🗑️
+          </Typography>
+          <Typography variant="caption" color="#FFFFFF" weight="bold">
+            Delete
+          </Typography>
+        </View>
       </View>
       
       <PanGestureHandler
@@ -123,15 +145,39 @@ const ConversationItem = ({ conversation, onPress, onDelete }: ConversationItemP
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+    const diffInMs = now.getTime() - date.getTime();
+    const diffInMinutes = diffInMs / (1000 * 60);
+    const diffInHours = diffInMinutes / 60;
+    const diffInDays = diffInHours / 24;
 
-    if (diffInHours < 24) {
+    if (diffInMinutes < 1) {
+      return 'now';
+    } else if (diffInMinutes < 60) {
+      return `${Math.floor(diffInMinutes)}m`;
+    } else if (diffInHours < 24) {
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else if (diffInHours < 168) { // 7 days
+    } else if (diffInDays < 7) {
       return date.toLocaleDateString([], { weekday: 'short' });
-    } else {
+    } else if (diffInDays < 365) {
       return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    } else {
+      return date.toLocaleDateString([], { year: '2-digit', month: 'short', day: 'numeric' });
     }
+  };
+
+  const formatMessagePreview = (preview: string) => {
+    // Clean up the preview text
+    const cleaned = preview
+      .replace(/\n+/g, ' ') // Replace newlines with spaces
+      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+      .trim();
+    
+    // Truncate if too long
+    if (cleaned.length > 120) {
+      return cleaned.substring(0, 117) + '...';
+    }
+    
+    return cleaned;
   };
 
   const handleLongPress = () => {
@@ -154,34 +200,36 @@ const ConversationItem = ({ conversation, onPress, onDelete }: ConversationItemP
   };
 
   return (
-    <TouchableOpacity
+    <AnimatedTouchable
       onPress={onPress}
       onLongPress={handleLongPress}
+      animationType="scale"
+      scaleValue={0.98}
+      hapticFeedback={true}
       style={styles.conversationItem}
-      activeOpacity={0.95}
     >
       <View style={styles.cardContainer}>
-        {/* Clean Card with consistent styling */}
+        {/* Modern Glass Card */}
         <Card
-          variant="elevated"
+          variant="glass"
           style={{
             ...styles.modernCard,
             backgroundColor: colorScheme === 'dark' 
-              ? theme.colors.surface
-              : '#FFFFFF',
-            borderWidth: 0.5,
+              ? theme.colors.surface + 'F0'
+              : '#FFFFFF' + 'F5',
+            borderWidth: 1.5,
             borderColor: colorScheme === 'dark'
-              ? theme.colors.border + '40'
-              : theme.colors.border + '60',
+              ? theme.colors.border + '60'
+              : theme.colors.border + '80',
             ...Platform.select({
               ios: {
-                shadowColor: '#000000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: colorScheme === 'dark' ? 0.1 : 0.05,
-                shadowRadius: 8,
+                shadowColor: colorScheme === 'dark' ? theme.colors.brand['500'] : '#000000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: colorScheme === 'dark' ? 0.15 : 0.08,
+                shadowRadius: 12,
               },
               android: {
-                elevation: 3,
+                elevation: 6,
               },
             }),
           }}
@@ -278,7 +326,7 @@ const ConversationItem = ({ conversation, onPress, onDelete }: ConversationItemP
                       : theme.colors.textTertiary,
                   }}
                 >
-                  {conversation.last_message_preview}
+                  {formatMessagePreview(conversation.last_message_preview)}
                 </Typography>
               )}
               
@@ -336,7 +384,7 @@ const ConversationItem = ({ conversation, onPress, onDelete }: ConversationItemP
           </View>
         </Card>
       </View>
-    </TouchableOpacity>
+    </AnimatedTouchable>
   );
 };
 
@@ -407,12 +455,14 @@ export const ConversationListScreen = ({ navigation }: any) => {
     }
   };
 
-  const renderConversation = ({ item }: { item: Conversation }) => (
-    <SwipeableConversationItem
-      conversation={item}
-      onPress={() => handleConversationPress(item)}
-      onDelete={() => handleDeleteConversation(item.id)}
-    />
+  const renderConversation = ({ item, index }: { item: Conversation; index: number }) => (
+    <FadeInView visible={true} delay={index * 50}>
+      <SwipeableConversationItem
+        conversation={item}
+        onPress={() => handleConversationPress(item)}
+        onDelete={() => handleDeleteConversation(item.id)}
+      />
+    </FadeInView>
   );
 
   const renderEmptyState = () => (
@@ -459,16 +509,23 @@ export const ConversationListScreen = ({ navigation }: any) => {
         >
           Choose an AI assistant and begin a conversation
         </Typography>
-        <Card
-          variant="floating"
-          className="px-6 py-4 rounded-2xl mt-4"
-          style={{
-            backgroundColor: theme.colors.brand['500'],
-          }}
+        <AnimatedTouchable
+          onPress={handleNewChat}
+          animationType="scale"
+          scaleValue={0.97}
+          hapticFeedback={true}
         >
-          <TouchableOpacity
-            onPress={handleNewChat}
-            activeOpacity={0.8}
+          <Card
+            variant="glass"
+            className="px-6 py-4 rounded-2xl mt-4"
+            style={{
+              backgroundColor: theme.colors.brand['500'],
+              shadowColor: theme.colors.brand['500'],
+              shadowOffset: { width: 0, height: 6 },
+              shadowOpacity: 0.3,
+              shadowRadius: 12,
+              elevation: 8,
+            }}
           >
             <Typography
               variant="bodyMd"
@@ -477,8 +534,64 @@ export const ConversationListScreen = ({ navigation }: any) => {
             >
               ✨ Start chatting
             </Typography>
-          </TouchableOpacity>
-        </Card>
+          </Card>
+        </AnimatedTouchable>
+      </Card>
+    </View>
+  );
+
+  const renderSkeletonItem = () => (
+    <View style={styles.conversationItem}>
+      <Card
+        variant="outlined"
+        style={{
+          ...styles.modernCard,
+          backgroundColor: theme.colors.surface + 'E0',
+          borderWidth: 1.5,
+          borderColor: theme.colors.border + '40',
+        }}
+      >
+        <View style={styles.cardContent}>
+          {/* Persona icon skeleton */}
+          <View style={styles.personaIconContainer}>
+            <SkeletonLoader
+              width={48}
+              height={48}
+              borderRadius={24}
+              style={{ marginRight: 16 }}
+            />
+          </View>
+
+          {/* Content skeleton */}
+          <View style={{ flex: 1, justifyContent: 'space-between', minHeight: 68 }}>
+            {/* Header skeleton */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+              <View style={{ flex: 1 }}>
+                <SkeletonLoader width="30%" height={12} borderRadius={6} style={{ marginBottom: 4 }} />
+                <SkeletonLoader width="80%" height={16} borderRadius={8} />
+              </View>
+              <SkeletonLoader width={40} height={12} borderRadius={6} style={{ marginLeft: 12 }} />
+            </View>
+            
+            {/* Message preview skeleton */}
+            <View style={{ marginBottom: 8, marginTop: 4 }}>
+              <SkeletonLoader width="100%" height={12} borderRadius={6} style={{ marginBottom: 4 }} />
+              <SkeletonLoader width="75%" height={12} borderRadius={6} />
+            </View>
+            
+            {/* Footer skeleton */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <SkeletonLoader width={24} height={16} borderRadius={8} style={{ marginRight: 6 }} />
+                <SkeletonLoader width={50} height={12} borderRadius={6} />
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <SkeletonLoader width={4} height={4} borderRadius={2} style={{ marginLeft: 4 }} />
+                <SkeletonLoader width={4} height={4} borderRadius={2} style={{ marginLeft: 4 }} />
+              </View>
+            </View>
+          </View>
+        </View>
       </Card>
     </View>
   );
@@ -486,11 +599,12 @@ export const ConversationListScreen = ({ navigation }: any) => {
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <View style={styles.loadingContainer}>
-          <AILoadingAnimation size={100} />
-          <Typography variant="bodyLg" color={theme.colors.textSecondary} style={{ marginTop: 16 }}>
-            Loading conversations...
-          </Typography>
+        <View style={[styles.listContent]}>
+          {Array.from({ length: 6 }).map((_, index) => (
+            <FadeInView key={index} visible={true} delay={index * 100}>
+              {renderSkeletonItem()}
+            </FadeInView>
+          ))}
         </View>
       </SafeAreaView>
     );

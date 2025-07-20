@@ -12,6 +12,7 @@ import { AuthProvider } from './src/providers/AuthProvider';
 import { ProfileProvider } from './src/providers/ProfileProvider';
 import { EntitlementsProvider } from './src/context/EntitlementsProvider';
 import { PurchaseProvider } from './src/purchases';
+import { TooltipPortalProvider } from './src/components/TooltipPortal';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import './src/i18n';
 import { LogBox } from 'react-native';
@@ -88,9 +89,11 @@ const AppContent = () => {
           <ProfileProvider>
             <PurchaseProvider>
               <EntitlementsProvider>
-                <StatusBar style="auto" />
-                <RootNavigator />
-                <Toast />
+                <TooltipPortalProvider>
+                  <StatusBar style="auto" />
+                  <RootNavigator />
+                  <Toast />
+                </TooltipPortalProvider>
               </EntitlementsProvider>
             </PurchaseProvider>
           </ProfileProvider>

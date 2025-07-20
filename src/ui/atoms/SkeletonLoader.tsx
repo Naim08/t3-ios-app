@@ -83,24 +83,28 @@ export const SkeletonLoader: React.FC<SkeletonLoaderProps> = ({
             { opacity: shimmerOpacity },
           ]}
         >
-          <LinearGradient
-            colors={[
-              'transparent',
-              theme.colors.gray['100'] + '80',
-              theme.colors.gray['50'] + 'CC',
-              theme.colors.gray['100'] + '80',
-              'transparent',
-            ]}
-            locations={[0, 0.3, 0.5, 0.7, 1]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
+          <Animated.View
             style={[
               styles.shimmer,
               {
                 transform: [{ translateX: shimmerTranslateX }],
               },
             ]}
-          />
+          >
+            <LinearGradient
+              colors={[
+                'transparent',
+                theme.colors.gray['100'] + '80',
+                theme.colors.gray['50'] + 'CC',
+                theme.colors.gray['100'] + '80',
+                'transparent',
+              ]}
+              locations={[0, 0.3, 0.5, 0.7, 1]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.shimmer}
+            />
+          </Animated.View>
         </Animated.View>
       )}
     </View>

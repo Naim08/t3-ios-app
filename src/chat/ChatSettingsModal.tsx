@@ -3,6 +3,8 @@ import { View, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-nat
 import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { useTheme } from '../components/ThemeProvider';
 import { Typography, Surface } from '../ui/atoms';
+import { ModelProviderLogo, getProviderFromModelId } from '../components/ModelProviderLogo';
+import { ModelCapabilityIcons, getModelCapabilities } from '../components/ModelCapabilityIcons';
 import { CreditsDisplay } from '../credits/CreditsDisplay';
 import { AI_MODELS } from '../config/models';
 import { ConversationService } from '../services/conversationService';
@@ -111,16 +113,30 @@ export const ChatSettingsModal = forwardRef<ChatSettingsModalRef, ChatSettingsMo
                 onPress={() => setSelectedModel(model.id)}
               >
                 <View style={styles.modelInfo}>
-                  <Typography
-                    variant="bodyMd"
-                    weight="semibold"
-                    color={theme.colors.textPrimary}
-                  >
-                    {model.name}
-                  </Typography>
+                  <View style={styles.modelTitleRow}>
+                    <ModelProviderLogo 
+                      provider={model.provider || getProviderFromModelId(model.id)} 
+                      size={18}
+                      style={{ marginRight: 8 }}
+                    />
+                    <Typography
+                      variant="bodyMd"
+                      weight="semibold"
+                      color={theme.colors.textPrimary}
+                      style={{ flex: 1 }}
+                    >
+                      {model.name}
+                    </Typography>
+                    <ModelCapabilityIcons 
+                      capabilities={getModelCapabilities(model)}
+                      iconSize={12}
+                      maxIcons={3}
+                    />
+                  </View>
                   <Typography
                     variant="bodySm"
                     color={theme.colors.textSecondary}
+                    style={{ marginTop: 4 }}
                   >
                     {model.description}
                   </Typography>
@@ -233,6 +249,10 @@ const styles = StyleSheet.create({
   },
   modelInfo: {
     flex: 1,
+  },
+  modelTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   radioButton: {
     width: 20,
