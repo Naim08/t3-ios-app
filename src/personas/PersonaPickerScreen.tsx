@@ -12,6 +12,7 @@ import { useTheme } from '../components/ThemeProvider';
 import { usePersona, Persona, PersonaCategory } from '../context/PersonaContext';
 import { useEntitlements } from '../hooks/useEntitlements';
 import { ModelProviderLogo, getProviderFromModelId } from '../components/ModelProviderLogo';
+import { PartnerPersonaIcon } from '../components/PartnerImages';
 import { 
   Typography, 
   Surface, 
@@ -90,16 +91,10 @@ const PersonaCard = ({ persona, onPress, isPremiumLocked, isFavorite = false }: 
             shadowRadius: 6,
             elevation: 3,
           }}>
-            <Typography 
-              variant="h1" 
-              style={{ 
-                fontSize: 36, 
-                lineHeight: 40,
-                textAlign: 'center'
-              }}
-            >
-              {persona.icon}
-            </Typography>
+            <PartnerPersonaIcon 
+              icon={persona.icon}
+              size={36}
+            />
           </View>
           
           {isPremiumLocked && (
@@ -564,9 +559,12 @@ export const PersonaPickerScreen = ({ navigation }: any) => {
                   }`}
                   onPress={() => handlePersonaPress(persona)}
                 >
-                  <Typography variant="h4" className="text-2xl mb-1.5">
-                    {persona.icon}
-                  </Typography>
+                  <View className="mb-1.5">
+                    <PartnerPersonaIcon 
+                      icon={persona.icon}
+                      size={24}
+                    />
+                  </View>
                   <Typography
                     variant="caption"
                     weight="medium"

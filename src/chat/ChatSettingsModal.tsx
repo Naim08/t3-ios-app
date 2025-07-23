@@ -13,6 +13,8 @@ interface ChatSettingsModalProps {
   conversationId?: string;
   onDeleteConversation?: () => void;
   onNavigateToCredits?: () => void;
+  currentModel?: string;
+  onModelChange?: (modelId: string) => void;
 }
 
 export interface ChatSettingsModalRef {
@@ -21,11 +23,11 @@ export interface ChatSettingsModalRef {
 }
 
 export const ChatSettingsModal = forwardRef<ChatSettingsModalRef, ChatSettingsModalProps>(
-  ({ conversationId, onDeleteConversation, onNavigateToCredits }, ref) => {
+  ({ conversationId, onDeleteConversation, onNavigateToCredits, currentModel = 'gpt-3.5-turbo', onModelChange }, ref) => {
     const { theme } = useTheme();
     const bottomSheetRef = useRef<BottomSheet>(null);
     const snapPoints = ['65%'];
-    const [selectedModel, setSelectedModel] = useState('gpt-3.5-turbo');
+    // Remove local selectedModel state - use currentModel prop instead
 
     useImperativeHandle(ref, () => ({
       present: () => bottomSheetRef.current?.expand(),
@@ -48,6 +50,11 @@ export const ChatSettingsModal = forwardRef<ChatSettingsModalRef, ChatSettingsMo
       bottomSheetRef.current?.close();
       onNavigateToCredits?.();
     }, [onNavigateToCredits]);
+
+    const handleModelSelect = useCallback((modelId: string) => {
+      console.log('🔄 ChatSettingsModal: Model selected:', modelId);
+      onModelChange?.(modelId);
+    }, [onModelChange]);
 
     const renderBackdrop = useCallback(
       (props: any) => (
@@ -102,15 +109,15 @@ export const ChatSettingsModal = forwardRef<ChatSettingsModalRef, ChatSettingsMo
                 style={[
                   styles.modelOption,
                   {
-                    backgroundColor: selectedModel === model.id
+                    backgroundColor: currentModel === model.id
                       ? theme.colors.brand['100']
                       : theme.colors.surface,
-                    borderColor: selectedModel === model.id
+                    borderColor: currentModel === model.id
                       ? theme.colors.brand['500']
                       : theme.colors.border,
                   }
                 ]}
-                onPress={() => setSelectedModel(model.id)}
+                onPress={() => handleModelSelect(model.id)}
               >
                 <View style={styles.modelInfo}>
                   <View style={styles.modelTitleRow}>
@@ -145,13 +152,13 @@ export const ChatSettingsModal = forwardRef<ChatSettingsModalRef, ChatSettingsMo
                   style={[
                     styles.radioButton,
                     {
-                      borderColor: selectedModel === model.id
+                      borderColor: currentModel === model.id
                         ? theme.colors.brand['500']
                         : theme.colors.border,
                     }
                   ]}
                 >
-                  {selectedModel === model.id && (
+                  {currentModel === model.id && (
                     <View
                       style={[
                         styles.radioButtonInner,

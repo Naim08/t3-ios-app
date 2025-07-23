@@ -14,6 +14,8 @@ export interface Persona {
   category_id?: string;
   created_by_user_id?: string;
   is_template?: boolean;
+  is_partner_persona?: boolean;
+  partner_persona_id?: string;
   tags?: string[];
   usage_count?: number;
   description?: string;

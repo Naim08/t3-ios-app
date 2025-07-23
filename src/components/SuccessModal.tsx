@@ -1,5 +1,5 @@
 import React, { forwardRef, useCallback, useMemo } from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { StyleSheet, TouchableOpacity } from 'react-native';
 import BottomSheet, { BottomSheetBackdrop, BottomSheetView } from '@gorhom/bottom-sheet';
 import { useTheme } from '../components/ThemeProvider';
 import { Typography, Card } from '../ui/atoms';
@@ -33,7 +33,7 @@ export const SuccessModal = forwardRef<SuccessModalRef, SuccessModalProps>(
 
     // Backdrop component
     const renderBackdrop = useCallback(
-      (props: any) => (
+      (props: React.ComponentProps<typeof BottomSheetBackdrop>) => (
         <BottomSheetBackdrop
           {...props}
           disappearsOnIndex={-1}
@@ -65,13 +65,12 @@ export const SuccessModal = forwardRef<SuccessModalRef, SuccessModalProps>(
         backdropComponent={renderBackdrop}
         enablePanDownToClose
         handleIndicatorStyle={{
-          backgroundColor: theme.colors.textTertiary,
-          width: 40,
+          ...styles.handleIndicator,
+          backgroundColor: theme.colors.textTertiary
         }}
         backgroundStyle={{
-          backgroundColor: theme.colors.surface,
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
+          ...styles.background,
+          backgroundColor: theme.colors.surface
         }}
       >
         <BottomSheetView style={styles.content}>
@@ -80,14 +79,13 @@ export const SuccessModal = forwardRef<SuccessModalRef, SuccessModalProps>(
             padding="lg"
             borderRadius="2xl"
             style={{
-              backgroundColor: theme.colors.success['50'],
-              alignItems: 'center',
-              marginBottom: 24,
+              ...styles.card,
+              backgroundColor: theme.colors.success['50']
             }}
           >
             <Typography
               variant="h1"
-              style={{ fontSize: 48, marginBottom: 12 }}
+              style={styles.icon}
             >
               {icon}
             </Typography>
@@ -95,14 +93,14 @@ export const SuccessModal = forwardRef<SuccessModalRef, SuccessModalProps>(
               variant="h5"
               weight="bold"
               color={theme.colors.success['700']}
-              style={{ marginBottom: 8, textAlign: 'center' }}
+              style={styles.title}
             >
               {title}
             </Typography>
             <Typography
               variant="bodyMd"
               color={theme.colors.success['600']}
-              style={{ textAlign: 'center', lineHeight: 22 }}
+              style={styles.message}
             >
               {message}
             </Typography>
@@ -125,7 +123,7 @@ export const SuccessModal = forwardRef<SuccessModalRef, SuccessModalProps>(
                 variant="bodyMd"
                 weight="semibold"
                 color="#FFFFFF"
-                style={{ textAlign: 'center' }}
+                style={styles.buttonText}
               >
                 {buttonText}
               </Typography>
@@ -142,5 +140,31 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
     paddingBottom: 32,
+  },
+  handleIndicator: {
+    width: 40,
+  },
+  background: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  card: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  icon: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  title: {
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  message: {
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  buttonText: {
+    textAlign: 'center',
   },
 });

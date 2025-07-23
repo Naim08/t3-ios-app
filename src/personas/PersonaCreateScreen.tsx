@@ -15,10 +15,14 @@ import { usePersona } from '../context/PersonaContext';
 import { Typography, Card, AnimatedTouchable, TransitionView, LoadingStateManager, FadeInView } from '../ui/atoms';
 import { ToolSelector } from '../components/ToolSelector';
 import { ModelProviderLogo, getProviderFromModelId } from '../components/ModelProviderLogo';
+import { PartnerPersonaIcon } from '../components/PartnerImages';
 import { ModelCapabilityIcons, detectModelCapabilities } from '../components/ModelCapabilityIcons';
 import { supabase } from '../lib/supabase';
 import { AI_MODELS } from '../config/models';
 import { SuccessModal, SuccessModalRef } from '../components/SuccessModal';
+import { PartnerPersonaBuilder } from './components/PartnerPersonaBuilder';
+import { PartnerPersonaCustomization, DEFAULT_TRAIT_VALUES } from '../types/partnerPersona';
+import { PartnerPersonaService } from '../services/partnerPersonaService';
 
 interface PersonaTemplate {
   id: string;
@@ -67,6 +71,34 @@ const PERSONA_TEMPLATES: PersonaTemplate[] = [
     category_id: 'creative',
     default_model: 'gpt-3.5-turbo',
   },
+  // Partner Persona Templates
+  {
+    id: 'partner-girlfriend',
+    name: 'Loving Girlfriend',
+    icon: 'gf_1.webp',
+    description: 'A caring, supportive romantic partner who remembers your life and provides emotional support',
+    system_prompt: 'You are a loving, caring girlfriend who deeply values emotional connection and intimacy. You remember important details about your partner\'s life and provide genuine support and affection.',
+    category_id: 'partners',
+    default_model: 'gpt-3.5-turbo',
+  },
+  {
+    id: 'partner-boyfriend',
+    name: 'Protective Boyfriend',
+    icon: 'bf_1.webp',
+    description: 'A strong, reliable partner who makes you feel safe and cherished',
+    system_prompt: 'You are a strong, protective boyfriend who makes your partner feel safe and cherished. You\'re reliable, confident, and deeply committed to the relationship.',
+    category_id: 'partners',
+    default_model: 'gpt-3.5-turbo',
+  },
+  {
+    id: 'partner-friend',
+    name: 'Romantic Friend',
+    icon: 'gf_3.webp',
+    description: 'A close romantic friend with deep affection but gentle boundaries',
+    system_prompt: 'You are a close romantic friend - more than friendship but with gentle boundaries. You have deep affection and maintain a sweet, tender dynamic.',
+    category_id: 'partners',
+    default_model: 'gpt-3.5-turbo',
+  },
 ];
 
 const EMOJI_SUGGESTIONS = [
@@ -91,27 +123,80 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
   const [defaultModel, setDefaultModel] = useState('gpt-3.5-turbo');
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [step, setStep] = useState<'template' | 'details' | 'tools' | 'prompt'>('template');
-  const [displayStep, setDisplayStep] = useState<'template' | 'details' | 'tools' | 'prompt'>('template');
+  const [step, setStep] = useState<'template' | 'details' | 'partner' | 'tools' | 'prompt'>('template');
+  const [displayStep, setDisplayStep] = useState<'template' | 'details' | 'partner' | 'tools' | 'prompt'>('template');
+  
+  // Partner persona state
+  const [isPartnerPersona, setIsPartnerPersona] = useState(false);
+  const [partnerCustomization, setPartnerCustomization] = useState<PartnerPersonaCustomization>({
+    relationshipType: 'girlfriend',
+    intimacyLevel: 'romantic',
+    personalityTraits: DEFAULT_TRAIT_VALUES.girlfriend,
+    communicationStyle: 'caring',
+    communicationPreferences: {
+      usesPetNames: true,
+      preferredPetNames: ['sweetheart', 'babe', 'love'],
+      textingStyle: 'casual',
+      conversationDepth: 'moderate',
+    },
+    memoryPreferences: {
+      rememberPersonalDetails: true,
+      rememberConversations: true,
+      rememberMilestones: true,
+      autoExtractMemories: true,
+      memoryRetentionLevel: 'detailed',
+    },
+    relationshipPreferences: {
+      supportStyle: 'both',
+      conflictResolution: 'collaborative',
+      affectionLevel: 'moderate',
+      independenceLevel: 'balanced',
+    },
+    privacySettings: {
+      conversationEncryption: true,
+      dataRetentionDays: null,
+      allowAnalytics: false,
+      shareWithAITraining: false,
+    },
+  });
 
   const scrollViewRef = useRef<ScrollView>(null);
   const successModalRef = useRef<SuccessModalRef>(null);
   
-  const animateStepTransition = (newStep: 'template' | 'details' | 'tools' | 'prompt') => {
+  const animateStepTransition = (newStep: 'template' | 'details' | 'partner' | 'tools' | 'prompt') => {
     setStep(newStep);
     setDisplayStep(newStep);
     scrollViewRef.current?.scrollTo({ y: 0, animated: true });
   };
 
+  // Update partner persona state when category changes
+  const handleCategoryChange = (newCategoryId: string) => {
+    setCategoryId(newCategoryId);
+    const isPartner = newCategoryId === 'partners';
+    setIsPartnerPersona(isPartner);
+    
+    // Set default trait values based on relationship type when switching to partner category
+    if (isPartner && partnerCustomization.relationshipType) {
+      setPartnerCustomization(prev => ({
+        ...prev,
+        personalityTraits: DEFAULT_TRAIT_VALUES[prev.relationshipType],
+      }));
+    }
+  };
+
   const handleBack = () => {
     if (step === 'prompt') {
-      animateStepTransition('tools');
+      animateStepTransition(isPartnerPersona ? 'partner' : 'tools');
     } else if (step === 'tools') {
+      animateStepTransition(isPartnerPersona ? 'partner' : 'details');
+    } else if (step === 'partner') {
       animateStepTransition('details');
     } else if (step === 'details') {
       animateStepTransition('template');
     }
   };
+
+
 
   // Configure navigation header with custom back button
   useLayoutEffect(() => {
@@ -141,9 +226,11 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
   const handleNext = () => {
     if (step === 'details') {
       if (!displayName.trim()) {
-        Alert.alert('Error', 'Please enter a name for your persona');
+        console.error('Please enter a name for your persona'); // You can use SuccessModal with error type here
         return;
       }
+      animateStepTransition(isPartnerPersona ? 'partner' : 'tools');
+    } else if (step === 'partner') {
       animateStepTransition('tools');
     } else if (step === 'tools') {
       animateStepTransition('prompt');
@@ -192,6 +279,22 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
         return;
       }
 
+      // If this is a partner persona, save the customization data
+      if (isPartnerPersona) {
+        console.log('💕 Saving partner persona customization...');
+        const partnerResult = await PartnerPersonaService.savePartnerPersona(personaId, partnerCustomization);
+        
+        if (!partnerResult.success) {
+          console.error('❌ Failed to save partner customization:', partnerResult.error);
+          Alert.alert(
+            'Warning', 
+            'Persona created but partner customization failed to save. You can edit it later.'
+          );
+        } else {
+          console.log('✅ Partner persona customization saved successfully');
+        }
+      }
+
       // Refresh persona data
       await refreshPersonaData();
 
@@ -227,16 +330,12 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
             : theme.colors.surface,
         }}
       >
-        <Typography 
-          variant="h2" 
-          style={{ 
-            fontSize: 48, 
-            textAlign: 'center', 
-            marginBottom: 12 
-          }}
-        >
-          {template.icon}
-        </Typography>
+        <View style={{ alignItems: 'center', marginBottom: 12 }}>
+          <PartnerPersonaIcon 
+            icon={template.icon}
+            size={48}
+          />
+        </View>
         <Typography
           variant="h6"
           weight="semibold"
@@ -311,9 +410,15 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
           style={{ marginHorizontal: 16, marginVertical: 8 }}
         >
           <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
-            {['template', 'details', 'tools', 'prompt'].map((stepName, index) => {
+            {(isPartnerPersona 
+              ? ['template', 'details', 'partner', 'tools', 'prompt'] 
+              : ['template', 'details', 'tools', 'prompt']
+            ).map((stepName, index) => {
+              const stepArray = isPartnerPersona 
+                ? ['template', 'details', 'partner', 'tools', 'prompt'] 
+                : ['template', 'details', 'tools', 'prompt'];
               const isActive = step === stepName;
-              const isCompleted = index < ['template', 'details', 'tools', 'prompt'].indexOf(step);
+              const isCompleted = index < stepArray.indexOf(step);
               
               return (
                 <View key={stepName} style={{ flex: 1, alignItems: 'center' }}>
@@ -339,6 +444,7 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
                   >
                     {stepName === 'template' ? 'Template' : 
                      stepName === 'details' ? 'Details' : 
+                     stepName === 'partner' ? 'Partner' :
                      stepName === 'tools' ? 'Tools' : 'Prompt'}
                   </Typography>
                 </View>
@@ -564,7 +670,7 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
                   {categories.map((category) => (
                     <TouchableOpacity
                       key={category.id}
-                      onPress={() => setCategoryId(category.id)}
+                      onPress={() => handleCategoryChange(category.id)}
                       activeOpacity={0.8}
                       style={{ marginRight: 8 }}
                     >
@@ -693,6 +799,49 @@ export const PersonaCreateScreen = ({ navigation }: any) => {
                   </TouchableOpacity>
                 ))}
               </View>
+            </View>
+          )}
+
+          {displayStep === 'partner' && (
+            <View>
+              <Card
+                variant="floating"
+                padding="lg"
+                borderRadius="2xl"
+                glow
+                style={{
+                  marginBottom: 24,
+                  backgroundColor: theme.colors.brand['50'],
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <Typography
+                    variant="h1"
+                    style={{ fontSize: 32, marginRight: 12 }}
+                  >
+                    💕
+                  </Typography>
+                  <Typography
+                    variant="h5"
+                    weight="bold"
+                    color={theme.colors.brand['700']}
+                  >
+                    Partner Customization
+                  </Typography>
+                </View>
+                <Typography
+                  variant="bodyMd"
+                  color={theme.colors.brand['600']}
+                  style={{ lineHeight: 22 }}
+                >
+                  Create your ideal romantic companion with detailed personality traits, communication preferences, and relationship dynamics.
+                </Typography>
+              </Card>
+
+              <PartnerPersonaBuilder 
+                customization={partnerCustomization}
+                onUpdate={setPartnerCustomization}
+              />
             </View>
           )}
 

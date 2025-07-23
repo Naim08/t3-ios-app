@@ -476,8 +476,8 @@ export const EnhancedSettingsScreen = ({ navigation }: EnhancedSettingsScreenPro
             />
           </EnhancedSettingSection>
 
-          {/* Debug Section (Dev only) */}
-          {__DEV__ && (
+          {/* Debug Section (Admin only) */}
+          {user?.email === 'testforge0890@gmail.com' && (
             <EnhancedSettingSection title="Developer" delay={400}>
               <EnhancedSettingRow
                 icon={Search}

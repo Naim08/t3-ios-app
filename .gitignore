@@ -24,3 +24,7 @@ credentials.json
 reference-maps-planner/*
 .windsurf
 .cursorignore
+.claude
+.cursor
+.augment
+.windsurf

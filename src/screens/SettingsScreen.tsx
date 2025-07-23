@@ -301,8 +301,8 @@ export const SettingsScreen = ({ navigation }: SettingsScreenProps) => {
           />
         </SettingSection>
 
-        {/* Debug Section (Dev only) */}
-        {__DEV__ && (
+        {/* Debug Section (Admin only) */}
+        {user?.email === 'testforge0890@gmail.com' && (
           <SettingSection title="Developer">
             <SettingRow
               icon={Search}

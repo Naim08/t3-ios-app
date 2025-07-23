@@ -44,6 +44,7 @@ import { usePersona } from '../context/PersonaContext';
 import { supabase } from '../lib/supabase';
 import { isModelPremium } from '../config/models';
 import { ConversationService } from '../services/conversationService';
+import { PartnerPersonaService } from '../services/partnerPersonaService';
 import { usePerformanceMonitor } from '../utils/performanceMonitor';
 import { useMemoryLeakDetection } from '../utils/memoryLeakDetector';
 
@@ -204,6 +205,11 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
   }, [messages, recordRender, recordMemoryUsage]);
   // Remove inputText state - now handled in ChatInputBar
   const [currentModel, setCurrentModel] = useState<string>('gpt-3.5'); // Will be loaded from storage
+
+  // Debug log for model changes
+  React.useEffect(() => {
+    console.log('🔄 ChatScreen: currentModel updated to:', currentModel);
+  }, [currentModel]);
 
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
@@ -885,6 +891,54 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         setStreamingMessageId(null);
       }
 
+      // Extract memories for partner personas
+      if (currentPersona?.is_partner_persona && conversationIdRef.current) {
+        try {
+          console.log('💕 MEMORY: Partner persona detected, extracting memories...');
+          
+          // Get partner persona data
+          const partnerData = await PartnerPersonaService.getPartnerPersona(currentPersona.id);
+          
+          if (partnerData && partnerData.memory_preferences.autoExtractMemories) {
+            // Get recent messages for memory extraction (last 10 messages)
+            const recentMessages = messages
+              .slice(-10)
+              .map(msg => ({
+                role: msg.role,
+                content: msg.text || '',
+                id: msg.id
+              }));
+            
+            // Extract memories using AI
+            const memoryResult = await PartnerPersonaService.extractMemoriesFromConversation(
+              conversationIdRef.current,
+              recentMessages,
+              partnerData.id
+            );
+            
+            if (memoryResult && memoryResult.memories.length > 0) {
+              // Store extracted memories
+              const storeResult = await PartnerPersonaService.storeMemories(
+                partnerData.id,
+                memoryResult.memories,
+                conversationIdRef.current,
+                dbMessageId || undefined
+              );
+              
+              console.log(`💕 MEMORY: Stored ${storeResult.storedCount} memories from conversation`);
+            }
+            
+            // Check and create auto-milestones
+            await PartnerPersonaService.checkAndCreateAutoMilestones(partnerData.id);
+          } else {
+            console.log('💕 MEMORY: Auto-extract memories is disabled for this partner');
+          }
+        } catch (error) {
+          console.error('❌ MEMORY: Failed to extract memories:', error);
+          // Don't break the chat flow on memory extraction errors
+        }
+      }
+
       // Assistant message is now saved by the client
       refreshCredits();
 
@@ -1296,6 +1350,60 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
       console.log(`🧹 CHAT: Filtered conversation history: ${optimizedHistory.length} -> ${completeExchanges.length} messages (complete exchanges only)`);
     }
     
+    // Inject memory context for partner personas
+    if (currentPersona?.is_partner_persona) {
+      try {
+        console.log('💕 MEMORY: Partner persona detected, injecting memory context...');
+        
+        // Get partner persona data
+        const partnerData = await PartnerPersonaService.getPartnerPersona(currentPersona.id);
+        
+        if (partnerData) {
+          // Get relevant memories for this conversation
+          const relevantMemories = await PartnerPersonaService.getRelevantMemories(
+            partnerData.id,
+            text,
+            5 // Limit to 5 most relevant memories
+          );
+          
+          if (relevantMemories.length > 0) {
+            // Build memory context string
+            const memoryContext = relevantMemories
+              .map(memory => `[${memory.memory_type.toUpperCase()}] ${memory.content}`)
+              .join('\n');
+            
+            const memoryInstruction = `
+
+RELATIONSHIP MEMORY CONTEXT:
+You have access to these important memories about your relationship and conversations. Reference them naturally when relevant:
+
+${memoryContext}
+
+Remember to use these memories to maintain consistency and show that you remember past conversations, but don't force references if they're not relevant to the current topic.`;
+
+            // Find the system message and enhance it with memory context
+            const systemMessageIndex = streamMessages.findIndex(msg => msg.role === 'system');
+            if (systemMessageIndex >= 0) {
+              streamMessages[systemMessageIndex].content += memoryInstruction;
+            } else {
+              // Add as a system message if none exists
+              streamMessages.unshift({
+                role: 'system',
+                content: `You are a romantic AI companion.${memoryInstruction}`
+              });
+            }
+            
+            console.log(`💕 MEMORY: Injected ${relevantMemories.length} relevant memories into context`);
+          } else {
+            console.log('💕 MEMORY: No relevant memories found for current message');
+          }
+        }
+      } catch (error) {
+        console.error('❌ MEMORY: Failed to inject memory context:', error);
+        // Don't break the chat flow on memory injection errors
+      }
+    }
+    
     // Add current user message
     streamMessages.push({ role: 'user', content: text });
 
@@ -1318,6 +1426,28 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
       console.error('❌ Failed to start stream:', error);
     }
   }, [currentModel, remainingTokens, isSubscriber, hasCustomKey, streamingMessageId, currentPersona, messages, navigation, saveMessage, scrollToBottom, startStream, isStreaming, isLoadingConversation]);
+
+  const handleSendAudio = useCallback(async (uri: string, duration: number) => {
+    console.log('🎤 CHAT: handleSendAudio called with URI:', uri, 'Duration:', duration);
+    
+    try {
+      // For now, we'll show a placeholder message while we implement the full audio processing
+      // In the future, this will:
+      // 1. Upload audio to Supabase Storage
+      // 2. Call OpenAI Whisper Edge Function for transcription
+      // 3. Send the transcribed text as a regular message
+      
+      const transcribedText = `[Audio message - ${Math.round(duration)}s]`;
+      console.log('🎤 CHAT: Transcribed text (placeholder):', transcribedText);
+      
+      // Now we can properly call handleSend
+      await handleSend(transcribedText);
+      
+    } catch (error) {
+      console.error('🎤 CHAT: Audio processing error:', error);
+      // Could show an error toast here
+    }
+  }, [handleSend]);
 
   const renderMessage: ListRenderItem<Message> = useCallback(({ item, index }: { item: Message; index: number }) => {
     // Determine if this message is part of a group (consecutive messages from same sender)
@@ -1387,6 +1517,7 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
   const renderEmptyState = useMemo(() => <EmptyState onSuggestionPress={handleSuggestionPress} />, [handleSuggestionPress]);
   
   const handleModelSelect = async (modelId: string) => {
+    console.log('🔄 ChatScreen: Model change requested:', modelId);
     setCurrentModel(modelId);
     
     // Save the model to the conversation if it exists
@@ -1577,6 +1708,7 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         {/* Input Bar */}
         <ChatInputBar
           onSend={handleSend}
+          onSendAudio={handleSendAudio}
           isStreaming={isStreaming}
           onAbortStream={abortStream}
           onRetryStream={retryStream}
@@ -1587,6 +1719,7 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
           initialText={pendingSuggestion}
           onTextConsumed={() => setPendingSuggestion('')}
           disabled={isLoadingConversation}
+          currentModelId={currentModel}
         />
       </KeyboardAvoidingView>
       
@@ -1596,6 +1729,8 @@ const ChatScreenComponent: React.FC<ChatScreenProps> = ({ navigation, route }) =
         conversationId={currentConversationId || undefined}
         onDeleteConversation={handleDeleteConversation}
         onNavigateToCredits={handleNavigateToCredits}
+        currentModel={currentModel}
+        onModelChange={handleModelSelect}
       />
     </View>
   );

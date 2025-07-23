@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { Typography, TextField } from '../../ui/atoms';
 import { useTheme } from '../../components/ThemeProvider';
+import { AudioInputButton } from './AudioInputButton';
+import { detectModelCapabilities } from '../../components/ModelCapabilityIcons';
 
 // Conditional imports for gradients
 let LinearGradient: any, BlurView: any;
@@ -24,6 +26,7 @@ try {
 
 interface ChatInputBarProps {
   onSend: (text: string) => void;
+  onSendAudio?: (uri: string, duration: number) => void;
   isStreaming: boolean;
   onAbortStream: () => void;
   onRetryStream: () => void;
@@ -34,10 +37,12 @@ interface ChatInputBarProps {
   initialText?: string;
   onTextConsumed?: () => void;
   disabled?: boolean;
+  currentModelId?: string;
 }
 
 export const ChatInputBar = memo(({ 
-  onSend, 
+  onSend,
+  onSendAudio,
   isStreaming, 
   onAbortStream, 
   onRetryStream,
@@ -47,7 +52,8 @@ export const ChatInputBar = memo(({
   onScrollToBottom,
   initialText = '',
   onTextConsumed,
-  disabled = false
+  disabled = false,
+  currentModelId
 }: ChatInputBarProps) => {
   const { theme } = useTheme();
   const [inputText, setInputText] = useState('');
@@ -123,7 +129,28 @@ export const ChatInputBar = memo(({
     }, 300);
   }, [onScrollToBottom]);
 
+  // Check if current model supports audio input
+  const supportsAudioInput = currentModelId ? 
+    detectModelCapabilities(currentModelId).includes('audio-input') : 
+    false;
+
+  // Debug logging (only log when conditions change)
+  React.useEffect(() => {
+    console.log('🎤 Audio Button - Model:', currentModelId, 'Supports Audio:', supportsAudioInput, 'Show Button:', supportsAudioInput && !inputText.trim());
+  }, [currentModelId, supportsAudioInput, inputText]);
+
   const canSend = inputText.trim().length > 0 && !isStreaming && !disabled;
+
+  const handleAudioRecordingComplete = useCallback((uri: string, duration: number) => {
+    if (onSendAudio && !isStreaming && !disabled) {
+      onSendAudio(uri, duration);
+    }
+  }, [onSendAudio, isStreaming, disabled]);
+
+  const handleAudioError = useCallback((error: Error) => {
+    console.error('Audio recording error:', error);
+    // You could show a toast or alert here
+  }, []);
 
   return (
     <BlurView intensity={100} style={styles.inputBarBlur}>
@@ -235,6 +262,15 @@ export const ChatInputBar = memo(({
                 onFocus={handleFocus}
               />
             </View>
+            
+            {/* Audio Input Button - show when model supports audio and no text is entered */}
+            {(supportsAudioInput || __DEV__) && !inputText.trim() && (
+              <AudioInputButton
+                onRecordingComplete={handleAudioRecordingComplete}
+                onError={handleAudioError}
+                disabled={disabled || isStreaming}
+              />
+            )}
             
             <Animated.View style={{ transform: [{ scale: sendButtonScale }] }}>
               <TouchableOpacity
